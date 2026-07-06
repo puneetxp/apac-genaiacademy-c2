@@ -1,0 +1,4 @@
+# file: /Users/puneetsharma/ai-bharat-hackathon/rural-farming-platform/python/app/orm/user.py
+# hypothesis_version: 6.151.9
+
+['address_line', 'cognito_user_id', 'created_at', 'district', 'email', 'enable', 'facebook_id', 'google_id', 'id', 'latitude', 'longitude', 'mfa_enabled', 'name', 'password', 'phone', 'pincode', 'preferred_language', 'state', 'updated_at', 'user_type', 'users', 'village']

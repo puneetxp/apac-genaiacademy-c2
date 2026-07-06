@@ -1,0 +1,66 @@
+{
+  "name": "quality_verification",
+  "table": "quality_verifications",
+  "crud": {
+    "isuper": ["c", "r", "u", "a", "d"],
+    "islogin": ["c", "r", "u", "d"]
+  },
+  "enable": 1,
+  "relations": {
+    "advance_booking": {
+      "name": "booking_id",
+      "key": "id",
+      "table": "advance_bookings"
+    }
+  },
+  "data": [
+    {
+      "name": "booking_id",
+      "datatype": "number",
+      "sql_attribute": "NOT NULL",
+      "mysql_data": "BIGINT"
+    },
+    {
+      "name": "verification_date",
+      "datatype": "Date",
+      "sql_attribute": "NOT NULL DEFAULT CURRENT_TIMESTAMP",
+      "mysql_data": "timestamp"
+    },
+    {
+      "name": "verifier_type",
+      "datatype": "string",
+      "sql_attribute": "NOT NULL",
+      "mysql_data": "varchar(50)"
+    },
+    {
+      "name": "quality_grade",
+      "datatype": "string",
+      "sql_attribute": "NOT NULL",
+      "mysql_data": "varchar(10)"
+    },
+    {
+      "name": "quality_metrics",
+      "datatype": "text",
+      "sql_attribute": "NULL",
+      "mysql_data": "text"
+    },
+    {
+      "name": "photos",
+      "datatype": "text",
+      "sql_attribute": "NULL",
+      "mysql_data": "text"
+    },
+    {
+      "name": "passed",
+      "datatype": "boolean",
+      "sql_attribute": "NOT NULL DEFAULT 0",
+      "mysql_data": "TINYINT(1)"
+    },
+    {
+      "name": "notes",
+      "datatype": "text",
+      "sql_attribute": "NULL",
+      "mysql_data": "text"
+    }
+  ]
+}

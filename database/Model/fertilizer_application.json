@@ -1,0 +1,217 @@
+{
+    "name": "fertilizer_application",
+    "table": "fertilizer_applications",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "farm": {
+            "name": "farm_id",
+            "key": "id",
+            "table": "farms"
+        },
+        "farm_plot": {
+            "name": "plot_id",
+            "key": "id",
+            "table": "farm_plots"
+        },
+        "crop": {
+            "name": "crop_id",
+            "key": "id",
+            "table": "crops"
+        },
+        "soil_test_before": {
+            "name": "soil_test_before_id",
+            "key": "id",
+            "table": "soil_test_results"
+        },
+        "soil_test_after": {
+            "name": "soil_test_after_id",
+            "key": "id",
+            "table": "soil_test_results"
+        }
+    },
+    "data": [
+        {
+            "name": "farm_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "plot_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Optional specific plot'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "crop_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Associated crop if applicable'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "application_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL COMMENT 'Date of fertilizer application'",
+            "mysql_data": "date"
+        },
+        {
+            "name": "fertilizer_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'Type: urea, dap, mop, vermicompost, etc.'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "category",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'Category: organic or chemical'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "quantity_kg",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Total quantity applied (kg)'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "quantity_per_hectare",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Quantity per hectare (kg/ha)'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "area_applied_hectares",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Area where fertilizer was applied'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "nitrogen_kg",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Nitrogen provided (kg)'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "phosphorus_kg",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Phosphorus provided (kg)'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "potassium_kg",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Potassium provided (kg)'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "cost_total",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Total cost (₹)'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "cost_per_kg",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Cost per kg (₹)'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "cost_per_hectare",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Cost per hectare (₹)'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "application_method",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Method: broadcast, banding, foliar, etc.'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "growth_stage",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Crop growth stage: basal, vegetative, flowering'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "days_after_planting",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Days after planting when applied'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "soil_test_before_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Soil test before application'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "soil_test_after_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Soil test after application'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "effectiveness_score",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Effectiveness score (0-100) based on soil response'",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "soil_response_notes",
+            "datatype": "text",
+            "sql_attribute": "NULL COMMENT 'Observed soil response and crop performance'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "weather_conditions",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Weather during application'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "temperature_celsius",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Temperature during application'",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "rainfall_mm_24h",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Rainfall within 24 hours after application'",
+            "mysql_data": "DECIMAL(6,2)"
+        },
+        {
+            "name": "recommended_by",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Source: system, agronomist, farmer'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "recommendation_id",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Reference to recommendation that suggested this'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "notes",
+            "datatype": "text",
+            "sql_attribute": "NULL COMMENT 'Additional notes'",
+            "mysql_data": "text"
+        }
+    ]
+}

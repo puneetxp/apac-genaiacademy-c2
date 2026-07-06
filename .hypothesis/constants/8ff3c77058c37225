@@ -1,0 +1,4 @@
+# file: /Users/puneetsharma/ai-bharat-hackathon/rural-farming-platform/python/app/core/db.py
+# hypothesis_version: 6.151.9
+
+[5432, ' OR ', ' ORDER BY id DESC ', ' WHERE ', '*', ', ', '.env', '?', 'AND', 'IN', 'OR', 'farming_db', 'id', 'ignore', 'localhost', 'postgres', 'utf-8']

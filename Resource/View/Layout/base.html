@@ -1,0 +1,30 @@
+@props({"title":"The", "description":"Your Website is working you can contact puneetxp.github.io for Do the Work.","canonical":"","stylesheet":[],"script":[]})
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+  <meta charset="utf-8">
+  <title>{$title}</title>
+  <meta name="description" content="{$description}" />
+  <link rel="canonical" href="{$canonical}" />
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link href="/assets/css/main.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  @foreach($stylesheet i $i)
+  <link rel="stylesheet" href="{{$i}}">
+  @endforeach
+</head>
+<body class="d-flex flex-column min-vh-100 ">
+  <div id="server_end" class="d-flex flex-column flex-grow-1 ">
+    {$child}
+  </div>
+  <div id="app">
+  </div>
+  <script src="https://unpkg.com/headroom.js@0.12.0/dist/headroom.min.js"></script>
+  <script src="/assets/js/index.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,213 @@
+{
+    "name": "transport_booking",
+    "table": "transport_bookings",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "transaction": {
+            "name": "transaction_id",
+            "key": "id",
+            "table": "livestock_transactions"
+        },
+        "provider": {
+            "name": "provider_id",
+            "key": "id",
+            "table": "transport_providers"
+        },
+        "requester": {
+            "name": "requester_id",
+            "key": "id",
+            "table": "users"
+        }
+    },
+    "data": [
+        {
+            "name": "transaction_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "provider_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "requester_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'User who requested transport (buyer or seller)'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "pickup_address",
+            "datatype": "text",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "pickup_latitude",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,8)"
+        },
+        {
+            "name": "pickup_longitude",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(11,8)"
+        },
+        {
+            "name": "delivery_address",
+            "datatype": "text",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "delivery_latitude",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,8)"
+        },
+        {
+            "name": "delivery_longitude",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(11,8)"
+        },
+        {
+            "name": "distance_km",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Calculated distance in kilometers'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "livestock_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'cattle, goat, sheep, poultry, buffalo'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "livestock_count",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "animal_value",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Total value of animals for insurance'",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "transport_cost",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Base transport cost in INR'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "insurance_opted",
+            "datatype": "boolean",
+            "sql_attribute": "DEFAULT 0",
+            "mysql_data": "TINYINT(1)"
+        },
+        {
+            "name": "insurance_cost",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Insurance cost in INR'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "total_cost",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Total cost including insurance'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "scheduled_pickup_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "estimated_delivery_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "actual_pickup_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "actual_delivery_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "status",
+            "datatype": "string",
+            "sql_attribute": "DEFAULT 'pending' COMMENT 'pending, confirmed, in_transit, delivered, cancelled'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "tracking_updates",
+            "datatype": "text",
+            "sql_attribute": "NULL COMMENT 'JSON array of status updates with timestamps'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "special_instructions",
+            "datatype": "text",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "rating",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Rating 1-5 after delivery'",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "review",
+            "datatype": "text",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "reviewed_at",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "cancelled_at",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "cancellation_reason",
+            "datatype": "text",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        }
+    ]
+}

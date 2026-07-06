@@ -1,0 +1,25 @@
+runtime: python312
+
+entrypoint: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2
+
+instance_class: F2
+
+automatic_scaling:
+  min_instances: 0
+  max_instances: 10
+  target_cpu_utilization: 0.65
+
+env_variables:
+  GOOGLE_CLOUD_PROJECT: "project-5449519e-8afb-48ac-b77"
+  GOOGLE_CLOUD_REGION: "us-central1"
+  GOOGLE_CLOUD_SQL_INSTANCE: "project-5449519e-8afb-48ac-b77:us-central1:cropsense-postgres-db"
+  POSTGRES_USER: "cropsense"
+  POSTGRES_DB: "cropsense"
+  POSTGRES_PASSWORD: "changeme-strong-password"
+  ENVIRONMENT: "production"
+  SECRET_KEY: "change-this-to-a-long-random-string-min-32-chars"
+  OPENWEATHER_API_KEY: "your-openweather-api-key-here"
+  UPLOAD_DIR: "/tmp/uploads/quality_photos"
+  ALLOWED_ORIGINS: "https://project-5449519e-8afb-48ac-b77.web.app,https://project-5449519e-8afb-48ac-b77.firebaseapp.com,https://project-5449519e-8afb-48ac-b77.uc.r.appspot.com"
+
+

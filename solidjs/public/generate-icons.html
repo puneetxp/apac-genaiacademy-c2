@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generate PWA Icons</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+    canvas {
+      border: 1px solid #ddd;
+      margin: 10px;
+    }
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .icon-item {
+      text-align: center;
+    }
+    button {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #16a34a;
+    }
+  </style>
+</head>
+<body>
+  <h1>CropSense AI - PWA Icon Generator</h1>
+  <p>This tool generates placeholder icons for the PWA. Replace these with professionally designed icons later.</p>
+  
+  <button onclick="generateAllIcons()">Generate All Icons</button>
+  <button onclick="downloadAllIcons()">Download All Icons</button>
+  
+  <div id="icons" class="icon-grid"></div>
+
+  <script>
+    const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+    const canvases = {};
+
+    function generateIcon(size) {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // Background gradient (green theme)
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#22c55e');
+      gradient.addColorStop(1, '#16a34a');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+
+      // Draw a simple leaf/crop icon
+      ctx.fillStyle = 'white';
+      
+      // Leaf shape
+      const centerX = size / 2;
+      const centerY = size / 2;
+      const leafWidth = size * 0.4;
+      const leafHeight = size * 0.6;
+      
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY - leafHeight / 2);
+      ctx.quadraticCurveTo(
+        centerX + leafWidth / 2, centerY,
+        centerX, centerY + leafHeight / 2
+      );
+      ctx.quadraticCurveTo(
+        centerX - leafWidth / 2, centerY,
+        centerX, centerY - leafHeight / 2
+      );
+      ctx.fill();
+
+      // Add "CS" text for smaller icons
+      if (size >= 128) {
+        ctx.fillStyle = '#16a34a';
+        ctx.font = `bold ${size * 0.25}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('CS', centerX, centerY);
+      }
+
+      return canvas;
+    }
+
+    function generateAllIcons() {
+      const iconsDiv = document.getElementById('icons');
+      iconsDiv.innerHTML = '';
+
+      sizes.forEach(size => {
+        const canvas = generateIcon(size);
+        canvases[size] = canvas;
+
+        const div = document.createElement('div');
+        div.className = 'icon-item';
+        
+        const label = document.createElement('div');
+        label.textContent = `${size}x${size}`;
+        label.style.marginBottom = '8px';
+        label.style.fontWeight = 'bold';
+        
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = 'Download';
+        downloadBtn.style.fontSize = '12px';
+        downloadBtn.style.padding = '6px 12px';
+        downloadBtn.onclick = () => downloadIcon(size);
+        
+        div.appendChild(label);
+        div.appendChild(canvas);
+        div.appendChild(downloadBtn);
+        iconsDiv.appendChild(div);
+      });
+
+      // Generate badge icon
+      const badgeCanvas = generateBadgeIcon();
+      canvases['badge'] = badgeCanvas;
+      
+      const badgeDiv = document.createElement('div');
+      badgeDiv.className = 'icon-item';
+      const badgeLabel = document.createElement('div');
+      badgeLabel.textContent = 'Badge 72x72';
+      badgeLabel.style.marginBottom = '8px';
+      badgeLabel.style.fontWeight = 'bold';
+      const badgeBtn = document.createElement('button');
+      badgeBtn.textContent = 'Download';
+      badgeBtn.style.fontSize = '12px';
+      badgeBtn.style.padding = '6px 12px';
+      badgeBtn.onclick = () => downloadIcon('badge');
+      badgeDiv.appendChild(badgeLabel);
+      badgeDiv.appendChild(badgeCanvas);
+      badgeDiv.appendChild(badgeBtn);
+      iconsDiv.appendChild(badgeDiv);
+    }
+
+    function generateBadgeIcon() {
+      const size = 72;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // Simple circular badge
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // White "C" letter
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${size * 0.6}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('C', size / 2, size / 2);
+
+      return canvas;
+    }
+
+    function downloadIcon(size) {
+      const canvas = canvases[size];
+      if (!canvas) return;
+
+      const filename = size === 'badge' ? 'badge-72.png' : `icon-${size}.png`;
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    function downloadAllIcons() {
+      Object.keys(canvases).forEach(size => {
+        setTimeout(() => downloadIcon(size), 100 * Object.keys(canvases).indexOf(size));
+      });
+    }
+
+    // Generate icons on page load
+    window.onload = generateAllIcons;
+  </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# file: /Users/puneetsharma/ai-bharat-hackathon/rural-farming-platform/python/app/core/model.py
+# hypothesis_version: 6.151.9
+
+['*', 'Model', 'OR', 'callback', 'class', 'count', 'id', 'key', 'name', 'page_items', 'page_number', 'result', 'total_pages']

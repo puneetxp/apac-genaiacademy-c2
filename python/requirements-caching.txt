@@ -1,0 +1,2 @@
+# Additional dependencies for API caching (Task 18.2)
+redis==5.2.1

@@ -1,0 +1,129 @@
+name: Deploy to Production (GCP)
+
+on:
+  push:
+    branches: [ google-cloud ]
+    tags:
+      - 'v*.*.*-gcp'
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: us-central1
+  GAR_REPOSITORY: cropsense-repo
+  SERVICE_NAME: cropsense-backend
+  GCS_FRONTEND_BUCKET: cropsense-frontend-prod
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to Cloud Run
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+    
+    - name: Configure Docker for Artifact Registry
+      run: |
+        gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+    
+    - name: Build and Push Docker Image
+      working-directory: ./python
+      run: |
+        IMAGE_TAG=${{ github.sha }}
+        REGISTRY_URL=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}
+        
+        docker build -t $REGISTRY_URL:$IMAGE_TAG .
+        docker build -t $REGISTRY_URL:latest .
+        
+        docker push $REGISTRY_URL:$IMAGE_TAG
+        docker push $REGISTRY_URL:latest
+        echo "image=$REGISTRY_URL:$IMAGE_TAG" >> $GITHUB_ENV
+    
+    - name: Deploy to Google Cloud Run
+      uses: google-github-actions/deploy-cloudrun@v2
+      with:
+        service: ${{ env.SERVICE_NAME }}
+        region: ${{ env.GCP_REGION }}
+        image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.GAR_REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+        flags: '--allow-unauthenticated --service-account=cropsense-run-sa@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com'
+        env_vars: |
+          GOOGLE_CLOUD_PROJECT=${{ env.GCP_PROJECT }}
+          GOOGLE_CLOUD_REGION=${{ env.GCP_REGION }}
+          ENVIRONMENT=production
+
+  deploy-frontend:
+    name: Deploy Frontend to Google Cloud Storage
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: solidjs/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: ./solidjs
+      run: npm ci
+    
+    - name: Build for production
+      working-directory: ./solidjs
+      run: npm run build
+      env:
+        # Vite will build with backend API pointing to Cloud Run URL
+        VITE_API_URL: ${{ secrets.GCP_BACKEND_URL }}
+        VITE_ENV: production
+    
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+    
+    - name: Upload static assets to GCS Bucket
+      run: |
+        # Sync build outputs with cache settings
+        gsutil -m rsync -r -d ./solidjs/dist gs://${{ env.GCS_FRONTEND_BUCKET }}
+        
+        # Set cache controls for entrypoint files
+        gsutil setmeta -h "Cache-Control:public, max-age=0, must-revalidate" gs://${{ env.GCS_FRONTEND_BUCKET }}/index.html
+        gsutil setmeta -h "Cache-Control:public, max-age=0, must-revalidate" gs://${{ env.GCS_FRONTEND_BUCKET }}/manifest.json
+
+  verification:
+    name: Post-Deployment Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.14'
+    
+    - name: Install dependencies
+      run: pip install pytest httpx
+      
+    - name: Run verification tests
+      run: |
+        # Call health check of backend API
+        curl -f "${{ secrets.GCP_BACKEND_URL }}/health"

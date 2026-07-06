@@ -1,0 +1,31 @@
+# AWS Services Configuration Variables
+# Copy this file to terraform.tfvars and update with your values
+
+# AWS Region
+aws_region = "ap-south-1"
+
+# Environment
+environment = "production"
+
+# Project Name
+project_name = "rural-farming-platform"
+
+# VPC Configuration
+vpc_id = "vpc-xxxxxxxxx"  # Your VPC ID
+
+# Private Subnets for ElastiCache
+private_subnet_ids = [
+  "subnet-xxxxxxxxx",  # Private subnet 1
+  "subnet-yyyyyyyyy"   # Private subnet 2
+]
+
+# Application CIDR Blocks (for security group rules)
+app_cidr_blocks = [
+  "10.0.1.0/24",  # Application subnet 1
+  "10.0.2.0/24"   # Application subnet 2
+]
+
+# ElastiCache Node Type
+# Options: cache.t3.micro, cache.t3.small, cache.t3.medium, cache.r6g.large
+cache_node_type = "cache.t3.micro"  # For development/testing
+# cache_node_type = "cache.t3.small"  # For production (recommended)

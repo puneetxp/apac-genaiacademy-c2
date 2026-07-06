@@ -1,0 +1,92 @@
+error.log
+node_modules
+nbproject
+vendor
+storage
+composer.lock
+python/.hypothesis
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+python/venv/
+python/env/
+python/ENV/
+python/.venv
+
+# Environment variables
+python/.env
+python/.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Alembic
+python/alembic/versions/__pycache__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# SolidJS / Frontend
+solidjs/node_modules/
+solidjs/dist/
+solidjs/.solid/
+solidjs/.output/
+solidjs/.vercel/
+solidjs/.netlify/gcp-sa-key.json
+**/.terraform/providers/
+
+# Environment files with secrets
+.env
+.env.*
+*.env
+python/.env
+python/.env.*
+solidjs/.env
+solidjs/.env.*
+
+# Token caches
+*.bin
+microsoft_token_cache.bin
+python/microsoft_token_cache.bin
+python/scripts/microsoft_token_cache.bin
+
+# Terraform state and credentials
+terraform/terraform.tfvars
+terraform/gcp/terraform.tfstate*
+cognito-only/terraform.tfstate*
+terraform/set_aws_credentials.sh
+verify_iam_permissions.sh
+
+# CSV with potential PII
+*.csv
+
+# Python virtual environment
+python/venv/
+venv/
+
+# Secrets in scripts
+scripts/test_clean_boto.py

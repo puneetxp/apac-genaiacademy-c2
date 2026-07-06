@@ -1,0 +1,67 @@
+{
+    "name": "crop_market_data",
+    "table": "crop_market_data",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "public": [
+            "r"
+        ]
+    },
+    "enable": 1,
+    "data": [
+        {
+            "name": "crop_name",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "district",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "price_per_kg",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "season",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'kharif, rabi, zaid'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "yoy_growth",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Year over year growth percentage'",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "demand_level",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'high, medium, low'",
+            "mysql_data": "varchar(255)"
+        }
+    ]
+}

@@ -1,0 +1,58 @@
+
+@mixin header {
+ .nav-link,
+ .navbar-brand,
+ .main .navbar-toggler i {
+  color: white;
+  transition: color 0.2s linear;
+
+  &:hover {
+   color: mediumpurple;
+  }
+ }
+
+ .navbar-brand {
+  font-size: 1.8rem;
+ }
+
+ .navbar-toggler {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 2rem;
+
+  i {
+   font-size: 1.5rem;
+  }
+ }
+
+ &.headroom {
+  transition: all 0.2s linear;
+ }
+
+ &.headroom--top,
+ &.headroom--top.headroom--pinned {
+  background-color: transparent;
+ }
+
+ &.headroom--not-top.headroom--pinned {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  background-color:  var(--bs-body-bg);
+  filter: opacity(0.9);
+
+  .nav-link,
+  .navbar-brand,
+  .navbar-toggler i {
+   color:  var(--bs-body-color);
+  }
+ }
+
+ &.headroom--pinned {
+  transform: translateY(0%);
+ }
+
+ &.headroom--unpinned {
+  transform: translateY(-100%);
+ }
+}

@@ -1,0 +1,14 @@
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Authentication state
+.auth/
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*

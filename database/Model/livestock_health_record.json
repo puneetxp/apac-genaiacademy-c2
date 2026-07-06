@@ -1,0 +1,77 @@
+{
+    "name": "livestock_health_record",
+    "table": "livestock_health_records",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "livestock": {
+            "name": "livestock_id",
+            "key": "id",
+            "table": "livestock"
+        }
+    },
+    "data": [
+        {
+            "name": "livestock_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "record_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'vaccination, checkup, treatment, breeding'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "record_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "description",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "veterinarian_name",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "cost",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "next_due_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL COMMENT 'For vaccinations and checkups'",
+            "mysql_data": "date"
+        },
+        {
+            "name": "notes",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        }
+    ]
+}

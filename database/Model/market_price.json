@@ -1,0 +1,135 @@
+{
+    "name": "market_price",
+    "table": "market_prices",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "r"
+        ],
+        "public": [
+            "r"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "marketplace_listing": {
+            "name": "listing_id",
+            "key": "id",
+            "table": "marketplace_listings"
+        },
+        "advance_booking": {
+            "name": "booking_id",
+            "key": "id",
+            "table": "advance_bookings"
+        },
+        "livestock_transaction": {
+            "name": "transaction_id",
+            "key": "id",
+            "table": "livestock_transactions"
+        }
+    },
+    "data": [
+        {
+            "name": "listing_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Reference to marketplace listing'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "booking_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Reference to advance booking'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "transaction_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Reference to livestock transaction'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "item_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'crop, livestock'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "item_name",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'Crop type or livestock species'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "variety",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Crop variety or livestock breed'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "price_per_unit",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Price per kg for crops, per animal for livestock'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "quantity",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Quantity in kg or number of animals'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "total_value",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Total transaction value in INR'",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "quality_grade",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'A, B, C grade for crops'",
+            "mysql_data": "varchar(10)"
+        },
+        {
+            "name": "quality_premium_percent",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Premium percentage for quality'",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "district",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "transaction_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "season",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Kharif, Rabi, Zaid'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "source",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'marketplace, booking, livestock_transaction'",
+            "mysql_data": "varchar(50)"
+        }
+    ]
+}

@@ -1,0 +1,86 @@
+{
+    "name": "weather_alert",
+    "table": "weather_alerts",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "r"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "farm": {
+            "name": "farm_id",
+            "key": "id",
+            "table": "farms"
+        }
+    },
+    "data": [
+        {
+            "name": "farm_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'NULL for region-wide alerts'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "district",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "alert_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'extreme_heat, heavy_rain, storm, hail, drought'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "severity",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'low, medium, high, critical'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "message",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "recommendation",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Action recommendations'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "valid_from",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "valid_until",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "timestamp"
+        },
+        {
+            "name": "is_active",
+            "datatype": "boolean",
+            "sql_attribute": "DEFAULT 1",
+            "mysql_data": "TINYINT(1)"
+        }
+    ]
+}

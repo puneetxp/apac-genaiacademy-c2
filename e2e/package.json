@@ -1,0 +1,32 @@
+{
+  "name": "cropsense-ai-e2e",
+  "version": "1.0.0",
+  "description": "E2E tests and demo recording for Rural Farming Platform",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:demo": "playwright test tests/demo-complete-workflow.spec.ts",
+    "test:auth": "playwright test tests/01-auth-flow.spec.ts",
+    "test:farm": "playwright test tests/02-farm-registration.spec.ts",
+    "test:crop-planning": "playwright test tests/03-ai-crop-planning.spec.ts",
+    "test:plot-analysis": "playwright test tests/04-ai-plot-analysis.spec.ts",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen http://localhost:5173",
+    "install:browsers": "playwright install"
+  },
+  "keywords": [
+    "e2e",
+    "playwright",
+    "testing",
+    "demo",
+    "video-recording"
+  ],
+  "author": "Rural Farming Platform Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.10.0"
+  }
+}

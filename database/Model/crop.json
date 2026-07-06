@@ -1,0 +1,112 @@
+{
+    "name": "crop",
+    "table": "crops",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "farm_plot": {
+            "name": "farm_plot_id",
+            "key": "id",
+            "table": "farm_plots"
+        },
+        "annual_strategy": {
+            "name": "strategy_id",
+            "key": "id",
+            "table": "annual_strategies"
+        }
+    },
+    "data": [
+        {
+            "name": "farm_plot_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "strategy_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Link to annual strategy'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "crop_name",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "crop_variety",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "season",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'kharif, rabi, zaid'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "planting_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "expected_harvest_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "area",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Area in acres'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "expected_yield",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Expected yield in kg'",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "expected_profit",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "actual_yield",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Actual yield in kg'",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "actual_profit",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "status",
+            "datatype": "string",
+            "sql_attribute": "DEFAULT 'planned' COMMENT 'planned, planted, growing, harvested'",
+            "mysql_data": "varchar(255)"
+        }
+    ]
+}

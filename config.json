@@ -1,0 +1,79 @@
+{
+    "alias": {
+        "component": "c",
+        "layout": "l"
+    },
+    "env": {
+        "host": "localhost",
+        "sslhost": ".localhost",
+        "dbhost": "localhost",
+        "dbname": "cropsense_dev",
+        "dbuser": "puneetsharma",
+        "dbpwd": "password",
+        "samesite": "Strict",
+        "httponly": true,
+        "secure": false
+    },
+    "fresh": true,
+    "controller": true,
+    "model": true,
+    "mysql": false,
+    "postgresql": true,
+    "interface": true,
+    "front-end": [
+        "solidjs"
+    ],
+    "back-end": [
+        "python"
+    ],
+    "public": ".\/solidjs\/dist\/",
+    "solidjs": {
+        "outputPath": ".\/solidjs\/src",
+        "assets": []
+    },
+    "fastapi": {
+        "outputPath": ".\/backend\/app",
+        "pythonVersion": "3.14.3",
+        "fastapiVersion": "0.115.6",
+        "sqlalchemyVersion": "2.0.36",
+        "pydanticVersion": "2.10.5"
+    },
+    "table": {
+        "active_role": true,
+        "annual_strategy": false,
+        "buyer_interest": true,
+        "crop": false,
+        "crop_market_data": false,
+        "farm": true,
+        "farm_plot": false,
+        "livestock": true,
+        "livestock_health_record": false,
+        "marketplace_listing": true,
+        "role": true,
+        "user": true,
+        "weather_alert": false,
+        "livestock_marketplace_listing": false,
+        "fertilizer_application": false,
+        "crop_milestone": false,
+        "soil_test_result": false,
+        "advance_booking": false,
+        "quality_verification": false,
+        "payment_milestone": false,
+        "ai_usage_quota": true,
+        "pest_disease_alert": false,
+        "pest_disease_data": false,
+        "supply_match": false,
+        "supply_request": false,
+        "livestock_listing": false,
+        "livestock_transaction": false,
+        "transport_booking": false,
+        "transport_provider": false,
+        "market_price": false,
+        "price_prediction": false,
+        "crop_expense": false,
+        "shc_state_district_code": false,
+        "slusi_ingestion_run": false,
+        "slusi_lcc_report": false,
+        "slusi_microwatershed_map": false
+    }
+}

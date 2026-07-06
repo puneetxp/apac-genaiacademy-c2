@@ -1,0 +1,142 @@
+{
+    "name": "livestock",
+    "table": "livestock",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "farm": {
+            "name": "farm_id",
+            "key": "id",
+            "table": "farms"
+        },
+        "user": {
+            "name": "farmer_id",
+            "key": "id",
+            "table": "users"
+        }
+    },
+    "data": [
+        {
+            "name": "farm_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "farmer_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "species",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'cattle, goat, poultry, buffalo'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "breed",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "quantity",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL DEFAULT 1",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "purchase_price",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "purchase_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "purpose",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'dairy, meat, breeding, eggs'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "expected_roi",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Expected return on investment'",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "break_even_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "status",
+            "datatype": "string",
+            "sql_attribute": "DEFAULT 'active' COMMENT 'active, sold, deceased'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "latitude",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Livestock location GPS latitude (optional, can differ from farm)'",
+            "mysql_data": "DECIMAL(10,8)"
+        },
+        {
+            "name": "longitude",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Livestock location GPS longitude (optional)'",
+            "mysql_data": "DECIMAL(11,8)"
+        },
+        {
+            "name": "pincode",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Livestock location postal code'",
+            "mysql_data": "varchar(10)"
+        },
+        {
+            "name": "state",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Livestock location state'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "district",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Livestock location district'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "village",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Livestock location village/VPO'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "address_line",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Full livestock location address'",
+            "mysql_data": "varchar(255)"
+        }
+    ]
+}

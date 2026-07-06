@@ -1,0 +1,95 @@
+{
+    "name": "crop_milestone",
+    "table": "crop_milestones",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "crop": {
+            "name": "crop_id",
+            "key": "id",
+            "table": "crops"
+        }
+    },
+    "data": [
+        {
+            "name": "crop_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "stage",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'germination, vegetative, flowering, maturation'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "expected_start_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "expected_end_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "actual_start_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "actual_end_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "status",
+            "datatype": "string",
+            "sql_attribute": "DEFAULT 'pending' COMMENT 'pending, in_progress, completed, delayed'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "progress_percentage",
+            "datatype": "number",
+            "sql_attribute": "DEFAULT 0 COMMENT 'Progress 0-100'",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "recommendations",
+            "datatype": "text",
+            "sql_attribute": "NULL COMMENT 'JSON array of stage-specific recommendations'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "notes",
+            "datatype": "text",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "alert_sent",
+            "datatype": "boolean",
+            "sql_attribute": "DEFAULT 0",
+            "mysql_data": "TINYINT(1)"
+        }
+    ]
+}

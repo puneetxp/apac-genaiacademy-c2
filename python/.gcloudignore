@@ -1,0 +1,16 @@
+.gcloudignore
+.git
+.gitignore
+venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+tests/
+.pytest_cache/
+uploads/
+.hypothesis/
+*.db
+*.sh
+docs/
+tools/

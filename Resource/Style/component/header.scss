@@ -1,0 +1,12 @@
+@use "_header";
+$primary: #4e54c8;
+@import "../variable/ligth";
+@import "../variable/dark";
+.header {
+  color: white;
+  @include header.header;
+  padding:1.0rem 0 ;
+  &.header.headroom--top, .header.headroom--top.headroom--pinned{
+    background-color: $primary;
+  }
+}

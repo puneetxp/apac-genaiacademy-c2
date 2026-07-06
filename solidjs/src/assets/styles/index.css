@@ -1,0 +1,201 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+    /* Prevent text size adjustment on mobile */
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Smooth scrolling */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Optimize font rendering on mobile */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Remove tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe area insets for notched devices */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+@layer components {
+  /* Touch-friendly buttons with minimum size */
+  .btn-primary {
+    @apply bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors;
+    @apply min-h-touch-android min-w-[120px] font-medium;
+    @apply active:scale-95 transform transition-transform;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-900 px-6 py-3 rounded-lg hover:bg-gray-300 transition-colors;
+    @apply min-h-touch-android min-w-[120px] font-medium;
+    @apply active:scale-95 transform transition-transform;
+  }
+  
+  /* Mobile-optimized cards */
+  .card {
+    @apply bg-white rounded-lg shadow-md p-4 sm:p-6;
+  }
+
+  /* Touch-friendly form inputs */
+  input, select, textarea {
+    @apply min-h-touch-android text-base;
+    /* Prevent zoom on iOS when focusing inputs */
+    font-size: 16px;
+  }
+
+  /* Mobile-friendly links */
+  a {
+    @apply min-h-touch active:opacity-70 transition-opacity;
+  }
+
+  /* Swipeable container */
+  .swipeable {
+    @apply overflow-x-auto snap-x snap-mandatory;
+    @apply scrollbar-hide;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Loading skeleton for better perceived performance */
+  .skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+
+  /* Bottom navigation safe area */
+  .bottom-nav {
+    @apply pb-safe-bottom;
+  }
+}
+
+@layer utilities {
+  /* Touch-friendly spacing */
+  .touch-spacing {
+    @apply space-y-4;
+  }
+
+  /* Mobile-optimized text sizes */
+  .text-mobile-sm {
+    @apply text-sm sm:text-base;
+  }
+  
+  .text-mobile-base {
+    @apply text-base sm:text-lg;
+  }
+  
+  .text-mobile-lg {
+    @apply text-lg sm:text-xl;
+  }
+
+  /* Prevent text selection on interactive elements */
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* GPU acceleration for smooth animations */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* PWA-specific animations */
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-slide-down {
+    animation: slideDown 0.3s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-fade-out {
+    animation: fadeOut 0.3s ease-out;
+  }
+
+  /* Safe area padding utilities */
+  .pb-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .pt-safe-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .pl-safe-left {
+    padding-left: env(safe-area-inset-left, 0);
+  }
+
+  .pr-safe-right {
+    padding-right: env(safe-area-inset-right, 0);
+  }
+}
+
+/* Keyframe animations for PWA components */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

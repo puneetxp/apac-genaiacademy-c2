@@ -1,0 +1,348 @@
+{
+    "name": "farm",
+    "table": "farms",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "a",
+            "c",
+            "r",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": [
+        {
+            "name": "user",
+            "alias": "user_id"
+        },
+        {
+            "name": "user",
+            "alias": "owner_id"
+        }
+    ],
+    "data": [
+        {
+            "name": "name",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)",
+            "comment": "Farm name"
+        },
+        {
+            "name": "description",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text",
+            "comment": "Farm description"
+        },
+        {
+            "name": "location_state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)",
+            "comment": "State where farm is located"
+        },
+        {
+            "name": "location_district",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)",
+            "comment": "District where farm is located"
+        },
+        {
+            "name": "location_block",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)",
+            "comment": "Block/Tehsil where farm is located"
+        },
+        {
+            "name": "location_village",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)",
+            "comment": "Village/VPO where farm is located"
+        },
+        {
+            "name": "latitude",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,8)",
+            "comment": "Farm GPS latitude (optional)"
+        },
+        {
+            "name": "longitude",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(11,8)",
+            "comment": "Farm GPS longitude (optional)"
+        },
+        {
+            "name": "total_area",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Total farm area"
+        },
+        {
+            "name": "cultivable_area",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Cultivable area"
+        },
+        {
+            "name": "area_unit",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)",
+            "comment": "Area unit (acres, hectares, etc.)"
+        },
+        {
+            "name": "primary_soil_type",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)",
+            "comment": "Primary soil type"
+        },
+        {
+            "name": "soil_ph",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,1)",
+            "comment": "Soil pH level"
+        },
+        {
+            "name": "soil_characteristics",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb",
+            "comment": "Detailed soil characteristics"
+        },
+        {
+            "name": "irrigation_type",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)",
+            "comment": "Irrigation type"
+        },
+        {
+            "name": "water_availability",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)",
+            "comment": "Water availability status"
+        },
+        {
+            "name": "previous_crops",
+            "datatype": "array",
+            "sql_attribute": "NULL",
+            "mysql_data": "text[]",
+            "comment": "List of previously grown crops"
+        },
+        {
+            "name": "farming_experience_years",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "integer",
+            "comment": "Years of farming experience"
+        },
+        {
+            "name": "investment_capacity_per_acre",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Investment capacity per acre"
+        },
+        {
+            "name": "farm_profile_embedding",
+            "datatype": "vector",
+            "sql_attribute": "NULL",
+            "mysql_data": "vector(512)",
+            "comment": "Farm profile vector embedding for AI"
+        },
+        {
+            "name": "is_active",
+            "datatype": "boolean",
+            "sql_attribute": "NULL DEFAULT true",
+            "mysql_data": "boolean",
+            "comment": "Farm active status"
+        },
+        {
+            "name": "is_verified",
+            "datatype": "boolean",
+            "sql_attribute": "NULL DEFAULT false",
+            "mysql_data": "boolean",
+            "comment": "Farm verification status"
+        },
+        {
+            "name": "nitrogen",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Nitrogen content"
+        },
+        {
+            "name": "phosphorus",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Phosphorus content"
+        },
+        {
+            "name": "potassium",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Potassium content"
+        },
+        {
+            "name": "ph_level",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(4,2)",
+            "comment": "pH level"
+        },
+        {
+            "name": "organic_carbon",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)",
+            "comment": "Organic carbon percentage"
+        },
+        {
+            "name": "electrical_conductivity",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)",
+            "comment": "Electrical conductivity"
+        },
+        {
+            "name": "sulfur",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Sulfur ppm"
+        },
+        {
+            "name": "zinc",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Zinc ppm"
+        },
+        {
+            "name": "iron",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Iron ppm"
+        },
+        {
+            "name": "boron",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Boron ppm"
+        },
+        {
+            "name": "copper",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Copper ppm from SHC WMS"
+        },
+        {
+            "name": "manganese",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)",
+            "comment": "Manganese ppm from SHC WMS"
+        },
+        {
+            "name": "soil_depth_class",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)",
+            "comment": "Soil depth class from SHC WMS (e.g. Shallow, Deep)"
+        },
+        {
+            "name": "slope_class",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)",
+            "comment": "Slope class from SHC WMS (e.g. 0-3%, 3-5%)"
+        },
+        {
+            "name": "erosion_class",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)",
+            "comment": "Erosion severity class from SHC WMS (e.g. e1, e2)"
+        },
+        {
+            "name": "soil_texture_class",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)",
+            "comment": "Soil texture class from SHC WMS (e.g. Fine, Sandy)"
+        },
+        {
+            "name": "land_capability_class",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(10)",
+            "comment": "Land Capability Class from SHC WMS (I-VIII)"
+        },
+        {
+            "name": "land_irrigability_class",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(10)",
+            "comment": "Land Irrigability Class from SHC WMS"
+        },
+        {
+            "name": "hydrological_soil_group",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(10)",
+            "comment": "Hydrological Soil Group from SHC WMS (B, B-C, C, D)"
+        },
+        {
+            "name": "shc_data_source",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)",
+            "comment": "Source attribution for SHC data"
+        },
+        {
+            "name": "shc_fetched_at",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "timestamp",
+            "comment": "When SHC WMS data was last fetched for this farm"
+        },
+        {
+            "name": "shc_partial_data",
+            "datatype": "boolean",
+            "sql_attribute": "NULL DEFAULT false",
+            "mysql_data": "boolean",
+            "comment": "True if some SHC WMS styles were unavailable during fetch"
+        },
+        {
+            "name": "shc_unavailable_styles",
+            "datatype": "array",
+            "sql_attribute": "NULL",
+            "mysql_data": "text[]",
+            "comment": "List of SHC WMS styles that were unavailable during last fetch"
+        }
+    ]
+}

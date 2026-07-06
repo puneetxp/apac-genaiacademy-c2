@@ -1,0 +1,143 @@
+{
+    "name": "farm_plot",
+    "table": "farm_plots",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "farm": {
+            "name": "farm_id",
+            "key": "id",
+            "table": "farms"
+        }
+    },
+    "data": [
+        {
+            "name": "farm_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "plot_name",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "area",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Area in acres'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "soil_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'Clay, Sandy, Loamy'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "irrigation_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'Rain-fed, Canal, Borewell, Mixed'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "district",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "previous_crops",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'JSON array of previous crops'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "investment_capacity",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Budget per acre'",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "nitrogen",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "phosphorus",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "potassium",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "ph_level",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(4,2)"
+        },
+        {
+            "name": "organic_carbon",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "electrical_conductivity",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "sulfur",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "zinc",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "iron",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "boron",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        }
+    ]
+}

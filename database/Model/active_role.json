@@ -1,0 +1,44 @@
+{
+    "name": "active_role",
+    "table": "active_roles",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "d",
+            "p",
+            "a"
+        ],
+        "islogin": [
+            "r"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "user": {
+            "name": "user_id",
+            "key": "id",
+            "table": "users"
+        },
+        "role": {
+            "name": "role_id",
+            "key": "id",
+            "table": "roles"
+        }
+    },
+    "data": [
+        {
+            "name": "user_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "role_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        }
+    ]
+}

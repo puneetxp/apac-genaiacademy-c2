@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline Support Test Suite</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f9fafb;
+    }
+    h1 {
+      color: #22c55e;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 30px;
+    }
+    .test-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .test-section h2 {
+      margin-top: 0;
+      color: #1f2937;
+      font-size: 18px;
+    }
+    button {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px 5px 5px 0;
+    }
+    button:hover {
+      background: #16a34a;
+    }
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+    .status.pass {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .status.fail {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .status.pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .log {
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .log-entry {
+      margin: 4px 0;
+    }
+    .log-entry.success {
+      color: #059669;
+    }
+    .log-entry.error {
+      color: #dc2626;
+    }
+    .log-entry.info {
+      color: #3b82f6;
+    }
+    .metric {
+      display: inline-block;
+      margin-right: 20px;
+      padding: 8px 12px;
+      background: #f3f4f6;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .metric strong {
+      color: #22c55e;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌾 CropSense AI - Offline Support Test Suite</h1>
+  <p class="subtitle">Comprehensive testing for PWA offline functionality</p>
+
+  <!-- Service Worker Status -->
+  <div class="test-section">
+    <h2>1. Service Worker Status</h2>
+    <div id="sw-status">
+      <span class="status pending">Checking...</span>
+    </div>
+    <div class="log" id="sw-log"></div>
+  </div>
+
+  <!-- Cache Storage -->
+  <div class="test-section">
+    <h2>2. Cache Storage</h2>
+    <button onclick="checkCache()">Check Cache</button>
+    <button onclick="clearCache()">Clear Cache</button>
+    <div id="cache-metrics" style="margin-top: 10px;"></div>
+    <div class="log" id="cache-log"></div>
+  </div>
+
+  <!-- Offline Queue -->
+  <div class="test-section">
+    <h2>3. Offline Queue</h2>
+    <button onclick="testQueue()">Test Queue</button>
+    <button onclick="clearQueue()">Clear Queue</button>
+    <div id="queue-metrics" style="margin-top: 10px;"></div>
+    <div class="log" id="queue-log"></div>
+  </div>
+
+  <!-- Network Simulation -->
+  <div class="test-section">
+    <h2>4. Network Simulation</h2>
+    <button onclick="simulateOffline()">Simulate Offline</button>
+    <button onclick="simulateOnline()">Simulate Online</button>
+    <div id="network-status" style="margin-top: 10px;">
+      <span class="status" id="network-indicator">Online</span>
+    </div>
+    <div class="log" id="network-log"></div>
+  </div>
+
+  <!-- Install Prompt -->
+  <div class="test-section">
+    <h2>5. Install Prompt</h2>
+    <button onclick="testInstallPrompt()">Test Install Prompt</button>
+    <button onclick="resetInstallPrompt()">Reset Prompt State</button>
+    <div class="log" id="install-log"></div>
+  </div>
+
+  <!-- Background Sync -->
+  <div class="test-section">
+    <h2>6. Background Sync</h2>
+    <button onclick="testBackgroundSync()">Test Background Sync</button>
+    <div class="log" id="sync-log"></div>
+  </div>
+
+  <script>
+    // Logging utilities
+    function log(elementId, message, type = 'info') {
+      const logEl = document.getElementById(elementId);
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // 1. Service Worker Status
+    async function checkServiceWorker() {
+      const statusEl = document.getElementById('sw-status');
+      
+      if (!('serviceWorker' in navigator)) {
+        statusEl.innerHTML = '<span class="status fail">Not Supported</span>';
+        log('sw-log', 'Service workers not supported in this browser', 'error');
+        return;
+      }
+
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        
+        if (registration) {
+          statusEl.innerHTML = '<span class="status pass">Active</span>';
+          log('sw-log', 'Service worker is registered and active', 'success');
+          log('sw-log', `Scope: ${registration.scope}`, 'info');
+          
+          if (registration.active) {
+            log('sw-log', `State: ${registration.active.state}`, 'info');
+          }
+          
+          if (registration.waiting) {
+            log('sw-log', 'Update available (waiting)', 'info');
+          }
+        } else {
+          statusEl.innerHTML = '<span class="status fail">Not Registered</span>';
+          log('sw-log', 'Service worker not registered', 'error');
+        }
+      } catch (error) {
+        statusEl.innerHTML = '<span class="status fail">Error</span>';
+        log('sw-log', `Error: ${error.message}`, 'error');
+      }
+    }
+
+    // 2. Cache Storage
+    async function checkCache() {
+      try {
+        const cacheNames = await caches.keys();
+        log('cache-log', `Found ${cacheNames.length} cache(s)`, 'success');
+        
+        let totalSize = 0;
+        let totalEntries = 0;
+        
+        for (const cacheName of cacheNames) {
+          const cache = await caches.open(cacheName);
+          const keys = await cache.keys();
+          totalEntries += keys.length;
+          
+          log('cache-log', `Cache "${cacheName}": ${keys.length} entries`, 'info');
+          
+          // Sample first 5 entries
+          for (let i = 0; i < Math.min(5, keys.length); i++) {
+            log('cache-log', `  - ${keys[i].url}`, 'info');
+          }
+        }
+        
+        document.getElementById('cache-metrics').innerHTML = `
+          <span class="metric"><strong>${cacheNames.length}</strong> Caches</span>
+          <span class="metric"><strong>${totalEntries}</strong> Entries</span>
+        `;
+      } catch (error) {
+        log('cache-log', `Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function clearCache() {
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+        log('cache-log', `Cleared ${cacheNames.length} cache(s)`, 'success');
+        document.getElementById('cache-metrics').innerHTML = '';
+      } catch (error) {
+        log('cache-log', `Error: ${error.message}`, 'error');
+      }
+    }
+
+    // 3. Offline Queue
+    function testQueue() {
+      try {
+        // Simulate queuing an action
+        const queue = JSON.parse(localStorage.getItem('offline-queue') || '[]');
+        
+        const testAction = {
+          id: `test-${Date.now()}`,
+          type: 'api-request',
+          method: 'POST',
+          url: '/api/test',
+          body: { test: true },
+          timestamp: Date.now(),
+          retries: 0
+        };
+        
+        queue.push(testAction);
+        localStorage.setItem('offline-queue', JSON.stringify(queue));
+        
+        log('queue-log', `Queued test action: ${testAction.id}`, 'success');
+        updateQueueMetrics();
+      } catch (error) {
+        log('queue-log', `Error: ${error.message}`, 'error');
+      }
+    }
+
+    function clearQueue() {
+      try {
+        localStorage.removeItem('offline-queue');
+        log('queue-log', 'Queue cleared', 'success');
+        updateQueueMetrics();
+      } catch (error) {
+        log('queue-log', `Error: ${error.message}`, 'error');
+      }
+    }
+
+    function updateQueueMetrics() {
+      try {
+        const queue = JSON.parse(localStorage.getItem('offline-queue') || '[]');
+        document.getElementById('queue-metrics').innerHTML = `
+          <span class="metric"><strong>${queue.length}</strong> Queued Actions</span>
+        `;
+      } catch (error) {
+        log('queue-log', `Error: ${error.message}`, 'error');
+      }
+    }
+
+    // 4. Network Simulation
+    function simulateOffline() {
+      log('network-log', 'Simulating offline mode...', 'info');
+      window.dispatchEvent(new Event('offline'));
+      document.getElementById('network-indicator').textContent = 'Offline';
+      document.getElementById('network-indicator').className = 'status fail';
+      log('network-log', 'Offline event dispatched', 'success');
+    }
+
+    function simulateOnline() {
+      log('network-log', 'Simulating online mode...', 'info');
+      window.dispatchEvent(new Event('online'));
+      document.getElementById('network-indicator').textContent = 'Online';
+      document.getElementById('network-indicator').className = 'status pass';
+      log('network-log', 'Online event dispatched', 'success');
+    }
+
+    // 5. Install Prompt
+    function testInstallPrompt() {
+      const dismissed = localStorage.getItem('pwa-install-dismissed');
+      const installed = localStorage.getItem('pwa-installed');
+      
+      log('install-log', `Dismissed: ${dismissed || 'No'}`, 'info');
+      log('install-log', `Installed: ${installed || 'No'}`, 'info');
+      
+      if (dismissed || installed) {
+        log('install-log', 'Install prompt is currently suppressed', 'info');
+      } else {
+        log('install-log', 'Install prompt should be shown', 'success');
+      }
+    }
+
+    function resetInstallPrompt() {
+      localStorage.removeItem('pwa-install-dismissed');
+      localStorage.removeItem('pwa-installed');
+      log('install-log', 'Install prompt state reset', 'success');
+    }
+
+    // 6. Background Sync
+    async function testBackgroundSync() {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        
+        if ('sync' in registration) {
+          await registration.sync.register('sync-offline-queue');
+          log('sync-log', 'Background sync registered successfully', 'success');
+        } else {
+          log('sync-log', 'Background sync not supported', 'error');
+        }
+      } catch (error) {
+        log('sync-log', `Error: ${error.message}`, 'error');
+      }
+    }
+
+    // Initialize
+    window.onload = () => {
+      checkServiceWorker();
+      updateQueueMetrics();
+      
+      // Update network status
+      const updateNetworkStatus = () => {
+        const indicator = document.getElementById('network-indicator');
+        if (navigator.onLine) {
+          indicator.textContent = 'Online';
+          indicator.className = 'status pass';
+        } else {
+          indicator.textContent = 'Offline';
+          indicator.className = 'status fail';
+        }
+      };
+      
+      updateNetworkStatus();
+      window.addEventListener('online', updateNetworkStatus);
+      window.addEventListener('offline', updateNetworkStatus);
+    };
+  </script>
+</body>
+</html>

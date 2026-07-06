@@ -1,0 +1,118 @@
+{
+  "name": "supply_match",
+  "table": "supply_matches",
+  "crud": {
+    "isuper": ["c", "r", "u", "a", "d"],
+    "islogin": ["c", "r", "u", "d"]
+  },
+  "enable": 1,
+  "relations": {
+    "supply_request": {
+      "name": "request_id",
+      "key": "id",
+      "table": "supply_requests"
+    },
+    "marketplace_listing": {
+      "name": "listing_id",
+      "key": "id",
+      "table": "marketplace_listings"
+    },
+    "farmer": {
+      "name": "farmer_id",
+      "key": "id",
+      "table": "users"
+    }
+  },
+  "data": [
+    {
+      "name": "request_id",
+      "datatype": "number",
+      "sql_attribute": "NOT NULL",
+      "mysql_data": "BIGINT"
+    },
+    {
+      "name": "listing_id",
+      "datatype": "number",
+      "sql_attribute": "NULL",
+      "mysql_data": "BIGINT"
+    },
+    {
+      "name": "farmer_id",
+      "datatype": "number",
+      "sql_attribute": "NOT NULL",
+      "mysql_data": "BIGINT"
+    },
+    {
+      "name": "matched_quantity",
+      "datatype": "number",
+      "sql_attribute": "NOT NULL",
+      "mysql_data": "DECIMAL(10,2)"
+    },
+    {
+      "name": "match_score",
+      "datatype": "number",
+      "sql_attribute": "NULL",
+      "mysql_data": "DECIMAL(5,2)"
+    },
+    {
+      "name": "price_offered",
+      "datatype": "number",
+      "sql_attribute": "NULL",
+      "mysql_data": "DECIMAL(10,2)"
+    },
+    {
+      "name": "status",
+      "datatype": "string",
+      "sql_attribute": "NOT NULL DEFAULT 'suggested'",
+      "mysql_data": "varchar(50)"
+    },
+    {
+      "name": "match_explanation",
+      "datatype": "text",
+      "sql_attribute": "NULL",
+      "mysql_data": "text"
+    },
+    {
+      "name": "is_aggregated",
+      "datatype": "boolean",
+      "sql_attribute": "NOT NULL DEFAULT 0",
+      "mysql_data": "TINYINT(1)"
+    },
+    {
+      "name": "aggregation_group_id",
+      "datatype": "string",
+      "sql_attribute": "NULL",
+      "mysql_data": "varchar(100)"
+    },
+    {
+      "name": "farmer_confirmation_status",
+      "datatype": "string",
+      "sql_attribute": "NOT NULL DEFAULT 'pending'",
+      "mysql_data": "varchar(50)"
+    },
+    {
+      "name": "farmer_confirmed_at",
+      "datatype": "Date",
+      "sql_attribute": "NULL",
+      "mysql_data": "timestamp"
+    },
+    {
+      "name": "buyer_accepted_at",
+      "datatype": "Date",
+      "sql_attribute": "NULL",
+      "mysql_data": "timestamp"
+    },
+    {
+      "name": "delivery_status",
+      "datatype": "string",
+      "sql_attribute": "NOT NULL DEFAULT 'pending'",
+      "mysql_data": "varchar(50)"
+    },
+    {
+      "name": "delivery_notes",
+      "datatype": "text",
+      "sql_attribute": "NULL",
+      "mysql_data": "text"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+ warn Expanding --head to --heading. This will stop working in the next major version of npm.
+
+> rural-farming-platform-e2e@1.0.0 test
+> playwright test
+
+🔧 Running global setup...

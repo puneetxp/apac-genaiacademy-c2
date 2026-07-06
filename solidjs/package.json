@@ -1,0 +1,32 @@
+{
+  "name": "farming-platform-frontend",
+  "version": "1.0.0",
+  "description": "Rural Farming & Livestock Management Platform - SolidJS Frontend",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "test": "vitest --run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.15.4",
+    "solid-icons": "^1.1.0",
+    "solid-js": "^1.8.11"
+  },
+  "devDependencies": {
+    "@solidjs/testing-library": "^0.8.10",
+    "@testing-library/jest-dom": "^6.9.1",
+    "autoprefixer": "^10.4.16",
+    "jsdom": "^28.1.0",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "terser": "^5.27.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11",
+    "vite-plugin-solid": "^2.11.10",
+    "vitest": "^4.0.18"
+  }
+}

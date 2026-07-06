@@ -1,0 +1,265 @@
+{
+    "name": "livestock_listing",
+    "table": "livestock_listings",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "u",
+            "d"
+        ],
+        "public": [
+            "r"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "livestock": {
+            "name": "livestock_id",
+            "key": "id",
+            "table": "livestock"
+        },
+        "user": {
+            "name": "farmer_id",
+            "key": "id",
+            "table": "users"
+        }
+    },
+    "data": [
+        {
+            "name": "livestock_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "farmer_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "title",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "description",
+            "datatype": "text",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "species",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'cattle, goat, sheep, poultry, buffalo'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "breed",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "age_years",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Age in years'",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "age_months",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Additional months beyond years'",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "gender",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'male, female, mixed'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "quantity",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL DEFAULT 1",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "purpose",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'dairy, meat, breeding, draft, eggs'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "price",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Price in INR'",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "price_negotiable",
+            "datatype": "boolean",
+            "sql_attribute": "DEFAULT 1",
+            "mysql_data": "TINYINT(1)"
+        },
+        {
+            "name": "weight_kg",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Weight in kilograms'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "health_status",
+            "datatype": "string",
+            "sql_attribute": "DEFAULT 'healthy' COMMENT 'healthy, recovering, pregnant, lactating'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "vaccination_status",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'up_to_date, partial, none'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "last_vaccination_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "milk_production_liters",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Daily milk production for dairy animals'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "breeding_certified",
+            "datatype": "boolean",
+            "sql_attribute": "DEFAULT 0",
+            "mysql_data": "TINYINT(1)"
+        },
+        {
+            "name": "breeding_certification_number",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "genetic_lineage",
+            "datatype": "text",
+            "sql_attribute": "NULL COMMENT 'Parent breed information and lineage'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "photos",
+            "datatype": "text",
+            "sql_attribute": "NULL COMMENT 'JSON array of S3 photo URLs'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "videos",
+            "datatype": "text",
+            "sql_attribute": "NULL COMMENT 'JSON array of S3 video URLs'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "location_state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "location_district",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "location_village",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "latitude",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'GPS latitude (optional)'",
+            "mysql_data": "DECIMAL(10,8)"
+        },
+        {
+            "name": "longitude",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'GPS longitude (optional)'",
+            "mysql_data": "DECIMAL(11,8)"
+        },
+        {
+            "name": "pincode",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(10)"
+        },
+        {
+            "name": "address_line",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Full livestock listing address'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "farmer_contact_phone",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "farmer_contact_email",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "status",
+            "datatype": "string",
+            "sql_attribute": "DEFAULT 'active' COMMENT 'active, sold, reserved, inactive'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "views_count",
+            "datatype": "number",
+            "sql_attribute": "DEFAULT 0",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "interest_count",
+            "datatype": "number",
+            "sql_attribute": "DEFAULT 0",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "inquiry_count",
+            "datatype": "number",
+            "sql_attribute": "DEFAULT 0",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "featured",
+            "datatype": "boolean",
+            "sql_attribute": "DEFAULT 0",
+            "mysql_data": "TINYINT(1)"
+        },
+        {
+            "name": "featured_until",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "timestamp"
+        }
+    ]
+}
