@@ -38,6 +38,19 @@ if [ -d "python/app/services" ]; then
     cp python/app/services/*_service.py "$BACKUP_DIR/services/" 2>/dev/null || true
 fi
 
+# Backup hand-written models that have no database/Model/*.json schema (the generator won't recreate them)
+if [ -d "python/app/models" ]; then
+    mkdir -p "$BACKUP_DIR/models"
+    for model_file in python/app/models/*.py; do
+        [ -e "$model_file" ] || continue
+        model_name=$(basename "$model_file" .py)
+        if [ ! -f "database/Model/${model_name}.json" ]; then
+            echo "  Backing up custom model: $model_name"
+            cp "$model_file" "$BACKUP_DIR/models/"
+        fi
+    done
+fi
+
 echo -e "${GREEN}✓ Backup completed: $BACKUP_DIR${NC}\n"
 
 # Remove old generated files
@@ -72,12 +85,18 @@ if [ -d "$BACKUP_DIR/services" ]; then
     echo "  Restoring custom services..."
     cp "$BACKUP_DIR/services/"*_service.py python/app/services/ 2>/dev/null || true
 fi
+
+if [ -d "$BACKUP_DIR/models" ] && [ -n "$(ls -A "$BACKUP_DIR/models" 2>/dev/null)" ]; then
+    echo "  Restoring custom models..."
+    cp "$BACKUP_DIR/models/"*.py python/app/models/
+fi
 echo -e "${GREEN}✓ Custom files restored${NC}\n"
 
 # Verify Python syntax
 echo -e "${YELLOW}Step 5: Verifying Python syntax...${NC}"
+PYTHON_BIN=$(command -v python3 || command -v python)
 cd python
-python -m py_compile app/api/__init__.py || {
+find app -name "*.py" -print0 | xargs -0 "$PYTHON_BIN" -m py_compile || {
     echo -e "${RED}Error: Generated code has syntax errors${NC}"
     exit 1
 }
