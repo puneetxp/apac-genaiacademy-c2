@@ -149,7 +149,6 @@ jobs:
     
     - name: Run property-based tests
       working-directory: ./python
-      continue-on-error: true
       run: |
         pytest tests/ -v -m "property" --hypothesis-show-statistics
       env:
