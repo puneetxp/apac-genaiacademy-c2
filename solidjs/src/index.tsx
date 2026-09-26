@@ -43,6 +43,9 @@ const SoilFertilizerHubPage = lazy(() => import('./pages/soil/SoilFertilizerHub'
 const PestDiseaseHubPage = lazy(() => import('./pages/pest-disease/PestDiseaseHub'));
 const LivestockHubPage = lazy(() => import('./pages/livestock/LivestockHub'));
 const VeterinaryDoctorsPage = lazy(() => import('./pages/livestock/VeterinaryDoctors'));
+const PashuHomePage = lazy(() => import('./pages/livestock/PashuHome'));
+const AllServicesPage = lazy(() => import('./pages/AllServices'));
+const DietPlanPage = lazy(() => import('./pages/livestock/DietPlan'));
 const TransportTrackingPage = lazy(() => import('./pages/transport/TransportTracking'));
 const NotificationsPage = lazy(() => import('./pages/notifications/Notifications'));
 
@@ -78,6 +81,9 @@ const SoilFertilizerHubPageWrapped: Component = () => <ProtectedRoute><SoilFerti
 const PestDiseaseHubPageWrapped: Component = () => <ProtectedRoute><PestDiseaseHubPage /></ProtectedRoute>;
 const LivestockHubPageWrapped: Component = () => <ProtectedRoute><LivestockHubPage /></ProtectedRoute>;
 const VeterinaryDoctorsPageWrapped: Component = () => <ProtectedRoute><VeterinaryDoctorsPage /></ProtectedRoute>;
+const PashuHomePageWrapped: Component = () => <ProtectedRoute><PashuHomePage /></ProtectedRoute>;
+const AllServicesPageWrapped: Component = () => <ProtectedRoute><AllServicesPage /></ProtectedRoute>;
+const DietPlanPageWrapped: Component = () => <ProtectedRoute><DietPlanPage /></ProtectedRoute>;
 const TransportTrackingPageWrapped: Component = () => <ProtectedRoute><TransportTrackingPage /></ProtectedRoute>;
 const NotificationsPageWrapped: Component = () => <ProtectedRoute><NotificationsPage /></ProtectedRoute>;
 
@@ -143,6 +149,9 @@ render(
       <Route path="/climate/hub" component={ClimateHubPageWrapped} />
       <Route path="/soil/hub" component={SoilFertilizerHubPageWrapped} />
       <Route path="/pest-disease/hub" component={PestDiseaseHubPageWrapped} />
+      <Route path="/livestock" component={PashuHomePageWrapped} />
+      <Route path="/menu" component={AllServicesPageWrapped} />
+      <Route path="/livestock/diet-plan" component={DietPlanPageWrapped} />
       <Route path="/livestock/hub" component={LivestockHubPageWrapped} />
       <Route path="/livestock/doctors" component={VeterinaryDoctorsPageWrapped} />
       <Route path="/transport/tracking" component={TransportTrackingPageWrapped} />
