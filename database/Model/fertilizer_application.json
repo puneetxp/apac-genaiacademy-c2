@@ -12,6 +12,7 @@
         "islogin": [
             "c",
             "r",
+            "a",
             "u",
             "d"
         ]
@@ -173,7 +174,7 @@
         },
         {
             "name": "soil_response_notes",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Observed soil response and crop performance'",
             "mysql_data": "text"
         },
@@ -209,7 +210,7 @@
         },
         {
             "name": "notes",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Additional notes'",
             "mysql_data": "text"
         }

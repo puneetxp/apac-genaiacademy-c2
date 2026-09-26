@@ -1,0 +1,77 @@
+{
+    "name": "user_notification",
+    "table": "user_notifications",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "r",
+            "a",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "user": {
+            "name": "user_id",
+            "key": "id",
+            "table": "users"
+        }
+    },
+    "data": [
+        {
+            "name": "user_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "title",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "message",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL DEFAULT 'info' COMMENT 'alert, info, general, weather, market, booking, livestock'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "link",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(512)"
+        },
+        {
+            "name": "data",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "is_read",
+            "datatype": "boolean",
+            "sql_attribute": "NOT NULL DEFAULT false",
+            "mysql_data": "boolean"
+        },
+        {
+            "name": "read_at",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "timestamp"
+        }
+    ]
+}

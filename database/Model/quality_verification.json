@@ -3,7 +3,7 @@
   "table": "quality_verifications",
   "crud": {
     "isuper": ["c", "r", "u", "a", "d"],
-    "islogin": ["c", "r", "u", "d"]
+    "islogin": ["c", "r", "a", "u", "d"]
   },
   "enable": 1,
   "relations": {
@@ -40,13 +40,13 @@
     },
     {
       "name": "quality_metrics",
-      "datatype": "text",
+      "datatype": "string",
       "sql_attribute": "NULL",
       "mysql_data": "text"
     },
     {
       "name": "photos",
-      "datatype": "text",
+      "datatype": "string",
       "sql_attribute": "NULL",
       "mysql_data": "text"
     },
@@ -58,7 +58,7 @@
     },
     {
       "name": "notes",
-      "datatype": "text",
+      "datatype": "string",
       "sql_attribute": "NULL",
       "mysql_data": "text"
     }

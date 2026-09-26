@@ -1,0 +1,151 @@
+{
+    "name": "historical_yield",
+    "table": "historical_yields",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "r",
+            "a"
+        ],
+        "public": [
+            "r",
+            "a"
+        ]
+    },
+    "enable": 1,
+    "relations": {},
+    "data": [
+        {
+            "name": "crop_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "variety",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(200)"
+        },
+        {
+            "name": "state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "district",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "block",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "year",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "season",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "avg_yield_per_acre",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "min_yield",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "max_yield",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "success_rate",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "farmer_count",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "total_area_cultivated",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "soil_types",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "irrigation_methods",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "avg_rainfall",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(8,2)"
+        },
+        {
+            "name": "avg_temperature",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "quality_distribution",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "avg_quality_grade",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(10)"
+        },
+        {
+            "name": "data_source",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "data_quality_score",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,2)"
+        }
+    ]
+}

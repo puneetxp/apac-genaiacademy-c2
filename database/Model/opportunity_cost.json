@@ -1,0 +1,187 @@
+{
+    "name": "opportunity_cost",
+    "table": "opportunity_costs",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "r",
+            "a"
+        ],
+        "public": [
+            "r",
+            "a"
+        ]
+    },
+    "enable": 1,
+    "relations": {},
+    "data": [
+        {
+            "name": "location_state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "location_district",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "primary_crop",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "alternative_crop",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "season",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "year",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "primary_crop_profit",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "alternative_crop_profit",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "profit_difference",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "primary_crop_investment",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "alternative_crop_investment",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "investment_difference",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "primary_crop_roi",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "alternative_crop_roi",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "roi_difference",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "primary_crop_risk",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "alternative_crop_risk",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "risk_factor",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,2)"
+        },
+        {
+            "name": "primary_crop_demand",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "alternative_crop_demand",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "market_stability_comparison",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "recommended_choice",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "recommendation_confidence",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,2)"
+        },
+        {
+            "name": "recommendation_reasoning",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "soil_suitability_comparison",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "water_requirement_comparison",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "labor_requirement_comparison",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        }
+    ]
+}

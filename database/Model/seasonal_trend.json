@@ -1,0 +1,169 @@
+{
+    "name": "seasonal_trend",
+    "table": "seasonal_trends",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "r",
+            "a"
+        ],
+        "public": [
+            "r",
+            "a"
+        ]
+    },
+    "enable": 1,
+    "relations": {},
+    "data": [
+        {
+            "name": "crop_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "state",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "district",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "planting_season",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "harvest_season",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "optimal_planting_start",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "optimal_planting_end",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "optimal_harvest_start",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "optimal_harvest_end",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "avg_growth_duration_days",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "price_trend_yoy",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "demand_trend_yoy",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "yield_trend_yoy",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "weather_suitability_score",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,2)"
+        },
+        {
+            "name": "pest_disease_risk",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "market_timing_score",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,2)"
+        },
+        {
+            "name": "avg_success_rate",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "farmer_adoption_rate",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "recommended_varieties",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "companion_crops",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "rotation_recommendations",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "analysis_start_year",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "analysis_end_year",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "years_of_data",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        }
+    ]
+}

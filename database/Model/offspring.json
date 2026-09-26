@@ -1,0 +1,118 @@
+{
+    "name": "offspring",
+    "table": "offspring",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "a",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "breeding_record": {
+            "name": "breeding_record_id",
+            "key": "id",
+            "table": "breeding_records"
+        },
+        "livestock": {
+            "name": "livestock_id",
+            "key": "id",
+            "table": "livestock"
+        },
+        "farmer": {
+            "name": "farmer_id",
+            "key": "id",
+            "table": "users"
+        }
+    },
+    "data": [
+        {
+            "name": "breeding_record_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "livestock_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Set once registered as livestock'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "farmer_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Farmer/owner'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "birth_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "gender",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'male, female'",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "birth_weight",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'kg'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "health_status",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL DEFAULT 'healthy' COMMENT 'healthy, weak, deceased'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "current_weight",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'kg'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "growth_rate",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "weaning_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "sale_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "sale_price",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'INR'",
+            "mysql_data": "DECIMAL(12,2)"
+        },
+        {
+            "name": "notes",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        }
+    ]
+}

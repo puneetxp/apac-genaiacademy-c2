@@ -1,3 +1,15 @@
+-- Replace the foreign keys created by the old generator (every relation became an
+-- active_role_id -> active_roles FK) with the real ones from the fixed generator.
+-- Run in one transaction so a failure changes nothing:
+--   psql ... -v ON_ERROR_STOP=1 --single-transaction -f fix_foreign_keys.sql
+
+DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT conrelid::regclass AS tbl, conname FROM pg_constraint
+           WHERE contype = 'f' AND connamespace = 'public'::regnamespace LOOP
+    EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', r.tbl, r.conname);
+  END LOOP;
+END $$;
+
 ALTER TABLE active_roles ADD CONSTRAINT active_role_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
 ALTER TABLE active_roles ADD CONSTRAINT active_role_role_id_foreign FOREIGN KEY ("role_id") REFERENCES roles ("id");
 
@@ -9,10 +21,6 @@ ALTER TABLE ai_usage_quota ADD CONSTRAINT ai_usage_quota_user_id_foreign FOREIGN
 
 ALTER TABLE annual_strategies ADD CONSTRAINT annual_strategy_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");
 ALTER TABLE annual_strategies ADD CONSTRAINT annual_strategy_farmer_id_foreign FOREIGN KEY ("farmer_id") REFERENCES users ("id");
-
-ALTER TABLE breeding_records ADD CONSTRAINT breeding_record_livestock_id_foreign FOREIGN KEY ("livestock_id") REFERENCES livestock ("id");
-ALTER TABLE breeding_records ADD CONSTRAINT breeding_record_farmer_id_foreign FOREIGN KEY ("farmer_id") REFERENCES users ("id");
-ALTER TABLE breeding_records ADD CONSTRAINT breeding_record_mate_id_foreign FOREIGN KEY ("mate_id") REFERENCES livestock ("id");
 
 ALTER TABLE buyer_interests ADD CONSTRAINT buyer_interest_listing_id_foreign FOREIGN KEY ("listing_id") REFERENCES marketplace_listings ("id");
 
@@ -45,9 +53,6 @@ ALTER TABLE livestock_listings ADD CONSTRAINT livestock_listing_farmer_id_foreig
 ALTER TABLE livestock_marketplace_listings ADD CONSTRAINT livestock_marketplace_listing_livestock_id_foreign FOREIGN KEY ("livestock_id") REFERENCES livestock ("id");
 ALTER TABLE livestock_marketplace_listings ADD CONSTRAINT livestock_marketplace_listing_farmer_id_foreign FOREIGN KEY ("farmer_id") REFERENCES users ("id");
 
-ALTER TABLE livestock_roi_predictions ADD CONSTRAINT livestock_roi_prediction_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
-ALTER TABLE livestock_roi_predictions ADD CONSTRAINT livestock_roi_prediction_animal_id_foreign FOREIGN KEY ("animal_id") REFERENCES livestock ("id");
-
 ALTER TABLE livestock_transactions ADD CONSTRAINT livestock_transaction_listing_id_foreign FOREIGN KEY ("listing_id") REFERENCES livestock_listings ("id");
 ALTER TABLE livestock_transactions ADD CONSTRAINT livestock_transaction_seller_id_foreign FOREIGN KEY ("seller_id") REFERENCES users ("id");
 ALTER TABLE livestock_transactions ADD CONSTRAINT livestock_transaction_buyer_id_foreign FOREIGN KEY ("buyer_id") REFERENCES users ("id");
@@ -59,21 +64,12 @@ ALTER TABLE market_prices ADD CONSTRAINT market_price_transaction_id_foreign FOR
 ALTER TABLE marketplace_listings ADD CONSTRAINT marketplace_listing_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");
 ALTER TABLE marketplace_listings ADD CONSTRAINT marketplace_listing_farmer_id_foreign FOREIGN KEY ("farmer_id") REFERENCES users ("id");
 
-ALTER TABLE offspring ADD CONSTRAINT offspring_breeding_record_id_foreign FOREIGN KEY ("breeding_record_id") REFERENCES breeding_records ("id");
-ALTER TABLE offspring ADD CONSTRAINT offspring_livestock_id_foreign FOREIGN KEY ("livestock_id") REFERENCES livestock ("id");
-ALTER TABLE offspring ADD CONSTRAINT offspring_farmer_id_foreign FOREIGN KEY ("farmer_id") REFERENCES users ("id");
-
 ALTER TABLE payment_milestones ADD CONSTRAINT payment_milestone_booking_id_foreign FOREIGN KEY ("booking_id") REFERENCES advance_bookings ("id");
 
 ALTER TABLE pest_disease_alerts ADD CONSTRAINT pest_disease_alert_crop_id_foreign FOREIGN KEY ("crop_id") REFERENCES crops ("id");
 ALTER TABLE pest_disease_alerts ADD CONSTRAINT pest_disease_alert_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");
 
 ALTER TABLE quality_verifications ADD CONSTRAINT quality_verification_booking_id_foreign FOREIGN KEY ("booking_id") REFERENCES advance_bookings ("id");
-
-ALTER TABLE soil_amendments ADD CONSTRAINT soil_amendment_plot_id_foreign FOREIGN KEY ("plot_id") REFERENCES farm_plots ("id");
-ALTER TABLE soil_amendments ADD CONSTRAINT soil_amendment_follow_up_soil_test_id_foreign FOREIGN KEY ("follow_up_soil_test_id") REFERENCES soil_tests ("id");
-
-ALTER TABLE soil_tests ADD CONSTRAINT soil_test_plot_id_foreign FOREIGN KEY ("plot_id") REFERENCES farm_plots ("id");
 
 ALTER TABLE soil_test_results ADD CONSTRAINT soil_test_result_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");
 ALTER TABLE soil_test_results ADD CONSTRAINT soil_test_result_plot_id_foreign FOREIGN KEY ("plot_id") REFERENCES farm_plots ("id");
@@ -89,7 +85,5 @@ ALTER TABLE transport_bookings ADD CONSTRAINT transport_booking_provider_id_fore
 ALTER TABLE transport_bookings ADD CONSTRAINT transport_booking_requester_id_foreign FOREIGN KEY ("requester_id") REFERENCES users ("id");
 
 ALTER TABLE transport_providers ADD CONSTRAINT transport_provider_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
-
-ALTER TABLE user_notifications ADD CONSTRAINT user_notification_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
 
 ALTER TABLE weather_alerts ADD CONSTRAINT weather_alert_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");

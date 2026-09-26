@@ -74,6 +74,22 @@
         "shc_state_district_code": false,
         "slusi_ingestion_run": false,
         "slusi_lcc_report": false,
-        "slusi_microwatershed_map": false
+        "slusi_microwatershed_map": false,
+        "veterinarian": true,
+        "msp_rate": false,
+        "soil_moisture_data": false,
+        "system_setting": false,
+        "breeding_record": false,
+        "offspring": false,
+        "push_subscription": true,
+        "crop_profitability": false,
+        "historical_yield": false,
+        "livestock_roi_prediction": false,
+        "opportunity_cost": false,
+        "seasonal_trend": false,
+        "soil_amendment": false,
+        "soil_test": false,
+        "user_notification": false,
+        "weather_forecast": false
     }
 }

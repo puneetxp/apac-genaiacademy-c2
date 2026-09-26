@@ -12,6 +12,7 @@
         "islogin": [
             "c",
             "r",
+            "a",
             "u",
             "d"
         ],
@@ -53,7 +54,7 @@
         },
         {
             "name": "description",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL",
             "mysql_data": "text"
         },
@@ -155,19 +156,19 @@
         },
         {
             "name": "genetic_lineage",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Parent breed information and lineage'",
             "mysql_data": "text"
         },
         {
             "name": "photos",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'JSON array of S3 photo URLs'",
             "mysql_data": "text"
         },
         {
             "name": "videos",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'JSON array of S3 video URLs'",
             "mysql_data": "text"
         },

@@ -3,7 +3,7 @@
   "table": "payment_milestones",
   "crud": {
     "isuper": ["c", "r", "u", "a", "d"],
-    "islogin": ["c", "r", "u", "d"]
+    "islogin": ["c", "r", "a", "u", "d"]
   },
   "enable": 1,
   "relations": {

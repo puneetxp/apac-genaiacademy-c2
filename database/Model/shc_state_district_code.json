@@ -3,7 +3,7 @@
     "table": "shc_state_district_codes",
     "crud": {
         "isuper": ["r", "a"],
-        "islogin": ["r"]
+        "islogin": ["r", "a"]
     },
     "enable": 0,
     "data": [
