@@ -21,9 +21,10 @@ from app.schemas.breeding import (
 )
 from app.services.livestock_breeding_service import get_breeding_service
 
-router = APIRouter(prefix="/livestock-breeding", tags=["livestock-breeding"])
+from app.core.auth import get_current_active_user
+from fastapi import Depends
 
-
+router = APIRouter(prefix="/livestock-breeding", tags=["livestock-breeding"], dependencies=[Depends(get_current_active_user)])
 # ============================================================================
 # Breeding Record Endpoints
 # ============================================================================

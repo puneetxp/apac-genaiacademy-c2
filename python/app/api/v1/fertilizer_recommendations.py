@@ -15,11 +15,23 @@ import logging
 
 from app.core.database import get_db
 from app.services.fertilizer_recommendation_service import fertilizer_service
+from app.services.farm_access import fetch_one, farm_for_user, plot_for_user
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/fertilizer-recommendations", tags=["fertilizer-recommendations"])
+from app.core.auth import get_current_active_user
 
+router = APIRouter(prefix="/fertilizer-recommendations", tags=["fertilizer-recommendations"], dependencies=[Depends(get_current_active_user)])
+
+
+def _owned(farm_id: int, plot_id: Optional[int], user) -> None:
+    """Owner check (raw SQL via app.core.db.DB): farm must be the user's and the plot on it; 404 otherwise."""
+    try:
+        farm_for_user(farm_id, user)
+        if plot_id is not None and plot_for_user(plot_id, user)["farm_id"] != farm_id:
+            raise LookupError(f"Plot {plot_id} not found")
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 # Request/Response schemas
 class FertilizerPlanRequest(BaseModel):
@@ -65,7 +77,8 @@ async def get_fertilizer_recommendations_root():
 @router.post("/complete-plan", response_model=Dict[str, Any])
 async def generate_complete_fertilizer_plan(
     request: FertilizerPlanRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Generate complete fertilizer plan with recommendations, timing, and cost optimization
@@ -77,6 +90,7 @@ async def generate_complete_fertilizer_plan(
     - Organic vs chemical balancing
     - Cost optimization within budget
     """
+    _owned(request.farm_id, request.plot_id, current_user)
     try:
         logger.info(f"Generating complete fertilizer plan for {request.crop_type} on farm {request.farm_id}")
         
@@ -90,15 +104,10 @@ async def generate_complete_fertilizer_plan(
         
         # If soil test data exists, fetch it
         if request.plot_id:
-            from app.orm.soil_test_result import SoilTestResult
-            from sqlalchemy import select, desc
-            
-            query = select(SoilTestResult).where(
-                SoilTestResult.plot_id == request.plot_id
-            ).order_by(desc(SoilTestResult.test_date)).limit(1)
-            
-            result = await db.execute(query)
-            soil_test = result.scalar_one_or_none()
+            soil_test = fetch_one(
+                "SELECT * FROM soil_test_results WHERE plot_id = ? ORDER BY test_date DESC, id DESC LIMIT 1",
+                [request.plot_id],
+            )
             
             if soil_test:
                 logger.info(f"Using soil test data from {soil_test.test_date}")
@@ -313,7 +322,8 @@ async def get_farm_fertilizer_recommendations(
     crop_type: str = Query(..., description="Crop type"),
     area_hectares: float = Query(..., gt=0, description="Area in hectares"),
     planting_date: date = Query(..., description="Planting date"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get fertilizer recommendations for a specific farm using latest soil test data
@@ -321,22 +331,16 @@ async def get_farm_fertilizer_recommendations(
     This endpoint automatically fetches the latest soil test results for the farm/plot
     and generates appropriate fertilizer recommendations.
     """
+    _owned(farm_id, plot_id, current_user)
     try:
         logger.info(f"Fetching fertilizer recommendations for farm {farm_id}")
         
         # Fetch latest soil test
-        from app.orm.soil_test_result import SoilTestResult
-        from sqlalchemy import select, desc, and_
-        
-        query = select(SoilTestResult).where(SoilTestResult.farm_id == farm_id)
-        
+        sql, bind = "SELECT * FROM soil_test_results WHERE farm_id = ?", [farm_id]
         if plot_id:
-            query = query.where(SoilTestResult.plot_id == plot_id)
-        
-        query = query.order_by(desc(SoilTestResult.test_date)).limit(1)
-        
-        result = await db.execute(query)
-        soil_test = result.scalar_one_or_none()
+            sql += " AND plot_id = ?"
+            bind.append(plot_id)
+        soil_test = fetch_one(sql + " ORDER BY test_date DESC, id DESC LIMIT 1", bind)
         
         if not soil_test:
             raise HTTPException(

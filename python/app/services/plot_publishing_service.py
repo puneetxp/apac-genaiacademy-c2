@@ -9,13 +9,14 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from decimal import Decimal
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from typing import Any as AsyncSession  # db kept for compatibility; queries use app.core.db.DB
 
-from app.orm.farm_plot import FarmPlot
-from app.orm.marketplace_listing import MarketplaceListing
-from app.orm.user import User
+from app.services.farm_access import Row, fetch_one, is_admin
 from app.services.plot_analysis_service import PlotAnalysisService
+
+# Rows are farm_access.Row (dict with attribute access); aliases keep the type hints readable.
+FarmPlot = Row
+User = Row
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,8 @@ class PlotPublishingService:
         quantity_quintals: float,
         quality_grade: str,
         price_per_quintal: float,
-        farmer_id: int
+        farmer_id: int,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Publish a plot to marketplace with AI predictions
@@ -60,12 +62,10 @@ class PlotPublishingService:
         if not plot:
             raise ValueError(f"Plot {plot_id} not found")
         
-        # Verify plot belongs to farmer
-        farm_result = await self.db.execute(
-            select(FarmPlot).where(FarmPlot.id == plot_id)
-        )
-        plot_data = farm_result.scalar_one_or_none()
-        if not plot_data:
+        # Verify plot belongs to farmer (farm_plots -> farms.user_id); admins may publish any plot.
+        # A plot owned by someone else is reported as "not found".
+        plot_data = plot
+        if not (user is not None and is_admin(user)) and plot_data.farm_user_id != farmer_id:
             raise ValueError(f"Plot {plot_id} not found")
         
         # Get farmer details
@@ -101,17 +101,14 @@ class PlotPublishingService:
     
     async def _get_plot(self, plot_id: int) -> Optional[FarmPlot]:
         """Get plot details from database"""
-        result = await self.db.execute(
-            select(FarmPlot).where(FarmPlot.id == plot_id)
+        return fetch_one(
+            """SELECT p.*, f.user_id AS farm_user_id FROM farm_plots p
+               JOIN farms f ON f.id = p.farm_id WHERE p.id = ?""", [plot_id]
         )
-        return result.scalar_one_or_none()
     
     async def _get_farmer(self, farmer_id: int) -> Optional[User]:
         """Get farmer details from database"""
-        result = await self.db.execute(
-            select(User).where(User.id == farmer_id)
-        )
-        return result.scalar_one_or_none()
+        return fetch_one("SELECT id, name, email, phone FROM users WHERE id = ?", [farmer_id])
     
     async def _generate_ai_predictions(
         self,
@@ -246,8 +243,8 @@ class PlotPublishingService:
             'quality_grade': quality_grade.upper(),
             'location_state': plot.state,
             'location_district': plot.district,
-            'farmer_contact_phone': farmer.phone_number if hasattr(farmer, 'phone_number') else None,
-            'farmer_contact_email': farmer.email if hasattr(farmer, 'email') else None,
+            'farmer_contact_phone': farmer.get('phone'),  # users.phone (there is no phone_number column)
+            'farmer_contact_email': farmer.get('email'),
             'status': 'published',
             'created_at': datetime.now(),
             'updated_at': datetime.now(),
@@ -255,13 +252,11 @@ class PlotPublishingService:
         }
         
         # Insert into database
-        listing = MarketplaceListing()
-        for key, value in listing_data.items():
-            setattr(listing, key, value)
-        
-        self.db.add(listing)
-        await self.db.commit()
-        await self.db.refresh(listing)
+        cols = list(listing_data.keys())
+        listing = fetch_one(
+            f"INSERT INTO marketplace_listings ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)}) RETURNING *",
+            [listing_data[c] for c in cols],
+        )
         
         # Build response with all details
         response = {
@@ -288,7 +283,7 @@ class PlotPublishingService:
                     "state": plot.state,
                     "district": plot.district
                 },
-                "area_acres": float(plot.area),
+                "area_acres": float(plot.area or 0),
                 "soil_type": plot.soil_type,
                 "irrigation_type": plot.irrigation_type,
                 "soil_health_score": None  # Can be enhanced with soil test data

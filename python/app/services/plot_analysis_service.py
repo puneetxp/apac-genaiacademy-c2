@@ -10,16 +10,30 @@ import logging
 from typing import Dict, Any, Optional, List
 from decimal import Decimal
 from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from typing import Any as AsyncSession  # db kept for compatibility; queries use app.core.db.DB
 
-from app.orm.farm_plot import FarmPlot
-from app.orm.soil_test_result import SoilTestResult
-from app.orm.farm import Farm
+from app.services.farm_access import Row, fetch_one, plot_for_user
+
+# Rows are farm_access.Row (dict with attribute access); aliases keep the type hints readable.
+FarmPlot = Row
+SoilTestResult = Row
 from app.services.bedrock_service import bedrock_service
 from app.core.cache import get_cache_manager, TTL_BEDROCK_API
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_previous_crops(value) -> List[Dict[str, Any]]:
+    """farm_plots.previous_crops is varchar: JSON list of {crop_name} or a comma-separated list."""
+    if not value:
+        return []
+    try:
+        data = json.loads(value)
+    except (TypeError, ValueError):
+        data = [c.strip() for c in str(value).split(",") if c.strip()]
+    if not isinstance(data, list):
+        data = [data]
+    return [c if isinstance(c, dict) else {"crop_name": str(c)} for c in data]
 
 
 class PlotAnalysisService:
@@ -34,7 +48,8 @@ class PlotAnalysisService:
         plot_id: int,
         season: str,
         budget_per_acre: Optional[float] = None,
-        preferences: Optional[Dict[str, str]] = None
+        preferences: Optional[Dict[str, str]] = None,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Comprehensive plot analysis using Bedrock AI
@@ -49,6 +64,13 @@ class PlotAnalysisService:
             Detailed analysis with ranked crop recommendations and profitability metrics
         """
         
+        # Owner check before the cache, so a cached result is never served to another user.
+        if user is not None:
+            try:
+                plot_for_user(plot_id, user)
+            except LookupError as e:
+                raise ValueError(str(e))  # router maps ValueError -> 404
+
         # Check cache first
         if self.cache_manager and self.cache_manager.enabled:
             cache_key = self.cache_manager._generate_cache_key(
@@ -111,20 +133,13 @@ class PlotAnalysisService:
     
     async def _get_plot_details(self, plot_id: int) -> Optional[FarmPlot]:
         """Get plot details from database"""
-        result = await self.db.execute(
-            select(FarmPlot).where(FarmPlot.id == plot_id)
-        )
-        return result.scalar_one_or_none()
+        return fetch_one("SELECT * FROM farm_plots WHERE id = ?", [plot_id])
     
     async def _get_latest_soil_test(self, plot_id: int) -> Optional[SoilTestResult]:
         """Get latest soil test results for plot"""
-        result = await self.db.execute(
-            select(SoilTestResult)
-            .where(SoilTestResult.plot_id == plot_id)
-            .order_by(desc(SoilTestResult.test_date))
-            .limit(1)
+        return fetch_one(
+            "SELECT * FROM soil_test_results WHERE plot_id = ? ORDER BY test_date DESC, id DESC LIMIT 1", [plot_id]
         )
-        return result.scalar_one_or_none()
     
     def _build_plot_profile(
         self,
@@ -151,10 +166,10 @@ class PlotAnalysisService:
             },
             "water_data": {
                 "source": plot.irrigation_type,
-                "availability": "year-round" if "canal" in plot.irrigation_type.lower() or "borewell" in plot.irrigation_type.lower() else "seasonal",
+                "availability": "year-round" if "canal" in (plot.irrigation_type or "").lower() or "borewell" in (plot.irrigation_type or "").lower() else "seasonal",
                 "quality": "good"  # Default, can be enhanced with water test data
             },
-            "historical_crops": json.loads(plot.previous_crops) if plot.previous_crops else []
+            "historical_crops": _parse_previous_crops(plot.previous_crops)
         }
         
         return profile

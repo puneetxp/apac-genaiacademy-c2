@@ -17,9 +17,9 @@ from app.services.severe_weather_service import get_severe_weather_service
 from app.services.weather_recommendations_service import get_weather_recommendations_service
 from app.core.cache import get_cache_manager
 
-router = APIRouter(prefix="/weather-recommendations", tags=["weather-recommendations"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/weather-recommendations", tags=["weather-recommendations"], dependencies=[Depends(get_current_active_user)])
 @router.get("")
 async def get_weather_recommendations_root():
     """Registry alias for weather recommendations root"""
@@ -66,7 +66,8 @@ async def get_harvest_timing_recommendations(
     farm_id: int = Query(..., description="Farm ID"),
     crop_id: int = Query(..., description="Crop ID"),
     expected_harvest_date: date = Query(..., description="Expected harvest date"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get optimal harvest timing based on weather windows
@@ -82,9 +83,11 @@ async def get_harvest_timing_recommendations(
     
     try:
         result = await recommendations_service.get_harvest_timing_recommendations(
-            farm_id, crop_id, expected_harvest_date
+            farm_id, crop_id, expected_harvest_date, user=current_user
         )
         return result
+    except LookupError as e:  # someone else's (or a missing) farm / crop
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:

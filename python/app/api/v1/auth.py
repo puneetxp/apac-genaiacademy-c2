@@ -14,8 +14,9 @@ from app.schemas.auth import (
     SignUpRequest, SignUpResponse, ConfirmSignUpRequest, ResendCodeRequest,
     SignInRequest, SignInResponse, MFAChallengeResponse, MFAVerifyRequest,
     RefreshTokenRequest, ForgotPasswordRequest, ForgotPasswordResponse,
-    ConfirmForgotPasswordRequest, MessageResponse
+    ConfirmForgotPasswordRequest, MessageResponse, GoogleSignInRequest
 )
+from app.core.auth import token_validator
 from app.schemas.user import UserCreate
 from app.orm.user_sqlalchemy import User
 
@@ -102,7 +103,9 @@ async def sign_up(
                 )
         
         # 3. Check if phone number already exists
-        existing_phone = db.query(User).filter(User.phone == request.phone_number).first()
+        existing_phone = (
+            db.query(User).filter(User.phone == request.phone_number).first() if request.phone_number else None
+        )
         if existing_phone:
             if not existing_phone.is_verified:
                 logger.info(f"Unverified phone {request.phone_number} found. Deleting for rewrite.")
@@ -375,6 +378,79 @@ async def sign_in(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e)
         )
+
+
+def _unique_username(db: Session, seed: str) -> str:
+    base = seed.split("@")[0].lstrip("+")[:90] or "user"
+    candidate, n = base, 1
+    while db.query(User).filter(User.username == candidate).first():
+        n += 1
+        candidate = f"{base}{n}"
+    return candidate
+
+
+@router.post("/firebase", response_model=SignInResponse)
+@router.post("/google", response_model=SignInResponse)
+async def firebase_sign_in(request: GoogleSignInRequest, db: Session = Depends(get_db)):
+    """
+    Sign in with any Firebase provider (Google, email/password, phone OTP). The client signs in
+    with the Firebase SDK and sends the resulting ID token; the user record lives in Postgres and
+    is created on first sign-in. Phone is optional for Google/email users.
+    """
+    claims = token_validator.verify_token(request.id_token, token_use="id")
+    uid = claims.get("uid") or claims.get("sub")
+    email = claims.get("email")
+    phone = claims.get("phone_number")
+    if not uid or not (email or phone):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account has no email or phone")
+    who = email or phone
+
+    try:
+        user = db.query(User).filter((User.firebase_id == uid) | (User.cognito_user_id == uid)).first()
+        if not user:
+            # Link an account created earlier with the same email or phone.
+            user = db.query(User).filter(User.email == email).first() if email else None
+            user = user or (db.query(User).filter(User.phone == phone).first() if phone else None)
+            if user:
+                user.firebase_id = uid
+        if not user:
+            user = User(
+                username=_unique_username(db, who),
+                name=claims.get("name") or who.split("@")[0],
+                email=email,
+                phone=phone,
+                firebase_id=uid,
+                cognito_user_id=uid,
+                user_type="farmer",
+                is_verified=1 if (claims.get("email_verified") or phone) else 0,
+                is_active=1,
+            )
+            db.add(user)
+            logger.info(f"Created user {who} via Firebase sign-in")
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Firebase sign-in failed for {who}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not sign in")
+
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
+
+    return SignInResponse(
+        access_token=request.id_token,
+        id_token=request.id_token,
+        refresh_token=request.refresh_token or "",
+        expires_in=3600,
+        user={
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "name": user.name,
+            "phone": user.phone,
+            "user_type": user.user_type,
+        },
+    )
 
 
 @router.post("/verify-mfa", response_model=SignInResponse)

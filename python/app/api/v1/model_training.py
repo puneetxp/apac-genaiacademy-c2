@@ -14,9 +14,10 @@ from pydantic import BaseModel, Field
 from app.services.model_training_service import model_training_service
 
 
-router = APIRouter(prefix="/model-training", tags=["model-training"])
+from app.core.auth import get_current_admin
+from fastapi import Depends
 
-
+router = APIRouter(prefix="/model-training", tags=["model-training"], dependencies=[Depends(get_current_admin)])
 # ==================== Request/Response Models ====================
 
 class TrainModelRequest(BaseModel):

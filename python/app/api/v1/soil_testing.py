@@ -13,13 +13,51 @@ import logging
 
 from app.core.database import get_db
 from app.services.soil_testing_service import soil_testing_service
+from app.services.farm_access import fetch_one, farm_for_user, plot_for_user, soil_test_for_user
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/soil-testing", tags=["soil-testing"])
+from app.core.auth import get_current_active_user
+
+router = APIRouter(prefix="/soil-testing", tags=["soil-testing"], dependencies=[Depends(get_current_active_user)])
+
+# Data access: raw SQL through app.core.db.DB (app/orm classes are not SQLAlchemy models).
+SOIL_TEST_COLUMNS = (
+    "farm_id", "plot_id", "test_date", "lab_name", "lab_reference_number", "nitrogen_kg_per_ha",
+    "phosphorus_kg_per_ha", "potassium_kg_per_ha", "ph_level", "organic_carbon_percent",
+    "organic_matter_percent", "electrical_conductivity", "sulfur_ppm", "zinc_ppm", "iron_ppm",
+    "manganese_ppm", "copper_ppm", "boron_ppm", "soil_health_score", "test_method", "raw_data_json",
+    "recommendations", "notes",
+)
 
 
+def _check_farm_and_plot(farm_id: int, plot_id: Optional[int], user) -> None:
+    """Owner check: the farm must be the user's (404 otherwise); the plot must be on that farm."""
+    try:
+        farm_for_user(farm_id, user)
+        if plot_id is not None and plot_for_user(plot_id, user)["farm_id"] != farm_id:
+            raise LookupError(f"Plot {plot_id} not found")
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+def _insert_soil_test(values: dict):
+    return fetch_one(
+        f"INSERT INTO soil_test_results ({', '.join(SOIL_TEST_COLUMNS)}) "
+        f"VALUES ({', '.join('?' for _ in SOIL_TEST_COLUMNS)}) RETURNING *",
+        [values.get(c) for c in SOIL_TEST_COLUMNS],
+    )
+
+
+def _owned_test(test_id: int, user):
+    try:
+        test = soil_test_for_user(test_id, user)
+    except LookupError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Soil test not found")
+    if hasattr(test.test_date, "date"):
+        test.test_date = test.test_date.date()
+    return test
 # Request/Response schemas
 class SoilTestManualEntry(BaseModel):
     """Manual soil test entry schema"""
@@ -109,16 +147,18 @@ class SoilTestComparison(BaseModel):
 @router.post("/tests", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_test_alias(
     test_data: SoilTestManualEntry,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """Registry alias for create soil test"""
-    return await create_soil_test_manual_entry(test_data, db)
+    return await create_soil_test_manual_entry(test_data, db, current_user)
 
 
 @router.post("/manual-entry", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_soil_test_manual_entry(
     test_data: SoilTestManualEntry,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Create soil test result from manual entry
@@ -126,6 +166,7 @@ async def create_soil_test_manual_entry(
     Parses manually entered soil test data, calculates soil health score,
     and generates improvement recommendations.
     """
+    _check_farm_and_plot(test_data.farm_id, test_data.plot_id, current_user)
     try:
         logger.info(f"Creating manual soil test entry for farm {test_data.farm_id}")
         
@@ -143,39 +184,18 @@ async def create_soil_test_manual_entry(
         )
         
         # Store in database
-        from app.orm.soil_test_result import SoilTestResult
         import json
-        
-        soil_test = SoilTestResult(
-            farm_id=test_data.farm_id,
-            plot_id=test_data.plot_id,
-            test_date=test_data.test_date,
-            lab_name=parsed_data.get('lab_name'),
-            lab_reference_number=parsed_data.get('lab_reference_number'),
-            nitrogen_kg_per_ha=parsed_data.get('nitrogen_kg_per_ha'),
-            phosphorus_kg_per_ha=parsed_data.get('phosphorus_kg_per_ha'),
-            potassium_kg_per_ha=parsed_data.get('potassium_kg_per_ha'),
-            ph_level=parsed_data.get('ph_level'),
-            organic_carbon_percent=parsed_data.get('organic_carbon_percent'),
-            organic_matter_percent=parsed_data.get('organic_matter_percent'),
-            electrical_conductivity=parsed_data.get('electrical_conductivity'),
-            sulfur_ppm=parsed_data.get('sulfur_ppm'),
-            zinc_ppm=parsed_data.get('zinc_ppm'),
-            iron_ppm=parsed_data.get('iron_ppm'),
-            manganese_ppm=parsed_data.get('manganese_ppm'),
-            copper_ppm=parsed_data.get('copper_ppm'),
-            boron_ppm=parsed_data.get('boron_ppm'),
-            soil_health_score=soil_health_score,
-            test_method=parsed_data.get('test_method'),
-            raw_data_json=json.dumps(parsed_data),
-            recommendations=json.dumps(recommendations),
-            notes=parsed_data.get('notes')
-        )
-        
-        db.add(soil_test)
-        await db.commit()
-        await db.refresh(soil_test)
-        
+
+        soil_test = _insert_soil_test({
+            **{c: parsed_data.get(c) for c in SOIL_TEST_COLUMNS},
+            "farm_id": test_data.farm_id,
+            "plot_id": test_data.plot_id,
+            "test_date": test_data.test_date,
+            "soil_health_score": soil_health_score,
+            "raw_data_json": json.dumps(parsed_data, default=str),
+            "recommendations": json.dumps(recommendations, default=str),
+        })
+
         # Prepare response
         response = {
             "message": "Soil test result created successfully",
@@ -197,7 +217,6 @@ async def create_soil_test_manual_entry(
         )
     except Exception as e:
         logger.error(f"Error creating soil test: {e}")
-        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create soil test result"
@@ -210,7 +229,8 @@ async def fetch_soil_test_from_icar(
     farm_id: int,
     plot_id: Optional[int] = None,
     lab_name: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Fetch soil test results from ICAR laboratory API
@@ -218,6 +238,7 @@ async def fetch_soil_test_from_icar(
     Note: This is a placeholder endpoint. Actual ICAR API integration
     requires official API credentials and documentation.
     """
+    _check_farm_and_plot(farm_id, plot_id, current_user)
     try:
         logger.info(f"Fetching soil test from ICAR: {lab_reference_number}")
         
@@ -244,40 +265,21 @@ async def fetch_soil_test_from_icar(
         )
         
         # Store in database
-        from app.orm.soil_test_result import SoilTestResult
         from datetime import date
         import json
-        
-        soil_test = SoilTestResult(
-            farm_id=farm_id,
-            plot_id=plot_id,
-            test_date=icar_data.get('test_date', date.today()),
-            lab_name=lab_name or icar_data.get('lab_name'),
-            lab_reference_number=lab_reference_number,
-            nitrogen_kg_per_ha=icar_data.get('nitrogen_kg_per_ha'),
-            phosphorus_kg_per_ha=icar_data.get('phosphorus_kg_per_ha'),
-            potassium_kg_per_ha=icar_data.get('potassium_kg_per_ha'),
-            ph_level=icar_data.get('ph_level'),
-            organic_carbon_percent=icar_data.get('organic_carbon_percent'),
-            organic_matter_percent=icar_data.get('organic_matter_percent'),
-            electrical_conductivity=icar_data.get('electrical_conductivity'),
-            sulfur_ppm=icar_data.get('sulfur_ppm'),
-            zinc_ppm=icar_data.get('zinc_ppm'),
-            iron_ppm=icar_data.get('iron_ppm'),
-            manganese_ppm=icar_data.get('manganese_ppm'),
-            copper_ppm=icar_data.get('copper_ppm'),
-            boron_ppm=icar_data.get('boron_ppm'),
-            soil_health_score=soil_health_score,
-            test_method=icar_data.get('test_method'),
-            raw_data_json=json.dumps(icar_data),
-            recommendations=json.dumps(recommendations),
-            notes=icar_data.get('notes')
-        )
-        
-        db.add(soil_test)
-        await db.commit()
-        await db.refresh(soil_test)
-        
+
+        soil_test = _insert_soil_test({
+            **{c: icar_data.get(c) for c in SOIL_TEST_COLUMNS},
+            "farm_id": farm_id,
+            "plot_id": plot_id,
+            "test_date": icar_data.get('test_date', date.today()),
+            "lab_name": lab_name or icar_data.get('lab_name'),
+            "lab_reference_number": lab_reference_number,
+            "soil_health_score": soil_health_score,
+            "raw_data_json": json.dumps(icar_data, default=str),
+            "recommendations": json.dumps(recommendations, default=str),
+        })
+
         response = {
             "message": "Soil test result fetched from ICAR successfully",
             "id": soil_test.id,
@@ -293,7 +295,6 @@ async def fetch_soil_test_from_icar(
         raise
     except Exception as e:
         logger.error(f"Error fetching from ICAR: {e}")
-        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch soil test from ICAR"
@@ -306,7 +307,8 @@ async def upload_soil_test_pdf(
     file: UploadFile = File(...),
     plot_id: Optional[int] = None,
     lab_name: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Upload and parse soil test PDF report
@@ -314,6 +316,7 @@ async def upload_soil_test_pdf(
     Note: PDF parsing functionality is not yet implemented.
     This is a placeholder for future implementation.
     """
+    _check_farm_and_plot(farm_id, plot_id, current_user)
     try:
         logger.info(f"Uploading soil test PDF for farm {farm_id}")
         
@@ -347,29 +350,23 @@ async def upload_soil_test_pdf(
 async def get_latest_soil_test(
     farm_id: int,
     plot_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get latest soil test result for a farm or plot
     """
+    _check_farm_and_plot(farm_id, plot_id, current_user)
     try:
         logger.info(f"Fetching latest soil test for farm {farm_id}")
         
-        from app.orm.soil_test_result import SoilTestResult
-        from sqlalchemy import select, desc, and_
         import json
-        
-        # Build query
-        query = select(SoilTestResult).where(SoilTestResult.farm_id == farm_id)
-        
+
+        sql, bind = "SELECT * FROM soil_test_results WHERE farm_id = ?", [farm_id]
         if plot_id:
-            query = query.where(SoilTestResult.plot_id == plot_id)
-        
-        query = query.order_by(desc(SoilTestResult.test_date)).limit(1)
-        
-        # Execute query
-        result = await db.execute(query)
-        soil_test = result.scalar_one_or_none()
+            sql += " AND plot_id = ?"
+            bind.append(plot_id)
+        soil_test = fetch_one(sql + " ORDER BY test_date DESC, id DESC LIMIT 1", bind)
         
         if not soil_test:
             raise HTTPException(
@@ -429,25 +426,24 @@ async def get_latest_soil_test(
 @router.get("/tests", response_model=List[dict])
 async def list_tests_alias(
     farm_id: int = Query(..., description="Farm ID"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """Registry alias for listing tests"""
-    return await get_soil_test_history(farm_id, db=db)
+    return await get_soil_test_history(farm_id, db=db, current_user=current_user)
 
 
 @router.get("/tests/{id}", response_model=dict)
 async def get_test_alias(
     id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """Registry alias for getting specific test"""
     # Using existing logic from get_latest_soil_test as base but for specific ID
-    from app.orm.soil_test_result import SoilTestResult
-    from sqlalchemy import select
     import json
-    
-    result = await db.execute(select(SoilTestResult).where(SoilTestResult.id == id))
-    soil_test = result.scalar_one_or_none()
+
+    soil_test = _owned_test(id, current_user)
     
     if not soil_test:
         raise HTTPException(status_code=404, detail="Soil test not found")
@@ -466,17 +462,19 @@ async def get_soil_test_history(
     farm_id: int,
     plot_id: Optional[int] = None,
     limit: int = 10,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get soil test history for a farm or plot
     """
+    _check_farm_and_plot(farm_id, plot_id, current_user)
     try:
         logger.info(f"Fetching soil test history for farm {farm_id}")
         
         # Use service method
         history = await soil_testing_service.get_soil_test_history(
-            db, farm_id, plot_id, limit
+            db, farm_id, plot_id, limit, user=current_user
         )
         
         return history
@@ -493,7 +491,8 @@ async def get_soil_test_history(
 async def compare_soil_tests(
     previous_test_id: int,
     current_test_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Compare two soil tests to track changes over time
@@ -501,15 +500,14 @@ async def compare_soil_tests(
     try:
         logger.info(f"Comparing soil tests: {previous_test_id} vs {current_test_id}")
         
-        from app.orm.soil_test_result import SoilTestResult
-        from sqlalchemy import select
-        
-        # Fetch both tests
-        result = await db.execute(
-            select(SoilTestResult).where(SoilTestResult.id.in_([previous_test_id, current_test_id]))
-        )
-        tests = result.scalars().all()
-        
+        # Fetch both tests (owner-scoped: someone else's test is "not found")
+        tests = []
+        for test_id in {previous_test_id, current_test_id}:
+            try:
+                tests.append(_owned_test(test_id, current_user))
+            except HTTPException:
+                pass
+
         if len(tests) != 2:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

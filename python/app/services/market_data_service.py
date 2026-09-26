@@ -8,16 +8,75 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from decimal import Decimal
 from collections import defaultdict
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+import json
+from typing import Any as Session  # db kept for compatibility; queries use app.core.db.DB
 
-from app.orm.crop_market_data import CropMarketData
-from app.orm.historical_yield import HistoricalYield
-from app.orm.crop_profitability import CropProfitability
-from app.orm.seasonal_trend import SeasonalTrend
-from app.orm.opportunity_cost import OpportunityCost
+from app.services.farm_access import Row, fetch_one, fetch_all
 
 logger = logging.getLogger(__name__)
+
+# Data access is raw SQL through app.core.db.DB (app/orm classes are not SQLAlchemy models).
+# Rows are farm_access.Row (dict + attribute access); these aliases keep the type hints readable.
+CropMarketData = HistoricalYield = CropProfitability = SeasonalTrend = OpportunityCost = Row
+
+
+class IntegrityError(Exception):
+    """Kept so `except IntegrityError` callers still work (DB errors now surface as psycopg errors)."""
+
+
+# crop_market_data stores crop_name / price_per_kg / date / yoy_growth / demand_level. This view exposes
+# the names this service (and CropMarketDataResponse) use. Fields with no column are NULL.
+_CMD_VIEW = """(SELECT id::text AS id, created_at, updated_at, crop_name AS crop_type, NULL::varchar AS variety,
+        state, district, NULL::varchar AS market_name,
+        EXTRACT(YEAR FROM date)::int AS year, EXTRACT(MONTH FROM date)::int AS month, season,
+        price_per_kg * 100 AS avg_price_per_quintal,
+        NULL::numeric AS min_price, NULL::numeric AS max_price, NULL::numeric AS modal_price,
+        NULL::numeric AS market_demand_score, NULL::numeric AS supply_volume, NULL::numeric AS price_volatility,
+        NULL::varchar AS price_trend, yoy_growth AS yoy_price_change, NULL::numeric AS mom_price_change,
+        NULL::varchar AS data_source, NULL::numeric AS data_quality_score,
+        demand_level, date, price_per_kg
+    FROM crop_market_data WHERE COALESCE(enable, 1) = 1) cmd"""
+
+
+def _where(filters: Dict[str, Any], extra: tuple = ()) -> tuple:
+    """Build ' WHERE a = ? AND ...' from fixed column names; None / '' values are skipped."""
+    parts, bind = [], []
+    for col, val in filters.items():
+        if val is None or val == '':
+            continue
+        parts.append(f"{col} = ?")
+        bind.append(val)
+    for clause, *vals in extra:
+        parts.append(clause)
+        bind.extend(vals)
+    return ((" WHERE " + " AND ".join(parts)) if parts else ""), bind
+
+
+def _market_rows(order: str = "year, month, id", extra: tuple = (), **filters) -> List[Row]:
+    where, bind = _where(filters, extra)
+    return fetch_all(f"SELECT * FROM {_CMD_VIEW}{where} ORDER BY {order}", bind)
+
+
+def _profit_rows(extra: tuple = (), **filters) -> List[Row]:
+    where, bind = _where(filters, extra)
+    return fetch_all(f"SELECT * FROM crop_profitability{where} ORDER BY id", bind)
+
+
+def _max_profit_year(state: str) -> Optional[int]:
+    row = fetch_one("SELECT MAX(year) AS y FROM crop_profitability WHERE state = ?", [state])
+    return row.y if row else None
+
+
+def _insert(table: str, values: Dict[str, Any]) -> Row:
+    cols = list(values.keys())
+    return fetch_one(
+        f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)}) RETURNING *",
+        [json.dumps(v) if isinstance(v, (dict, list)) else v for v in values.values()],
+    )
+
+
+def _num(v):
+    return float(v) if v not in (None, '') else None
 
 
 class MarketDataService:
@@ -55,43 +114,30 @@ class MarketDataService:
             if validate:
                 self._validate_market_data(data)
             
-            # Create market data record
-            market_data = CropMarketData(
-                crop_type=data['crop_type'],
-                variety=data.get('variety'),
-                state=data['state'],
-                district=data.get('district'),
-                market_name=data.get('market_name'),
-                year=data['year'],
-                month=data.get('month'),
-                season=data.get('season'),
-                avg_price_per_quintal=Decimal(str(data['avg_price_per_quintal'])),
-                min_price=Decimal(str(data['min_price'])) if data.get('min_price') else None,
-                max_price=Decimal(str(data['max_price'])) if data.get('max_price') else None,
-                modal_price=Decimal(str(data['modal_price'])) if data.get('modal_price') else None,
-                market_demand_score=Decimal(str(data['market_demand_score'])) if data.get('market_demand_score') else None,
-                supply_volume=Decimal(str(data['supply_volume'])) if data.get('supply_volume') else None,
-                price_volatility=Decimal(str(data['price_volatility'])) if data.get('price_volatility') else None,
-                price_trend=data.get('price_trend'),
-                yoy_price_change=Decimal(str(data['yoy_price_change'])) if data.get('yoy_price_change') else None,
-                mom_price_change=Decimal(str(data['mom_price_change'])) if data.get('mom_price_change') else None,
-                data_source=data.get('data_source', 'manual'),
-                data_quality_score=Decimal(str(data['data_quality_score'])) if data.get('data_quality_score') else Decimal('0.8')
-            )
-            
-            self.db.add(market_data)
-            self.db.commit()
-            self.db.refresh(market_data)
-            
+            # Create market data record. Real columns: crop_name, state, district, price_per_kg, date,
+            # season, yoy_growth, demand_level. variety / market_name / min / max / modal price, demand score,
+            # supply volume, volatility, trend, MoM change, data source and quality have no column and are not stored.
+            price_per_kg = float(data['avg_price_per_quintal']) / 100  # 1 quintal = 100 kg
+            record_date = datetime(int(data['year']), int(data.get('month') or 1), 1).date()
+            created = _insert('crop_market_data', {
+                'crop_name': data['crop_type'],
+                'state': data['state'],
+                'district': data.get('district'),
+                'price_per_kg': round(price_per_kg, 2),
+                'date': record_date,
+                'season': data.get('season'),
+                'yoy_growth': _num(data.get('yoy_price_change')),
+                'demand_level': data.get('demand_level'),
+            })
+            market_data = fetch_one(f"SELECT * FROM {_CMD_VIEW} WHERE id = ?", [str(created.id)])
+
             logger.info(f"Ingested market data: {market_data.crop_type} - {market_data.state} - {market_data.year}")
             return market_data
             
         except IntegrityError as e:
-            self.db.rollback()
             logger.error(f"Database integrity error: {e}")
             raise
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error ingesting market data: {e}")
             raise
     
@@ -163,39 +209,34 @@ class MarketDataService:
             if validate:
                 self._validate_yield_data(data)
             
-            yield_data = HistoricalYield(
-                crop_type=data['crop_type'],
-                variety=data.get('variety'),
-                state=data['state'],
-                district=data.get('district'),
-                block=data.get('block'),
-                year=data['year'],
-                season=data.get('season'),
-                avg_yield_per_acre=Decimal(str(data['avg_yield_per_acre'])),
-                min_yield=Decimal(str(data['min_yield'])) if data.get('min_yield') else None,
-                max_yield=Decimal(str(data['max_yield'])) if data.get('max_yield') else None,
-                success_rate=Decimal(str(data['success_rate'])) if data.get('success_rate') else None,
-                farmer_count=data.get('farmer_count'),
-                total_area_cultivated=Decimal(str(data['total_area_cultivated'])) if data.get('total_area_cultivated') else None,
-                soil_types=data.get('soil_types'),
-                irrigation_methods=data.get('irrigation_methods'),
-                avg_rainfall=Decimal(str(data['avg_rainfall'])) if data.get('avg_rainfall') else None,
-                avg_temperature=Decimal(str(data['avg_temperature'])) if data.get('avg_temperature') else None,
-                quality_distribution=data.get('quality_distribution'),
-                avg_quality_grade=data.get('avg_quality_grade'),
-                data_source=data.get('data_source', 'manual'),
-                data_quality_score=Decimal(str(data['data_quality_score'])) if data.get('data_quality_score') else Decimal('0.8')
-            )
-            
-            self.db.add(yield_data)
-            self.db.commit()
-            self.db.refresh(yield_data)
-            
+            yield_data = _insert('historical_yields', {
+                'crop_type': data['crop_type'],
+                'variety': data.get('variety'),
+                'state': data['state'],
+                'district': data.get('district'),
+                'block': data.get('block'),
+                'year': data['year'],
+                'season': data.get('season'),
+                'avg_yield_per_acre': _num(data['avg_yield_per_acre']),
+                'min_yield': _num(data.get('min_yield')),
+                'max_yield': _num(data.get('max_yield')),
+                'success_rate': _num(data.get('success_rate')),
+                'farmer_count': data.get('farmer_count'),
+                'total_area_cultivated': _num(data.get('total_area_cultivated')),
+                'soil_types': data.get('soil_types'),
+                'irrigation_methods': data.get('irrigation_methods'),
+                'avg_rainfall': _num(data.get('avg_rainfall')),
+                'avg_temperature': _num(data.get('avg_temperature')),
+                'quality_distribution': data.get('quality_distribution'),
+                'avg_quality_grade': data.get('avg_quality_grade'),
+                'data_source': data.get('data_source', 'manual'),
+                'data_quality_score': _num(data.get('data_quality_score')) or 0.8,
+            })
+
             logger.info(f"Ingested yield data: {yield_data.crop_type} - {yield_data.state} - {yield_data.year}")
             return yield_data
             
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error ingesting yield data: {e}")
             raise
     
@@ -218,46 +259,22 @@ class MarketDataService:
             if validate:
                 self._validate_profitability_data(data)
             
-            profitability_data = CropProfitability(
-                crop_type=data['crop_type'],
-                variety=data.get('variety'),
-                state=data['state'],
-                district=data.get('district'),
-                year=data['year'],
-                season=data.get('season'),
-                avg_profit_per_acre=Decimal(str(data['avg_profit_per_acre'])),
-                min_profit_per_acre=Decimal(str(data['min_profit_per_acre'])) if data.get('min_profit_per_acre') else None,
-                max_profit_per_acre=Decimal(str(data['max_profit_per_acre'])) if data.get('max_profit_per_acre') else None,
-                seed_cost=Decimal(str(data['seed_cost'])) if data.get('seed_cost') else None,
-                fertilizer_cost=Decimal(str(data['fertilizer_cost'])) if data.get('fertilizer_cost') else None,
-                pesticide_cost=Decimal(str(data['pesticide_cost'])) if data.get('pesticide_cost') else None,
-                labor_cost=Decimal(str(data['labor_cost'])) if data.get('labor_cost') else None,
-                irrigation_cost=Decimal(str(data['irrigation_cost'])) if data.get('irrigation_cost') else None,
-                equipment_cost=Decimal(str(data['equipment_cost'])) if data.get('equipment_cost') else None,
-                other_costs=Decimal(str(data['other_costs'])) if data.get('other_costs') else None,
-                total_investment_cost=Decimal(str(data['total_investment_cost'])) if data.get('total_investment_cost') else None,
-                avg_revenue_per_acre=Decimal(str(data['avg_revenue_per_acre'])) if data.get('avg_revenue_per_acre') else None,
-                roi_percentage=Decimal(str(data['roi_percentage'])) if data.get('roi_percentage') else None,
-                break_even_yield=Decimal(str(data['break_even_yield'])) if data.get('break_even_yield') else None,
-                profit_margin=Decimal(str(data['profit_margin'])) if data.get('profit_margin') else None,
-                risk_level=data.get('risk_level'),
-                price_risk_score=Decimal(str(data['price_risk_score'])) if data.get('price_risk_score') else None,
-                yield_risk_score=Decimal(str(data['yield_risk_score'])) if data.get('yield_risk_score') else None,
-                market_demand=data.get('market_demand'),
-                competition_level=data.get('competition_level'),
-                data_source=data.get('data_source', 'manual'),
-                sample_size=data.get('sample_size')
-            )
-            
-            self.db.add(profitability_data)
-            self.db.commit()
-            self.db.refresh(profitability_data)
-            
+            numeric = ('avg_profit_per_acre', 'min_profit_per_acre', 'max_profit_per_acre', 'seed_cost',
+                       'fertilizer_cost', 'pesticide_cost', 'labor_cost', 'irrigation_cost', 'equipment_cost',
+                       'other_costs', 'total_investment_cost', 'avg_revenue_per_acre', 'roi_percentage',
+                       'break_even_yield', 'profit_margin', 'price_risk_score', 'yield_risk_score')
+            values = {'crop_type': data['crop_type'], 'variety': data.get('variety'), 'state': data['state'],
+                      'district': data.get('district'), 'year': data['year'], 'season': data.get('season')}
+            values.update({k: _num(data.get(k)) for k in numeric})
+            values.update({'risk_level': data.get('risk_level'), 'market_demand': data.get('market_demand'),
+                           'competition_level': data.get('competition_level'),
+                           'data_source': data.get('data_source', 'manual'), 'sample_size': data.get('sample_size')})
+            profitability_data = _insert('crop_profitability', values)
+
             logger.info(f"Ingested profitability data: {profitability_data.crop_type} - {profitability_data.state} - {profitability_data.year}")
             return profitability_data
             
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error ingesting profitability data: {e}")
             raise
     
@@ -377,16 +394,12 @@ class MarketDataService:
         Returns:
             Summary statistics dictionary
         """
-        query = self.db.query(CropMarketData)
-        
-        if crop_type:
-            query = query.filter(CropMarketData.crop_type == crop_type)
-        if state:
-            query = query.filter(CropMarketData.state == state)
-        if year:
-            query = query.filter(CropMarketData.year == year)
-        
-        total_records = query.count()
+        where, bind = _where({'crop_type': crop_type, 'state': state, 'year': year})
+        stats = fetch_one(
+            f"""SELECT COUNT(*) AS total_records, COUNT(DISTINCT crop_type) AS unique_crops,
+                       COUNT(DISTINCT state) AS unique_states, MIN(year) AS min_year, MAX(year) AS max_year
+                FROM {_CMD_VIEW}{where}""", bind)
+        total_records = stats.total_records if stats else 0
         
         if total_records == 0:
             return {
@@ -396,23 +409,9 @@ class MarketDataService:
                 'year_range': None
             }
         
-        # Get unique values
-        unique_crops = self.db.query(CropMarketData.crop_type).filter(
-            query.whereclause if hasattr(query, 'whereclause') else True
-        ).distinct().count()
-        
-        unique_states = self.db.query(CropMarketData.state).filter(
-            query.whereclause if hasattr(query, 'whereclause') else True
-        ).distinct().count()
-        
-        # Get year range
-        from sqlalchemy import func as sql_func
-        year_stats = self.db.query(
-            sql_func.min(CropMarketData.year),
-            sql_func.max(CropMarketData.year)
-        ).filter(
-            query.whereclause if hasattr(query, 'whereclause') else True
-        ).first()
+        unique_crops = stats.unique_crops
+        unique_states = stats.unique_states
+        year_stats = (stats.min_year, stats.max_year)
         
         return {
             'total_records': total_records,
@@ -445,26 +444,15 @@ class MarketDataService:
         Returns:
             Dictionary with YoY growth metrics
         """
-        from sqlalchemy import func as sql_func
-
         try:
-            # Build base query
-            query = self.db.query(CropMarketData).filter(
-                CropMarketData.crop_type == crop_type,
-                CropMarketData.state == state
-            )
-
-            if district:
-                query = query.filter(CropMarketData.district == district)
-
-            if season:
-                query = query.filter(CropMarketData.season == season)
+            # Base filters (raw SQL over the crop_market_data view)
+            base = {'crop_type': crop_type, 'state': state, 'district': district, 'season': season}
 
             # Get current year if not provided
             if not current_year:
-                max_year_result = query.with_entities(
-                    sql_func.max(CropMarketData.year)
-                ).scalar()
+                where, bind = _where(base)
+                row = fetch_one(f"SELECT MAX(year) AS y FROM {_CMD_VIEW}{where}", bind)
+                max_year_result = row.y if row else None
 
                 if not max_year_result:
                     return {
@@ -477,9 +465,7 @@ class MarketDataService:
                 current_year = max_year_result
 
             # Get current year data
-            current_data = query.filter(
-                CropMarketData.year == current_year
-            ).all()
+            current_data = _market_rows(year=current_year, **base)
 
             if not current_data:
                 return {
@@ -491,9 +477,7 @@ class MarketDataService:
 
             # Get previous year data
             previous_year = current_year - 1
-            previous_data = query.filter(
-                CropMarketData.year == previous_year
-            ).all()
+            previous_data = _market_rows(year=previous_year, **base)
 
             if not previous_data:
                 return {
@@ -576,26 +560,12 @@ class MarketDataService:
         Returns:
             Dictionary with multi-year growth analysis
         """
-        from sqlalchemy import func as sql_func
-
         try:
-            # Build base query
-            query = self.db.query(CropMarketData).filter(
-                CropMarketData.crop_type == crop_type,
-                CropMarketData.state == state
-            )
-
-            if district:
-                query = query.filter(CropMarketData.district == district)
-
-            if season:
-                query = query.filter(CropMarketData.season == season)
-
-            # Get available years
-            year_data = query.with_entities(
-                CropMarketData.year,
-                sql_func.avg(CropMarketData.avg_price_per_quintal).label('avg_price')
-            ).group_by(CropMarketData.year).order_by(CropMarketData.year.desc()).limit(years).all()
+            # Get available years (average price per year)
+            where, bind = _where({'crop_type': crop_type, 'state': state, 'district': district, 'season': season})
+            year_data = fetch_all(
+                f"""SELECT year, AVG(avg_price_per_quintal) AS avg_price FROM {_CMD_VIEW}{where}
+                    GROUP BY year ORDER BY year DESC LIMIT ?""", bind + [int(years)])
 
             if len(year_data) < 2:
                 return {
@@ -795,20 +765,9 @@ class MarketDataService:
         Returns:
             Dictionary with update statistics
         """
-        from sqlalchemy import func as sql_func
-
         try:
             # Build query for records to update
-            query = self.db.query(CropMarketData)
-
-            if crop_type:
-                query = query.filter(CropMarketData.crop_type == crop_type)
-            if state:
-                query = query.filter(CropMarketData.state == state)
-            if year:
-                query = query.filter(CropMarketData.year == year)
-
-            records = query.all()
+            records = _market_rows(crop_type=crop_type, state=state, year=year)
 
             updated_count = 0
             skipped_count = 0
@@ -816,29 +775,11 @@ class MarketDataService:
 
             for record in records:
                 try:
-                    # Find previous year data for same crop, location, season
-                    previous_year_query = self.db.query(CropMarketData).filter(
-                        CropMarketData.crop_type == record.crop_type,
-                        CropMarketData.state == record.state,
-                        CropMarketData.year == record.year - 1
+                    # Find previous year data for same crop, location, season (and month)
+                    previous_records = _market_rows(
+                        crop_type=record.crop_type, state=record.state, year=record.year - 1,
+                        district=record.district, season=record.season, month=record.month,
                     )
-
-                    if record.district:
-                        previous_year_query = previous_year_query.filter(
-                            CropMarketData.district == record.district
-                        )
-
-                    if record.season:
-                        previous_year_query = previous_year_query.filter(
-                            CropMarketData.season == record.season
-                        )
-
-                    if record.month:
-                        previous_year_query = previous_year_query.filter(
-                            CropMarketData.month == record.month
-                        )
-
-                    previous_records = previous_year_query.all()
 
                     if not previous_records:
                         skipped_count += 1
@@ -850,16 +791,11 @@ class MarketDataService:
                     # Calculate YoY change
                     yoy_change = ((record.avg_price_per_quintal - previous_avg_price) / previous_avg_price) * 100
 
-                    # Update record
-                    record.yoy_price_change = Decimal(str(round(yoy_change, 2)))
-
-                    # Update trend
-                    if yoy_change > 5:
-                        record.price_trend = 'increasing'
-                    elif yoy_change < -5:
-                        record.price_trend = 'decreasing'
-                    else:
-                        record.price_trend = 'stable'
+                    # Update record (yoy_growth column; there is no price_trend column to store the trend)
+                    fetch_one(
+                        "UPDATE crop_market_data SET yoy_growth = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id",
+                        [round(yoy_change, 2), int(record.id)],
+                    )
 
                     updated_count += 1
 
@@ -867,8 +803,7 @@ class MarketDataService:
                     error_count += 1
                     logger.error(f"Error updating record {record.id}: {e}")
 
-            # Commit all updates
-            self.db.commit()
+            # Each UPDATE is committed by DB.raw
 
             result = {
                 'total_records': len(records),
@@ -881,7 +816,6 @@ class MarketDataService:
             return result
 
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error updating YoY price changes: {e}")
             raise
 
@@ -906,27 +840,16 @@ class MarketDataService:
         Returns:
             Dictionary with seasonal trend analysis
         """
-        from sqlalchemy import func as sql_func
-        
         try:
             seasons = ['kharif', 'rabi', 'zaid']
             seasonal_analysis = {}
             
             for season in seasons:
-                # Build query for this season
-                query = self.db.query(CropMarketData).filter(
-                    CropMarketData.crop_type == crop_type,
-                    CropMarketData.state == state,
-                    CropMarketData.season == season
+                # Data for recent years for this season
+                season_data = _market_rows(
+                    extra=(("year >= ?", datetime.now().year - years),),
+                    crop_type=crop_type, state=state, season=season, district=district,
                 )
-                
-                if district:
-                    query = query.filter(CropMarketData.district == district)
-                
-                # Get data for recent years
-                season_data = query.filter(
-                    CropMarketData.year >= datetime.now().year - years
-                ).order_by(CropMarketData.year).all()
                 
                 if not season_data:
                     seasonal_analysis[season] = {
@@ -1086,22 +1009,11 @@ class MarketDataService:
         Returns:
             Dictionary with price forecasts
         """
-        from sqlalchemy import func as sql_func
         import statistics
         
         try:
-            # Get historical data for the season
-            query = self.db.query(CropMarketData).filter(
-                CropMarketData.crop_type == crop_type,
-                CropMarketData.state == state,
-                CropMarketData.season == season
-            )
-            
-            if district:
-                query = query.filter(CropMarketData.district == district)
-            
-            # Get at least 3 years of data for forecasting
-            historical_data = query.order_by(CropMarketData.year).all()
+            # Get historical data for the season (at least 3 years of data for forecasting)
+            historical_data = _market_rows(crop_type=crop_type, state=state, season=season, district=district)
             
             if len(historical_data) < 3:
                 return {
@@ -1121,7 +1033,13 @@ class MarketDataService:
             sum_xy = sum(x * y for x, y in zip(years, prices))
             sum_x2 = sum(x * x for x in years)
             
-            # Calculate slope and intercept
+            # Calculate slope and intercept (all points in one year -> no trend can be fitted)
+            if n * sum_x2 - sum_x * sum_x == 0:
+                return {
+                    'error': 'Insufficient historical data for forecasting',
+                    'message': 'At least 3 years of data required',
+                    'available_years': len(set(years))
+                }
             slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
             intercept = (sum_y - slope * sum_x) / n
             
@@ -1406,16 +1324,10 @@ class MarketDataService:
         Returns:
             Dictionary with opportunity cost analysis
         """
-        from sqlalchemy import func as sql_func
-        
         try:
             # Get current year if not provided
             if not year:
-                max_year_result = self.db.query(
-                    sql_func.max(CropProfitability.year)
-                ).filter(
-                    CropProfitability.state == state
-                ).scalar()
+                max_year_result = _max_profit_year(state)
                 
                 if not max_year_result:
                     return {
@@ -1427,18 +1339,8 @@ class MarketDataService:
                 year = max_year_result
             
             # Get profitability data for primary crop
-            primary_query = self.db.query(CropProfitability).filter(
-                CropProfitability.crop_type == primary_crop,
-                CropProfitability.state == state,
-                CropProfitability.year == year
-            )
-            
-            if district:
-                primary_query = primary_query.filter(CropProfitability.district == district)
-            if season:
-                primary_query = primary_query.filter(CropProfitability.season == season)
-            
-            primary_data = primary_query.all()
+            primary_data = _profit_rows(crop_type=primary_crop, state=state, year=year,
+                                        district=district, season=season)
             
             if not primary_data:
                 return {
@@ -1449,18 +1351,8 @@ class MarketDataService:
                 }
             
             # Get profitability data for alternative crop
-            alternative_query = self.db.query(CropProfitability).filter(
-                CropProfitability.crop_type == alternative_crop,
-                CropProfitability.state == state,
-                CropProfitability.year == year
-            )
-            
-            if district:
-                alternative_query = alternative_query.filter(CropProfitability.district == district)
-            if season:
-                alternative_query = alternative_query.filter(CropProfitability.season == season)
-            
-            alternative_data = alternative_query.all()
+            alternative_data = _profit_rows(crop_type=alternative_crop, state=state, year=year,
+                                            district=district, season=season)
             
             if not alternative_data:
                 return {
@@ -1752,39 +1644,36 @@ class MarketDataService:
                 raise ValueError(f"Cannot save analysis: {analysis['error']}")
             
             # Create opportunity cost record
-            opportunity_cost = OpportunityCost(
-                location_state=state,
-                location_district=district,
-                primary_crop=primary_crop,
-                alternative_crop=alternative_crop,
-                season=season,
-                year=analysis['location']['year'],
-                primary_crop_profit=Decimal(str(analysis['primary_crop']['avg_profit_per_acre'])),
-                alternative_crop_profit=Decimal(str(analysis['alternative_crop']['avg_profit_per_acre'])),
-                profit_difference=Decimal(str(analysis['opportunity_cost']['profit_difference'])),
-                primary_crop_investment=Decimal(str(analysis['primary_crop']['avg_investment'])) if analysis['primary_crop']['avg_investment'] else None,
-                alternative_crop_investment=Decimal(str(analysis['alternative_crop']['avg_investment'])) if analysis['alternative_crop']['avg_investment'] else None,
-                investment_difference=Decimal(str(analysis['opportunity_cost']['investment_difference'])) if analysis['opportunity_cost']['investment_difference'] else None,
-                primary_crop_roi=Decimal(str(analysis['primary_crop']['avg_roi_percentage'])) if analysis['primary_crop']['avg_roi_percentage'] else None,
-                alternative_crop_roi=Decimal(str(analysis['alternative_crop']['avg_roi_percentage'])) if analysis['alternative_crop']['avg_roi_percentage'] else None,
-                roi_difference=Decimal(str(analysis['opportunity_cost']['roi_difference'])) if analysis['opportunity_cost']['roi_difference'] else None,
-                primary_crop_risk=analysis['primary_crop']['risk_level'],
-                alternative_crop_risk=analysis['alternative_crop']['risk_level'],
-                risk_factor=Decimal(str(analysis['opportunity_cost']['risk_factor'])),
-                recommended_choice=analysis['recommendation']['choice'],
-                recommendation_confidence=Decimal(str(analysis['recommendation']['confidence'])),
-                recommendation_reasoning='\n'.join(analysis['recommendation']['reasoning'])
-            )
-            
-            self.db.add(opportunity_cost)
-            self.db.commit()
-            self.db.refresh(opportunity_cost)
+            oc = analysis['opportunity_cost']
+            pc, ac = analysis['primary_crop'], analysis['alternative_crop']
+            opportunity_cost = _insert('opportunity_costs', {
+                'location_state': state,
+                'location_district': district,
+                'primary_crop': primary_crop,
+                'alternative_crop': alternative_crop,
+                'season': season,
+                'year': analysis['location']['year'],
+                'primary_crop_profit': _num(pc['avg_profit_per_acre']),
+                'alternative_crop_profit': _num(ac['avg_profit_per_acre']),
+                'profit_difference': _num(oc['profit_difference']),
+                'primary_crop_investment': _num(pc['avg_investment']),
+                'alternative_crop_investment': _num(ac['avg_investment']),
+                'investment_difference': _num(oc['investment_difference']),
+                'primary_crop_roi': _num(pc['avg_roi_percentage']),
+                'alternative_crop_roi': _num(ac['avg_roi_percentage']),
+                'roi_difference': _num(oc['roi_difference']),
+                'primary_crop_risk': pc['risk_level'],
+                'alternative_crop_risk': ac['risk_level'],
+                'risk_factor': _num(oc['risk_factor']),
+                'recommended_choice': analysis['recommendation']['choice'],
+                'recommendation_confidence': _num(analysis['recommendation']['confidence']),
+                'recommendation_reasoning': '\n'.join(analysis['recommendation']['reasoning']),
+            })
             
             logger.info(f"Saved opportunity cost analysis: {primary_crop} vs {alternative_crop}")
             return opportunity_cost
             
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error saving opportunity cost analysis: {e}")
             raise
     
@@ -1814,16 +1703,10 @@ class MarketDataService:
         Returns:
             Dictionary with top profitable crops and opportunity cost analysis
         """
-        from sqlalchemy import func as sql_func
-        
         try:
             # Get current year if not provided
             if not year:
-                max_year_result = self.db.query(
-                    sql_func.max(CropProfitability.year)
-                ).filter(
-                    CropProfitability.state == state
-                ).scalar()
+                max_year_result = _max_profit_year(state)
                 
                 if not max_year_result:
                     return {
@@ -1835,17 +1718,7 @@ class MarketDataService:
                 year = max_year_result
             
             # Build query for profitable crops
-            query = self.db.query(CropProfitability).filter(
-                CropProfitability.state == state,
-                CropProfitability.year == year
-            )
-            
-            if district:
-                query = query.filter(CropProfitability.district == district)
-            if season:
-                query = query.filter(CropProfitability.season == season)
-            
-            all_crops_data = query.all()
+            all_crops_data = _profit_rows(state=state, year=year, district=district, season=season)
             
             if not all_crops_data:
                 return {

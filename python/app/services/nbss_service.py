@@ -10,9 +10,9 @@ from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta
 from decimal import Decimal
 import httpx
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, text
-from sqlalchemy.dialects.postgresql import insert
+from typing import Any as AsyncSession  # db kept for compatibility; queries use app.core.db.DB
+
+from app.services.farm_access import run_named
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,8 @@ class NBSSService:
         self,
         latitude: float,
         longitude: float,
-        radius_km: float = None
+        radius_km: float = None,
+        user=None,
     ) -> List[Dict[str, Any]]:
         """
         Find similar farms within radius using pgvector similarity search
@@ -230,20 +231,21 @@ class NBSSService:
             # Earth radius in km
             earth_radius = 6371
             
-            query = text("""
+            query = ("""
                 SELECT 
                     f.id,
+                    f.user_id,
                     f.name,
-                    f.state,
-                    f.district,
+                    f.location_state AS state,
+                    f.location_district AS district,
                     f.latitude,
                     f.longitude,
                     f.total_area,
                     (
-                        :earth_radius * acos(
+                        :earth_radius * acos(LEAST(1.0, GREATEST(-1.0,  -- clamp float error
                             cos(radians(:lat)) * cos(radians(f.latitude)) * 
                             cos(radians(f.longitude) - radians(:lon)) + 
-                            sin(radians(:lat)) * sin(radians(f.latitude))
+                            sin(radians(:lat)) * sin(radians(f.latitude))))
                         )
                     ) AS distance_km
                 FROM farms f
@@ -251,17 +253,17 @@ class NBSSService:
                     f.latitude IS NOT NULL 
                     AND f.longitude IS NOT NULL
                     AND (
-                        :earth_radius * acos(
+                        :earth_radius * acos(LEAST(1.0, GREATEST(-1.0,  -- clamp float error
                             cos(radians(:lat)) * cos(radians(f.latitude)) * 
                             cos(radians(f.longitude) - radians(:lon)) + 
-                            sin(radians(:lat)) * sin(radians(f.latitude))
+                            sin(radians(:lat)) * sin(radians(f.latitude))))
                         )
                     ) <= :radius
                 ORDER BY distance_km
                 LIMIT 20
             """)
             
-            result = await self.db.execute(
+            result = run_named(
                 query,
                 {
                     'lat': latitude,
@@ -271,8 +273,22 @@ class NBSSService:
                 }
             )
             
+            # Other users' farms are anonymised (no name or exact coordinates) unless the caller is an admin.
+            is_admin = getattr(user, 'user_type', None) == 'admin'
             farms = []
             for row in result:
+                if user is not None and not is_admin and row.user_id != getattr(user, 'id', None):
+                    farms.append({
+                        'farm_id': row.id,
+                        'farm_name': 'Nearby farm',
+                        'state': row.state,
+                        'district': row.district,
+                        'latitude': None,
+                        'longitude': None,
+                        'total_area': float(row.total_area) if row.total_area else None,
+                        'distance_km': round(float(row.distance_km), 2)
+                    })
+                    continue
                 farms.append({
                     'farm_id': row.id,
                     'farm_name': row.name,
@@ -295,7 +311,8 @@ class NBSSService:
         self,
         farm_id: int,
         latitude: float,
-        longitude: float
+        longitude: float,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Get peer comparison insights for a farm
@@ -310,7 +327,7 @@ class NBSSService:
         """
         logger.info(f"Generating peer comparison insights for farm {farm_id}")
         
-        similar_farms = await self.find_similar_farms(latitude, longitude)
+        similar_farms = await self.find_similar_farms(latitude, longitude, user=user)
         
         if not similar_farms:
             return {
@@ -437,7 +454,7 @@ class NBSSService:
             Cached soil data or None if not found or expired
         """
         try:
-            query = text("""
+            query = ("""
                 SELECT 
                     soil_type,
                     soil_texture,
@@ -462,7 +479,7 @@ class NBSSService:
                 LIMIT 1
             """)
             
-            result = await self.db.execute(
+            result = run_named(
                 query,
                 {
                     'lookup_type': lookup_type,
@@ -523,7 +540,7 @@ class NBSSService:
         try:
             expires_at = datetime.utcnow() + timedelta(hours=self.CACHE_TTL_HOURS)
             
-            query = text("""
+            query = ("""
                 INSERT INTO soil_map_cache (
                     latitude, longitude, state, district, lookup_type,
                     soil_type, soil_texture, drainage, slope,
@@ -539,7 +556,7 @@ class NBSSService:
                 )
             """)
             
-            await self.db.execute(
+            run_named(
                 query,
                 {
                     'lat': latitude,
@@ -560,12 +577,13 @@ class NBSSService:
                 }
             )
             
-            await self.db.commit()
+            # committed by DB.raw
+            # Note: soil_map_cache is not in the current schema; until it exists this insert fails
+            # and is logged below (lookups then simply skip the cache).
             logger.info(f"Cached soil data (lookup_type: {lookup_type}, expires: {expires_at})")
             
         except Exception as e:
             logger.error(f"Error caching soil data: {str(e)}")
-            await self.db.rollback()
 
 
 # Helper function to create service instance

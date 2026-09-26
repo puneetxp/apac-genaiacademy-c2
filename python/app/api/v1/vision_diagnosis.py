@@ -14,9 +14,10 @@ import logging
 from app.services.vision_diagnosis_service import vision_diagnosis_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/vision", tags=["Vision AI"])
+from app.core.auth import get_current_active_user
+from fastapi import Depends
 
-
+router = APIRouter(prefix="/vision", tags=["Vision AI"], dependencies=[Depends(get_current_active_user)])
 @router.post("/diagnose", response_model=Dict[str, Any])
 async def diagnose_crop_disease(
     image: UploadFile = File(..., description="Photo of the crop/leaf to diagnose"),

@@ -349,7 +349,7 @@ def analyze_seasonal_trends(
     - Planting calendar optimization
     """
     try:
-        from app.services.seasonal_trend_service import get_seasonal_trend_service
+        from app.services.seasonal_trend_analysis import get_seasonal_trend_service
         
         service = get_seasonal_trend_service(db)
         analysis = service.analyze_seasonal_trends(
@@ -414,7 +414,7 @@ def analyze_season_trend(
     - Assess season-specific risks
     """
     try:
-        from app.services.seasonal_trend_service import get_seasonal_trend_service
+        from app.services.seasonal_trend_analysis import get_seasonal_trend_service
         
         # Validate season
         if season.lower() not in ['kharif', 'rabi', 'zaid']:
@@ -488,7 +488,7 @@ def store_seasonal_trend(
     - Support offline trend access
     """
     try:
-        from app.services.seasonal_trend_service import get_seasonal_trend_service
+        from app.services.seasonal_trend_analysis import get_seasonal_trend_service
         
         # Validate season
         if season.lower() not in ['kharif', 'rabi', 'zaid']:

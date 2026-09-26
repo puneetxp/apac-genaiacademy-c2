@@ -6,12 +6,10 @@ Calculates profit margins for crop recommendations based on costs, revenue, and 
 import logging
 from typing import Dict, Any, Optional, List
 from decimal import Decimal
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from typing import Any as Session  # db kept for compatibility; queries use app.core.db.DB
 
-from app.orm.crop_profitability import CropProfitability
-from app.orm.crop_market_data import CropMarketData
-from app.orm.historical_yield import HistoricalYield
+from app.services.farm_access import fetch_one, fetch_all
+from app.services.market_data_service import _CMD_VIEW, _where
 
 logger = logging.getLogger(__name__)
 
@@ -222,18 +220,10 @@ class ProfitMarginService:
     ) -> Optional[Dict[str, Any]]:
         """Get historical profitability data for a crop"""
         try:
-            query = self.db.query(CropProfitability).filter(
-                CropProfitability.crop_type == crop_type,
-                CropProfitability.state == state
-            )
-            
-            if district:
-                query = query.filter(CropProfitability.district == district)
-            if season:
-                query = query.filter(CropProfitability.season == season)
-            
+            where, bind = _where({'crop_type': crop_type, 'state': state, 'district': district, 'season': season})
             # Get most recent data
-            result = query.order_by(CropProfitability.year.desc()).first()
+            result = fetch_one(
+                f"SELECT * FROM crop_profitability{where} ORDER BY year DESC NULLS LAST, id DESC LIMIT 1", bind)
             
             if not result:
                 return None
@@ -266,18 +256,9 @@ class ProfitMarginService:
     ) -> Optional[Dict[str, Any]]:
         """Get market price data for a crop"""
         try:
-            query = self.db.query(CropMarketData).filter(
-                CropMarketData.crop_type == crop_type,
-                CropMarketData.state == state
-            )
-            
-            if district:
-                query = query.filter(CropMarketData.district == district)
-            if season:
-                query = query.filter(CropMarketData.season == season)
-            
+            where, bind = _where({'crop_type': crop_type, 'state': state, 'district': district, 'season': season})
             # Get average price from recent data
-            result = query.order_by(CropMarketData.year.desc()).limit(5).all()
+            result = fetch_all(f"SELECT * FROM {_CMD_VIEW}{where} ORDER BY date DESC LIMIT 5", bind)
             
             if not result:
                 return None
@@ -302,18 +283,10 @@ class ProfitMarginService:
     ) -> Optional[Dict[str, Any]]:
         """Get yield data for a crop"""
         try:
-            query = self.db.query(HistoricalYield).filter(
-                HistoricalYield.crop_type == crop_type,
-                HistoricalYield.state == state
-            )
-            
-            if district:
-                query = query.filter(HistoricalYield.district == district)
-            if season:
-                query = query.filter(HistoricalYield.season == season)
-            
+            where, bind = _where({'crop_type': crop_type, 'state': state, 'district': district, 'season': season})
             # Get average yield from recent data
-            result = query.order_by(HistoricalYield.year.desc()).limit(5).all()
+            result = fetch_all(
+                f"SELECT * FROM historical_yields{where} ORDER BY year DESC NULLS LAST, id DESC LIMIT 5", bind)
             
             if not result:
                 return None

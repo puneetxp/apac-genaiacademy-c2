@@ -14,9 +14,10 @@ from datetime import datetime
 
 from app.services.hybrid_ai_service import hybrid_ai_service, QueryType, ModelType
 
-router = APIRouter(prefix="/hybrid-ai", tags=["Hybrid AI"])
+from app.core.auth import get_current_admin
+from fastapi import Depends
 
-
+router = APIRouter(prefix="/hybrid-ai", tags=["Hybrid AI"], dependencies=[Depends(get_current_admin)])
 # ==================== Request/Response Models ====================
 
 class YieldPredictionRequest(BaseModel):

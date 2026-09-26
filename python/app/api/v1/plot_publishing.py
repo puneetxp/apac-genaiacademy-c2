@@ -15,6 +15,14 @@ from datetime import date
 from app.core.database import get_db
 from app.services.plot_publishing_service import PlotPublishingService
 from app.core.auth import get_current_user
+from app.services.farm_access import fetch_all, plot_for_user
+
+
+def _user_id(current_user):
+    """current_user is an app.orm.user.User object (older code treated it as a dict with 'user_id')."""
+    if isinstance(current_user, dict):
+        return current_user.get('id', current_user.get('user_id'))
+    return getattr(current_user, 'id', None)
 
 router = APIRouter(prefix="/plot-publishing", tags=["plot-publishing"])
 
@@ -164,11 +172,14 @@ async def publish_plot_to_marketplace(
             quantity_quintals=request.quantity_quintals,
             quality_grade=request.quality_grade.upper(),
             price_per_quintal=request.price_per_quintal,
-            farmer_id=current_user['user_id']
+            farmer_id=_user_id(current_user),
+            user=current_user,
         )
         
         return listing
         
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -197,17 +208,18 @@ async def get_plot_listings(
     
     Useful for farmers to track their plot's marketplace history.
     """
+    # Owner check: someone else's plot is 404.
     try:
-        from sqlalchemy import select
-        from app.orm.marketplace_listing import MarketplaceListing
-        
-        # Get all listings for this plot
-        result = await db.execute(
-            select(MarketplaceListing)
-            .where(MarketplaceListing.farm_id == plot_id)
-            .order_by(MarketplaceListing.created_at.desc())
+        plot = plot_for_user(plot_id, current_user)
+    except LookupError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Plot {plot_id} not found")
+    try:
+        # marketplace_listings has no plot_id column, so listings are matched on the plot's farm
+        # (the old query compared farm_id with the plot id).
+        listings = fetch_all(
+            "SELECT * FROM marketplace_listings WHERE farm_id = ? ORDER BY created_at DESC, id DESC",
+            [plot.farm_id],
         )
-        listings = result.scalars().all()
         
         # Format response
         response = []
@@ -216,7 +228,7 @@ async def get_plot_listings(
                 "listing_id": listing.id,
                 "crop_type": listing.crop_type,
                 "crop_variety": listing.crop_variety,
-                "expected_harvest_date": listing.expected_harvest_date.isoformat(),
+                "expected_harvest_date": listing.expected_harvest_date.isoformat() if listing.expected_harvest_date else None,
                 "estimated_quantity": listing.estimated_quantity,
                 "quality_grade": listing.quality_grade,
                 "status": listing.status,

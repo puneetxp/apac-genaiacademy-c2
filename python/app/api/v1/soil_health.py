@@ -16,12 +16,24 @@ import io
 from app.core.database import get_db
 from app.services.soil_testing_service import soil_testing_service
 from app.services.soil_health_report_service import soil_health_report_service
+from app.services.farm_access import farm_for_user, plot_for_user
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/soil-health", tags=["soil-health"])
+from app.core.auth import get_current_active_user
 
+router = APIRouter(prefix="/soil-health", tags=["soil-health"], dependencies=[Depends(get_current_active_user)])
+
+
+def _owned(farm_id: int, plot_id: Optional[int], user) -> None:
+    """Owner check (raw SQL): the farm must be the user's, and the plot on that farm; 404 otherwise."""
+    try:
+        farm_for_user(farm_id, user)
+        if plot_id is not None and plot_for_user(plot_id, user)["farm_id"] != farm_id:
+            raise LookupError(f"Plot {plot_id} not found")
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 # Response schemas
 class DegradationAlert(BaseModel):
@@ -85,16 +97,17 @@ class SoilHealthReport(BaseModel):
 @router.get("/{plot_id}", response_model=SoilHealthReport)
 async def get_soil_health_by_plot_alias(
     plot_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """Registry alias for soil health by plot"""
-    # Find farm_id for this plot
-    from app.orm.farm_plot import FarmPlot
-    plot_result = await db.get(FarmPlot, plot_id)
-    if not plot_result:
+    # Find farm_id for this plot (owner-scoped)
+    try:
+        plot_result = plot_for_user(plot_id, current_user)
+    except LookupError:
         raise HTTPException(status_code=404, detail="Plot not found")
-        
-    return await get_soil_health_report(plot_result.farm_id, plot_id, db=db)
+
+    return await get_soil_health_report(plot_result.farm_id, plot_id, db=db, current_user=current_user)
 
 
 @router.get("/farm/{farm_id}/degradation", response_model=DegradationAnalysis)
@@ -102,7 +115,8 @@ async def analyze_soil_degradation(
     farm_id: int,
     plot_id: Optional[int] = None,
     months_lookback: int = 6,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Analyze soil degradation trends
@@ -110,11 +124,12 @@ async def analyze_soil_degradation(
     Identifies declining trends (> 10% decrease) over specified period.
     Generates alerts with severity levels (critical/high/warning).
     """
+    _owned(farm_id, plot_id, current_user)
     try:
         logger.info(f"Analyzing soil degradation for farm {farm_id}")
         
         analysis = await soil_testing_service.detect_soil_degradation(
-            db, farm_id, plot_id, months_lookback
+            db, farm_id, plot_id, months_lookback, user=current_user
         )
         
         if analysis['status'] == 'insufficient_data':
@@ -140,7 +155,8 @@ async def predict_soil_health(
     farm_id: int,
     plot_id: Optional[int] = None,
     months_ahead: int = 6,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Predict future soil health using linear regression
@@ -148,11 +164,12 @@ async def predict_soil_health(
     Analyzes historical trends and predicts future values for key parameters.
     Requires at least 3 historical soil tests.
     """
+    _owned(farm_id, plot_id, current_user)
     try:
         logger.info(f"Predicting soil health for farm {farm_id}")
         
         predictions = await soil_testing_service.predict_future_soil_health(
-            db, farm_id, plot_id, months_ahead
+            db, farm_id, plot_id, months_ahead, user=current_user
         )
         
         if predictions['status'] == 'insufficient_data':
@@ -177,7 +194,8 @@ async def predict_soil_health(
 async def get_improvement_action_plan(
     farm_id: int,
     plot_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Generate prioritized soil improvement action plan
@@ -185,11 +203,12 @@ async def get_improvement_action_plan(
     Analyzes deficiency patterns and creates comprehensive improvement plan
     with timeline (immediate, short-term, medium-term, long-term actions).
     """
+    _owned(farm_id, plot_id, current_user)
     try:
         logger.info(f"Generating action plan for farm {farm_id}")
         
         action_plan = await soil_testing_service.generate_improvement_action_plan(
-            db, farm_id, plot_id
+            db, farm_id, plot_id, user=current_user
         )
         
         if action_plan['status'] == 'no_data':
@@ -215,7 +234,8 @@ async def get_soil_health_report(
     farm_id: int,
     plot_id: Optional[int] = None,
     include_charts: bool = True,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Generate comprehensive soil health report
@@ -228,11 +248,12 @@ async def get_soil_health_report(
     - Prioritized action plan
     - Trend charts (optional)
     """
+    _owned(farm_id, plot_id, current_user)
     try:
         logger.info(f"Generating soil health report for farm {farm_id}")
         
         report = await soil_health_report_service.generate_soil_health_report(
-            db, farm_id, plot_id, include_charts
+            db, farm_id, plot_id, include_charts, user=current_user
         )
         
         if report.get('status') == 'error':
@@ -257,18 +278,20 @@ async def get_soil_health_report(
 async def export_soil_history_csv(
     farm_id: int,
     plot_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Export soil test history as CSV
     
     Downloads complete soil test history in CSV format for external analysis.
     """
+    _owned(farm_id, plot_id, current_user)
     try:
         logger.info(f"Exporting soil history as CSV for farm {farm_id}")
         
         csv_content = await soil_health_report_service.export_report_csv(
-            db, farm_id, plot_id
+            db, farm_id, plot_id, user=current_user
         )
         
         # Create streaming response
@@ -292,7 +315,8 @@ async def export_soil_history_csv(
 async def export_soil_report_pdf(
     farm_id: int,
     plot_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Generate and download PDF report
@@ -300,6 +324,7 @@ async def export_soil_report_pdf(
     Note: PDF generation is not yet implemented.
     This is a placeholder for future implementation.
     """
+    _owned(farm_id, plot_id, current_user)
     try:
         logger.info(f"Generating PDF report for farm {farm_id}")
         
@@ -323,19 +348,21 @@ async def export_soil_report_pdf(
 async def get_soil_trends(
     farm_id: int,
     plot_id: Optional[int] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get soil parameter trends over time
     
     Returns chart-ready data for visualizing soil health trends.
     """
+    _owned(farm_id, plot_id, current_user)
     try:
         logger.info(f"Fetching soil trends for farm {farm_id}")
         
         # Get history
         history = await soil_testing_service.get_soil_test_history(
-            db, farm_id, plot_id, limit=20
+            db, farm_id, plot_id, limit=20, user=current_user
         )
         
         if not history:

@@ -20,8 +20,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/ai-quota", tags=["ai-quota"])
+from app.core.auth import get_current_active_user, get_current_admin
 
+router = APIRouter(prefix="/ai-quota", tags=["ai-quota"], dependencies=[Depends(get_current_active_user)])
+
+def _ensure_self(user_id: int, current_user) -> None:
+    """Users may only see or spend their own quota; admins may act for anyone."""
+    if current_user.id != user_id and getattr(current_user, "user_type", None) != "admin":
+        raise HTTPException(status_code=403, detail="You can only access your own quota")
 
 # Removed helper-function dependency injection to enable direct cmd+click to class definition
 
@@ -29,7 +35,8 @@ router = APIRouter(prefix="/ai-quota", tags=["ai-quota"])
 @router.get("/status/{user_id}", response_model=QuotaStatusResponse)
 async def get_quota_status(
     user_id: int,
-    service: AIQuotaSvc
+    service: AIQuotaSvc,
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get current AI usage quota status for user
@@ -42,6 +49,7 @@ async def get_quota_status(
     
     - **user_id**: User ID to check quota for (integer from users.id)
     """
+    _ensure_self(user_id, current_user)
     try:
         quota_status = await service.get_quota_status(user_id)
         return quota_status
@@ -58,6 +66,7 @@ async def check_quota(
     user_id: int,
     service: AIQuotaSvc,
     has_gps: bool = False,
+    current_user=Depends(get_current_active_user),
 ):
     """
     Check if user can make AI request
@@ -69,6 +78,7 @@ async def check_quota(
     
     Returns whether GPS-enhanced request is allowed and remaining quota.
     """
+    _ensure_self(user_id, current_user)
     try:
         check_result = await service.check_quota(user_id, has_gps)
         return check_result
@@ -83,7 +93,8 @@ async def check_quota(
 @router.post("/increment", response_model=QuotaStatusResponse)
 async def increment_usage(
     request: QuotaIncrementRequest,
-    service: AIQuotaSvc
+    service: AIQuotaSvc,
+    current_user=Depends(get_current_active_user),
 ):
     """
     Increment AI usage counter
@@ -95,6 +106,7 @@ async def increment_usage(
     
     Returns updated quota status.
     """
+    _ensure_self(request.user_id, current_user)
     try:
         quota_status = await service.increment_usage(
             request.user_id,
@@ -111,7 +123,8 @@ async def increment_usage(
 
 @router.post("/reset", response_model=QuotaResetResponse)
 async def reset_daily_quota(
-    service: AIQuotaSvc
+    service: AIQuotaSvc,
+    current_user=Depends(get_current_admin),
 ):
     """
     Reset daily quota for all users
@@ -138,7 +151,8 @@ async def reset_daily_quota(
 async def update_quota_limit(
     user_id: int,
     new_limit: int,
-    service: AIQuotaSvc
+    service: AIQuotaSvc,
+    current_user=Depends(get_current_admin),
 ):
     """
     Update quota limit for specific user
@@ -174,6 +188,7 @@ async def get_usage_statistics(
     service: AIQuotaSvc,
     start_date: date = None,
     end_date: date = None,
+    current_user=Depends(get_current_admin),
 ):
     """
     Get AI usage statistics for date range

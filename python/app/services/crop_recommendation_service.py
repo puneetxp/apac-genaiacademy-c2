@@ -6,16 +6,12 @@ Validates AC4: RAG system suggests top 3 profitable crops with opportunity cost 
 
 import logging
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
+from typing import Any as Session  # db kept for compatibility; queries use app.core.db.DB
 from decimal import Decimal
 from datetime import datetime, timezone
 
-from app.orm.crop_market_data import CropMarketData
-from app.orm.historical_yield import HistoricalYield
-from app.orm.crop_profitability import CropProfitability
-from app.orm.seasonal_trend import SeasonalTrend
-from app.orm.opportunity_cost import OpportunityCost
+from app.services.farm_access import fetch_one, fetch_all, run_named
+from app.services.market_data_service import _CMD_VIEW, _where
 from app.services.bedrock_service import bedrock_service
 from app.services.market_data_service import MarketDataService
 from app.services.profit_margin_service import ProfitMarginService
@@ -215,9 +211,10 @@ class CropRecommendationService:
             if not query_vector:
                 return []
                 
-            # Execute vector similarity query using pgvector <=> (cosine distance) operator
-            from sqlalchemy import text
-            sql_query = text("""
+            # Execute vector similarity query using pgvector <=> (cosine distance) operator.
+            # Note: crop_market_data has no rag_embedding column in the current schema, so this query
+            # fails and the except below falls back to the SQL path.
+            sql_query = ("""
                 SELECT 
                     crop_name,
                     state,
@@ -232,8 +229,8 @@ class CropRecommendationService:
                 LIMIT :limit
             """)
             
-            result = self.db.execute(sql_query, {
-                "query_vector": query_vector,
+            result = run_named(sql_query, {
+                "query_vector": str(list(query_vector)),
                 "limit": top_n * 4
             })
             
@@ -309,30 +306,17 @@ class CropRecommendationService:
         # 2. Fallback to traditional SQL query if vector search is empty or fails
         try:
             # Query profitability data
-            query = self.db.query(
-                CropProfitability.crop_type,
-                CropProfitability.variety,
-                func.avg(CropProfitability.avg_profit_per_acre).label('avg_profit'),
-                func.avg(CropProfitability.total_investment_cost).label('avg_investment'),
-                func.avg(CropProfitability.roi_percentage).label('avg_roi'),
-                func.count(CropProfitability.id).label('data_points')
-            ).filter(
-                CropProfitability.state == state
+            where, bind = _where({'state': state, 'district': district, 'season': season})
+            # Group by crop and variety, order by profit; get more than needed for filtering
+            results = fetch_all(
+                f"""SELECT crop_type, variety, AVG(avg_profit_per_acre) AS avg_profit,
+                           AVG(total_investment_cost) AS avg_investment, AVG(roi_percentage) AS avg_roi,
+                           COUNT(id) AS data_points
+                    FROM crop_profitability{where}
+                    GROUP BY crop_type, variety
+                    ORDER BY AVG(avg_profit_per_acre) DESC NULLS LAST LIMIT ?""",
+                bind + [int(top_n * 2)],
             )
-            
-            if district:
-                query = query.filter(CropProfitability.district == district)
-            
-            if season:
-                query = query.filter(CropProfitability.season == season)
-            
-            # Group by crop and variety, order by profit
-            results = query.group_by(
-                CropProfitability.crop_type,
-                CropProfitability.variety
-            ).order_by(
-                func.avg(CropProfitability.avg_profit_per_acre).desc()
-            ).limit(top_n * 2).all()  # Get more than needed for filtering
             
             if not results:
                 return []
@@ -390,20 +374,10 @@ class CropRecommendationService:
     ) -> Optional[Dict[str, Any]]:
         """Get average yield data for a crop"""
         try:
-            query = self.db.query(
-                func.avg(HistoricalYield.avg_yield_per_acre).label('avg_yield'),
-                func.avg(HistoricalYield.success_rate).label('success_rate')
-            ).filter(
-                HistoricalYield.crop_type == crop_type,
-                HistoricalYield.state == state
-            )
-            
-            if district:
-                query = query.filter(HistoricalYield.district == district)
-            if season:
-                query = query.filter(HistoricalYield.season == season)
-            
-            result = query.first()
+            where, bind = _where({'crop_type': crop_type, 'state': state, 'district': district, 'season': season})
+            result = fetch_one(
+                f"SELECT AVG(avg_yield_per_acre) AS avg_yield, AVG(success_rate) AS success_rate "
+                f"FROM historical_yields{where}", bind)
             
             if result and result.avg_yield:
                 return {
@@ -425,20 +399,10 @@ class CropRecommendationService:
     ) -> Optional[Dict[str, Any]]:
         """Get market price data for a crop"""
         try:
-            query = self.db.query(
-                func.avg(CropMarketData.avg_price_per_quintal).label('avg_price'),
-                func.avg(CropMarketData.yoy_price_change).label('yoy_growth')
-            ).filter(
-                CropMarketData.crop_type == crop_type,
-                CropMarketData.state == state
-            )
-            
-            if district:
-                query = query.filter(CropMarketData.district == district)
-            if season:
-                query = query.filter(CropMarketData.season == season)
-            
-            result = query.first()
+            where, bind = _where({'crop_type': crop_type, 'state': state, 'district': district, 'season': season})
+            result = fetch_one(
+                f"SELECT AVG(avg_price_per_quintal) AS avg_price, AVG(yoy_price_change) AS yoy_growth "
+                f"FROM {_CMD_VIEW}{where}", bind)
             
             if result and result.avg_price:
                 yoy_growth = float(result.yoy_growth) if result.yoy_growth else 0
@@ -802,11 +766,10 @@ Keep it concise and actionable."""
         # Query crops suitable for next seasons
         for next_season in next_seasons:
             # Query from seasonal trends
-            season_query = self.db.query(SeasonalTrend).filter(
-                SeasonalTrend.state == state,
-                SeasonalTrend.planting_season == next_season,
-                SeasonalTrend.crop_type != primary_crop
-            ).all()
+            season_query = fetch_all(
+                "SELECT * FROM seasonal_trends WHERE state = ? AND planting_season = ? AND crop_type <> ?",
+                [state, next_season, primary_crop],
+            )
 
             for crop_data in season_query:
                 # Check compatibility
@@ -821,11 +784,11 @@ Keep it concise and actionable."""
                 # Only include if compatibility is reasonable (>0.6)
                 if compatibility_score >= 0.6:
                     # Get profit data from crop profitability
-                    profit_query = self.db.query(CropProfitability).filter(
-                        CropProfitability.state == state,
-                        CropProfitability.crop_type == crop_data.crop_type,
-                        CropProfitability.season == next_season
-                    ).order_by(CropProfitability.year.desc()).first()
+                    profit_query = fetch_one(
+                        """SELECT * FROM crop_profitability WHERE state = ? AND crop_type = ? AND season = ?
+                           ORDER BY year DESC NULLS LAST LIMIT 1""",
+                        [state, crop_data.crop_type, next_season],
+                    )
 
                     profit = float(profit_query.avg_profit_per_acre) if profit_query and profit_query.avg_profit_per_acre else 0
 

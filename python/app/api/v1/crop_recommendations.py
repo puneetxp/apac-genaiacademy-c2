@@ -319,8 +319,8 @@ def health_check(db: Session = Depends(get_db)):
         service = get_crop_recommendation_service(db)
         
         # Test basic query
-        from app.orm.crop_profitability import CropProfitability
-        test_query = db.query(CropProfitability).limit(1).first()
+        from app.core.db import DB as RawDB  # raw SQL (app/orm classes are not SQLAlchemy models)
+        test_query = RawDB.raw("SELECT id FROM crop_profitability LIMIT 1").result
         
         return {
             "status": "healthy",

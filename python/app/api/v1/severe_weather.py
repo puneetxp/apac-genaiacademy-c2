@@ -17,11 +17,21 @@ from app.core.database import get_db
 from app.services.weather_service import get_weather_service
 from app.services.severe_weather_service import get_severe_weather_service
 from app.core.cache import get_cache_manager
+from app.services.farm_access import fetch_all, farm_for_user, is_admin
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/severe-weather", tags=["severe-weather"])
+from app.core.auth import get_current_active_user
 
+router = APIRouter(prefix="/severe-weather", tags=["severe-weather"], dependencies=[Depends(get_current_active_user)])
+
+
+def _owned_farm(farm_id: int, user):
+    """Owner check (raw SQL via app.core.db.DB); someone else's farm is 404."""
+    try:
+        return farm_for_user(farm_id, user)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Farm not found")
 
 # Request/Response Models
 class SevereWeatherAlert(BaseModel):
@@ -116,7 +126,8 @@ async def detect_severe_weather(
     farm_id: Optional[int] = Query(None, description="Farm ID"),
     state: Optional[str] = Query(None, description="State name"),
     district: Optional[str] = Query(None, description="District name"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Detect severe weather conditions from forecast
@@ -135,6 +146,8 @@ async def detect_severe_weather(
     
     Alert delivery latency: < 15 minutes from detection
     """
+    if farm_id:  # detected alerts are stored against this farm, so it must be the user's
+        _owned_farm(farm_id, current_user)
     try:
         cache_manager = get_cache_manager()
         weather_service = get_weather_service(db, cache_manager=cache_manager)
@@ -222,7 +235,8 @@ async def check_emergency_harvest(
     farm_id: int,
     crop_id: int,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Check if emergency harvest is needed due to severe weather
@@ -242,6 +256,7 @@ async def check_emergency_harvest(
     
     Notification latency: < 15 minutes from detection
     """
+    _owned_farm(farm_id, current_user)
     try:
         cache_manager = get_cache_manager()
         weather_service = get_weather_service(db, cache_manager=cache_manager)
@@ -249,7 +264,7 @@ async def check_emergency_harvest(
         
         async with weather_service:
             alert = await severe_weather_service.check_emergency_harvest_alert(
-                farm_id, crop_id
+                farm_id, crop_id, user=current_user
             )
         
         if alert:
@@ -259,6 +274,8 @@ async def check_emergency_harvest(
         
         return None
     
+    except LookupError as e:  # crop missing or not on this farm
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error checking emergency harvest: {str(e)}")
         raise HTTPException(
@@ -327,10 +344,12 @@ async def get_alerts_alias(
     farm_id: Optional[int] = Query(None),
     state: Optional[str] = Query(None),
     district: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """Registry alias for severe weather alerts"""
-    return await get_active_alerts(farm_id=farm_id, state=state, district=district, db=db)
+    return await get_active_alerts(farm_id=farm_id, state=state, district=district, severity=None, db=db,
+                                   current_user=current_user)
 
 
 @router.get("/alerts/active", response_model=List[SevereWeatherAlert])
@@ -339,7 +358,8 @@ async def get_active_alerts(
     state: Optional[str] = Query(None, description="State name"),
     district: Optional[str] = Query(None, description="District name"),
     severity: Optional[str] = Query(None, description="Minimum severity (low, medium, high, critical)"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get active weather alerts from database
@@ -352,30 +372,35 @@ async def get_active_alerts(
     Returns list of active weather alerts stored in database.
     Alerts are automatically stored when detected by the system.
     """
+    if farm_id:
+        _owned_farm(farm_id, current_user)
     try:
-        from sqlalchemy import select, and_
-        from app.orm.weather_alert import WeatherAlert
-        
-        # Build query
-        conditions = [WeatherAlert.is_active == True]
-        
+        # Build query (raw SQL). Regional alerts (no farm) are visible to everyone signed in;
+        # farm alerts only to the farm's owner (or an admin).
+        where, bind = ["is_active = 1"], []
         if farm_id:
-            conditions.append(WeatherAlert.farm_id == farm_id)
+            where.append("farm_id = ?")
+            bind.append(farm_id)
+        elif not is_admin(current_user):
+            where.append("(farm_id IS NULL OR farm_id IN (SELECT id FROM farms WHERE user_id = ?))")
+            bind.append(current_user.id)
         if state:
-            conditions.append(WeatherAlert.state == state)
+            where.append("state = ?")
+            bind.append(state)
         if district:
-            conditions.append(WeatherAlert.district == district)
+            where.append("district = ?")
+            bind.append(district)
         if severity:
             severity_order = ["low", "medium", "high", "critical"]
             min_index = severity_order.index(severity.lower())
             valid_severities = severity_order[min_index:]
-            conditions.append(WeatherAlert.severity.in_(valid_severities))
+            where.append(f"severity IN ({', '.join('?' for _ in valid_severities)})")
+            bind.extend(valid_severities)
         
         # Execute query
-        result = await db.execute(
-            select(WeatherAlert).where(and_(*conditions))
+        alerts = fetch_all(
+            f"SELECT * FROM weather_alerts WHERE {' AND '.join(where)} ORDER BY valid_from DESC, id DESC", bind
         )
-        alerts = result.scalars().all()
         
         # Convert to response format
         return [

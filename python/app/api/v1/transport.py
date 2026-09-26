@@ -1,24 +1,22 @@
 """
 Transport coordination API endpoints for livestock marketplace.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from app.core.database import get_async_db
-from app.services.transport_service import TransportService
+from app.services.transport_service import transport_service
 
 
-router = APIRouter(prefix="/transport", tags=["transport"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/transport", tags=["transport"], dependencies=[Depends(get_current_active_user)])
 # Request/Response Models
 
 class TransportProviderCreate(BaseModel):
     """Request model for registering a transport provider."""
-    user_id: int
+    user_id: Optional[int] = Field(None, description="Ignored; the provider belongs to the signed-in user")
     company_name: str = Field(..., min_length=1, max_length=255)
     contact_person: str = Field(..., min_length=1, max_length=255)
     contact_phone: str = Field(..., min_length=10, max_length=20)
@@ -109,7 +107,7 @@ class TransportBookingCreate(BaseModel):
     """Request model for creating transport booking."""
     transaction_id: int
     provider_id: int
-    requester_id: int
+    requester_id: Optional[int] = Field(None, description="Ignored; the requester is the signed-in user")
     pickup_address: str = Field(..., min_length=10)
     pickup_latitude: Optional[float] = None
     pickup_longitude: Optional[float] = None
@@ -155,6 +153,9 @@ class TransportBookingResponse(BaseModel):
     review: Optional[str]
     reviewed_at: Optional[datetime]
     created_at: datetime
+    cancelled_at: Optional[datetime] = None
+    cancellation_reason: Optional[str] = None
+    provider_name: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -179,58 +180,34 @@ class CancellationRequest(BaseModel):
     cancellation_reason: str = Field(..., min_length=10)
 
 
+def _run(fn, *args, **kwargs):
+    """Map service errors to HTTP status codes."""
+    try:
+        return fn(*args, **kwargs)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 # Transport Provider Endpoints
 
 @router.post("/providers", response_model=TransportProviderResponse, status_code=status.HTTP_201_CREATED)
 async def register_provider(
     provider_data: TransportProviderCreate,
-    db: AsyncSession = Depends(get_async_db)
+    current_user=Depends(get_current_active_user),
 ):
-    """Register a new transport provider."""
-    service = TransportService(db)
-    
-    try:
-        provider = await service.register_provider(
-            user_id=provider_data.user_id,
-            company_name=provider_data.company_name,
-            contact_person=provider_data.contact_person,
-            contact_phone=provider_data.contact_phone,
-            contact_email=provider_data.contact_email,
-            service_areas=provider_data.service_areas,
-            vehicle_types=provider_data.vehicle_types,
-            livestock_specialization=provider_data.livestock_specialization,
-            base_rate_per_km=provider_data.base_rate_per_km,
-            minimum_charge=provider_data.minimum_charge,
-            max_capacity_animals=provider_data.max_capacity_animals,
-            insurance_available=provider_data.insurance_available,
-            insurance_rate_percentage=provider_data.insurance_rate_percentage,
-            license_number=provider_data.license_number,
-            verification_documents=provider_data.verification_documents
-        )
-        return provider
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to register provider: {str(e)}"
-        )
+    """Register a transport provider owned by the signed-in user (any client-sent user_id is ignored)."""
+    data = provider_data.model_dump(exclude={"user_id"})
+    return _run(transport_service.register_provider, current_user, **data)
 
 
 @router.get("/providers/{provider_id}", response_model=TransportProviderResponse)
-async def get_provider(
-    provider_id: int,
-    db: AsyncSession = Depends(get_async_db)
-):
+async def get_provider(provider_id: int):
     """Get transport provider details."""
-    service = TransportService(db)
-    provider = await service.get_provider(provider_id)
-    
-    if not provider:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transport provider {provider_id} not found"
-        )
-    
-    return provider
+    return _run(transport_service.get_provider, provider_id)
 
 
 @router.get("/providers", response_model=List[TransportProviderResponse])
@@ -241,90 +218,43 @@ async def search_providers(
     min_capacity: Optional[int] = None,
     insurance_required: bool = False,
     verified_only: bool = False,
-    db: AsyncSession = Depends(get_async_db)
+    mine: bool = Query(False, description="Only providers registered by the signed-in user"),
+    current_user=Depends(get_current_active_user),
 ):
-    """Search for transport providers based on criteria."""
-    service = TransportService(db)
-    providers = await service.search_providers(
+    """Search for active transport providers."""
+    return _run(
+        transport_service.search_providers,
         state=state,
         district=district,
         livestock_type=livestock_type,
         min_capacity=min_capacity,
         insurance_required=insurance_required,
-        verified_only=verified_only
+        verified_only=verified_only,
+        user_id=current_user.id if mine else None,
     )
-    return providers
 
 
 @router.put("/providers/{provider_id}", response_model=TransportProviderResponse)
 async def update_provider(
     provider_id: int,
     updates: TransportProviderUpdate,
-    db: AsyncSession = Depends(get_async_db)
+    current_user=Depends(get_current_active_user),
 ):
-    """Update transport provider details."""
-    service = TransportService(db)
-    
-    # Convert to dict and remove None values
-    update_data = {k: v for k, v in updates.dict().items() if v is not None}
-    
-    provider = await service.update_provider(provider_id, **update_data)
-    
-    if not provider:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transport provider {provider_id} not found"
-        )
-    
-    return provider
+    """Update transport provider details (owner or admin only)."""
+    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+    return _run(transport_service.update_provider, provider_id, current_user, **update_data)
 
 
 # Cost Estimation Endpoint
 
 @router.post("/cost-estimate", response_model=CostEstimateResponse)
-async def estimate_transport_cost(
-    estimate_request: CostEstimateRequest,
-    db: AsyncSession = Depends(get_async_db)
-):
+async def estimate_transport_cost(estimate_request: CostEstimateRequest):
     """Calculate transport cost estimate."""
-    service = TransportService(db)
-    
-    # Get provider
-    provider = await service.get_provider(estimate_request.provider_id)
-    if not provider:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transport provider {estimate_request.provider_id} not found"
-        )
-    
-    # Calculate distance
-    distance_km = service.calculate_distance(
-        estimate_request.pickup_latitude,
-        estimate_request.pickup_longitude,
-        estimate_request.delivery_latitude,
-        estimate_request.delivery_longitude
-    )
-    
-    # Calculate costs
-    costs = service.calculate_transport_cost(
-        provider,
-        distance_km,
-        estimate_request.livestock_type,
-        estimate_request.livestock_count,
-        estimate_request.animal_value,
-        estimate_request.insurance_opted
-    )
-    
-    # Estimate travel time
-    estimated_travel_hours = distance_km / 50  # Assume 50 km/hour average
-    
-    return CostEstimateResponse(
-        distance_km=distance_km,
-        transport_cost=costs['transport_cost'],
-        insurance_cost=costs['insurance_cost'],
-        total_cost=costs['total_cost'],
-        provider_name=provider.company_name,
-        estimated_travel_hours=round(estimated_travel_hours, 2)
+    r = estimate_request
+    return _run(
+        transport_service.estimate,
+        r.provider_id, r.pickup_latitude, r.pickup_longitude, r.delivery_latitude, r.delivery_longitude,
+        r.livestock_type, r.livestock_count, r.animal_value, r.insurance_opted,
     )
 
 
@@ -333,163 +263,103 @@ async def estimate_transport_cost(
 @router.post("/bookings", response_model=TransportBookingResponse, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     booking_data: TransportBookingCreate,
-    db: AsyncSession = Depends(get_async_db)
+    current_user=Depends(get_current_active_user),
 ):
-    """Create a new transport booking."""
-    service = TransportService(db)
-    
-    try:
-        booking = await service.create_booking(
-            transaction_id=booking_data.transaction_id,
-            provider_id=booking_data.provider_id,
-            requester_id=booking_data.requester_id,
-            pickup_address=booking_data.pickup_address,
-            pickup_latitude=booking_data.pickup_latitude,
-            pickup_longitude=booking_data.pickup_longitude,
-            delivery_address=booking_data.delivery_address,
-            delivery_latitude=booking_data.delivery_latitude,
-            delivery_longitude=booking_data.delivery_longitude,
-            livestock_type=booking_data.livestock_type,
-            livestock_count=booking_data.livestock_count,
-            animal_value=booking_data.animal_value,
-            scheduled_pickup_date=booking_data.scheduled_pickup_date,
-            insurance_opted=booking_data.insurance_opted,
-            special_instructions=booking_data.special_instructions
-        )
-        return booking
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create booking: {str(e)}"
-        )
+    """Create a transport booking for a livestock transaction the signed-in user is buyer or seller of."""
+    data = booking_data.model_dump(exclude={"requester_id"})
+    return _run(transport_service.create_booking, current_user, **data)
+
+
+@router.get("/bookings", response_model=List[TransportBookingResponse])
+async def list_bookings(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    current_user=Depends(get_current_active_user),
+):
+    """Transport bookings the signed-in user is involved in (requester, provider, buyer or seller)."""
+    return _run(transport_service.list_bookings, current_user, status_filter, skip, limit)
+
+
+def _booking_for(booking_id: int, current_user):
+    return _run(transport_service.get_booking, booking_id, current_user)
 
 
 @router.get("/tracking/{booking_id}", response_model=TransportBookingResponse)
-async def track_booking_by_id_alias(booking_id: int, db: AsyncSession = Depends(get_async_db)):
+async def track_booking_by_id_alias(booking_id: int, current_user=Depends(get_current_active_user)):
     """Registry alias for tracking booking by booking_id"""
-    return await get_booking(booking_id, db)
+    return _booking_for(booking_id, current_user)
 
 
-@router.get("/tracking/{id}", response_model=TransportBookingResponse)
-async def track_booking_alias(id: int, db: AsyncSession = Depends(get_async_db)):
+# Same path as the route above, so it never matches; kept (hidden from the docs) for compatibility.
+@router.get("/tracking/{id}", response_model=TransportBookingResponse, include_in_schema=False)
+async def track_booking_alias(id: int, current_user=Depends(get_current_active_user)):
     """Registry alias for tracking booking"""
-    return await get_booking(id, db)
+    return _booking_for(id, current_user)
 
 
-@router.get("/bookings/{id}", response_model=TransportBookingResponse)
-async def get_booking(
-    id: int,
-    db: AsyncSession = Depends(get_async_db)
-):
-    """Get transport booking details."""
-    service = TransportService(db)
-    booking = await service.get_booking(id)
-    
-    if not booking:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transport booking {id} not found"
-        )
-    
-    return booking
-
-
+# Static /bookings/<word>/... routes are registered before /bookings/{id}.
 @router.get("/bookings/transaction/{transaction_id}", response_model=List[TransportBookingResponse])
-async def get_transaction_bookings(
-    transaction_id: int,
-    db: AsyncSession = Depends(get_async_db)
-):
-    """Get all transport bookings for a transaction."""
-    service = TransportService(db)
-    bookings = await service.get_bookings_for_transaction(transaction_id)
-    return bookings
+async def get_transaction_bookings(transaction_id: int, current_user=Depends(get_current_active_user)):
+    """Get all transport bookings for a livestock transaction (buyer, seller or admin)."""
+    return _run(transport_service.get_bookings_for_transaction, transaction_id, current_user)
 
 
 @router.get("/bookings/provider/{provider_id}", response_model=List[TransportBookingResponse])
 async def get_provider_bookings(
     provider_id: int,
-    status: Optional[str] = None,
-    db: AsyncSession = Depends(get_async_db)
+    status_filter: Optional[str] = Query(None, alias="status"),
+    current_user=Depends(get_current_active_user),
 ):
-    """Get all bookings for a provider."""
-    service = TransportService(db)
-    bookings = await service.get_provider_bookings(provider_id, status)
-    return bookings
+    """Get all bookings for a provider (provider's owner or admin)."""
+    return _run(transport_service.get_provider_bookings, provider_id, current_user, status_filter)
+
+
+@router.get("/bookings/{id}", response_model=TransportBookingResponse)
+async def get_booking(id: int, current_user=Depends(get_current_active_user)):
+    """Get transport booking details (parties to the booking or admin)."""
+    return _booking_for(id, current_user)
 
 
 @router.put("/bookings/{booking_id}/status", response_model=TransportBookingResponse)
 async def update_booking_status(
     booking_id: int,
     status_update: StatusUpdate,
-    db: AsyncSession = Depends(get_async_db)
+    current_user=Depends(get_current_active_user),
 ):
-    """Update transport booking status."""
-    service = TransportService(db)
-    
-    booking = await service.update_booking_status(
+    """Update transport booking status (provider or admin; 'cancelled' is open to any party)."""
+    return _run(
+        transport_service.update_booking_status,
         booking_id,
+        current_user,
         status_update.status,
         status_update.message,
         status_update.actual_pickup_date,
-        status_update.actual_delivery_date
+        status_update.actual_delivery_date,
     )
-    
-    if not booking:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transport booking {booking_id} not found"
-        )
-    
-    return booking
 
 
 @router.post("/bookings/{booking_id}/review", response_model=TransportBookingResponse)
 async def add_rating_review(
     booking_id: int,
     rating_review: RatingReview,
-    db: AsyncSession = Depends(get_async_db)
+    current_user=Depends(get_current_active_user),
 ):
-    """Add rating and review for completed transport."""
-    service = TransportService(db)
-    
-    booking = await service.add_rating_and_review(
+    """Add rating and review for a delivered transport (customer side only, once)."""
+    return _run(
+        transport_service.add_rating_and_review,
         booking_id,
+        current_user,
         rating_review.rating,
-        rating_review.review
+        rating_review.review,
     )
-    
-    if not booking:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transport booking {booking_id} not found or not delivered"
-        )
-    
-    return booking
 
 
 @router.post("/bookings/{booking_id}/cancel", response_model=TransportBookingResponse)
 async def cancel_booking(
     booking_id: int,
     cancellation: CancellationRequest,
-    db: AsyncSession = Depends(get_async_db)
+    current_user=Depends(get_current_active_user),
 ):
-    """Cancel a transport booking."""
-    service = TransportService(db)
-    
-    booking = await service.cancel_booking(
-        booking_id,
-        cancellation.cancellation_reason
-    )
-    
-    if not booking:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transport booking {booking_id} not found or cannot be cancelled"
-        )
-    
-    return booking
+    """Cancel an open transport booking (any party or admin)."""
+    return _run(transport_service.cancel_booking, booking_id, current_user, cancellation.cancellation_reason)

@@ -13,6 +13,31 @@ from app.orm.advance_booking import AdvanceBooking
 from app.orm.livestock_transaction import LivestockTransaction
 
 
+# The ORM classes have no async API; these helpers read/write with parameterised SQL.
+def _row(row: Dict[str, Any]) -> Dict[str, Any]:
+    from decimal import Decimal
+    return {k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()}
+
+
+async def _find(table: str, item_id: int) -> Optional[Dict[str, Any]]:
+    from app.core.db import DB
+    rows = DB.raw(f'SELECT * FROM "{table}" WHERE id = ?', [item_id]).result
+    return _row(rows[0]) if rows else None
+
+
+async def _all_prices(where: str = "", bind: Optional[list] = None) -> List[Dict[str, Any]]:
+    from app.core.db import DB
+    sql = "SELECT * FROM market_prices" + (f" WHERE {where}" if where else "") + " ORDER BY transaction_date"
+    return [_row(r) for r in DB.raw(sql, bind or []).result]
+
+
+async def _create_price(data: Dict[str, Any]) -> Dict[str, Any]:
+    from app.core.db import DB
+    cols = ", ".join(f'"{k}"' for k in data)
+    marks = ", ".join("?" for _ in data)
+    return _row(DB.raw(f"INSERT INTO market_prices ({cols}) VALUES ({marks}) RETURNING *", list(data.values())).result[0])
+
+
 class PriceTrackingService:
     """Service for tracking and analyzing market prices"""
     
@@ -33,7 +58,7 @@ class PriceTrackingService:
             Created market price record or None
         """
         # Get listing details
-        listing = await MarketplaceListing.find(listing_id, self.db)
+        listing = await _find('marketplace_listings', listing_id)
         if not listing or not listing.get('price_per_unit'):
             return None
         
@@ -58,7 +83,7 @@ class PriceTrackingService:
         if harvest_date:
             price_data['season'] = self._determine_season(harvest_date)
         
-        market_price = await MarketPrice.create(price_data, self.db)
+        market_price = await _create_price(price_data)
         return market_price
     
     async def collect_price_from_booking(
@@ -75,12 +100,12 @@ class PriceTrackingService:
             Created market price record or None
         """
         # Get booking details
-        booking = await AdvanceBooking.find(booking_id, self.db)
+        booking = await _find('advance_bookings', booking_id)
         if not booking:
             return None
         
         # Get associated listing for crop details
-        listing = await MarketplaceListing.find(booking['listing_id'], self.db)
+        listing = await _find('marketplace_listings', booking['listing_id'])
         if not listing:
             return None
         
@@ -115,7 +140,7 @@ class PriceTrackingService:
         if delivery_date:
             price_data['season'] = self._determine_season(delivery_date)
         
-        market_price = await MarketPrice.create(price_data, self.db)
+        market_price = await _create_price(price_data)
         return market_price
     
     async def collect_price_from_livestock_transaction(
@@ -132,13 +157,13 @@ class PriceTrackingService:
             Created market price record or None
         """
         # Get transaction details
-        transaction = await LivestockTransaction.find(transaction_id, self.db)
+        transaction = await _find('livestock_transactions', transaction_id)
         if not transaction or transaction['status'] not in ['agreed', 'completed']:
             return None
         
         # Get listing details
         from app.orm.livestock_listing import LivestockListing
-        listing = await LivestockListing.find(transaction['listing_id'], self.db)
+        listing = await _find('livestock_listings', transaction['listing_id'])
         if not listing:
             return None
         
@@ -157,7 +182,7 @@ class PriceTrackingService:
             'source': 'livestock_transaction'
         }
         
-        market_price = await MarketPrice.create(price_data, self.db)
+        market_price = await _create_price(price_data)
         return market_price
     
     async def get_price_trends(
@@ -184,11 +209,11 @@ class PriceTrackingService:
         cutoff_date = datetime.now() - timedelta(days=days)
         
         # Get all prices and filter
-        all_prices = await MarketPrice.all(self.db)
+        all_prices = await _all_prices()
         
         prices = []
         for p in all_prices:
-            if p['item_type'] != item_type or p['item_name'] != item_name:
+            if p['item_type'] != item_type or str(p['item_name']).lower() != item_name.lower():
                 continue
             if p['transaction_date'] < cutoff_date:
                 continue
@@ -291,11 +316,11 @@ class PriceTrackingService:
         cutoff_date = datetime.now() - timedelta(days=days)
         
         # Get all prices and filter
-        all_prices = await MarketPrice.all(self.db)
+        all_prices = await _all_prices()
         
         prices = []
         for p in all_prices:
-            if p['item_type'] != item_type or p['item_name'] != item_name:
+            if p['item_type'] != item_type or str(p['item_name']).lower() != item_name.lower():
                 continue
             if p['transaction_date'] < cutoff_date:
                 continue
@@ -371,11 +396,11 @@ class PriceTrackingService:
         cutoff_date = datetime.now() - timedelta(days=90)
         
         # Get all prices and filter for bookings
-        all_prices = await MarketPrice.all(self.db)
+        all_prices = await _all_prices()
         
         bookings = []
         for p in all_prices:
-            if p['item_type'] != item_type or p['item_name'] != item_name:
+            if p['item_type'] != item_type or str(p['item_name']).lower() != item_name.lower():
                 continue
             if p['transaction_date'] < cutoff_date:
                 continue

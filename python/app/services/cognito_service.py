@@ -13,6 +13,17 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _mock_auth_allowed() -> bool:
+    # The mock fallbacks skip password and token checks entirely, so they are only safe locally/in tests.
+    return settings.ENVIRONMENT in ("development", "test", "testing")
+
+
+def _require_mock_allowed(operation: str) -> None:
+    if not _mock_auth_allowed():
+        logger.error(f"{operation}: Firebase auth is not configured; refusing mock fallback in {settings.ENVIRONMENT}")
+        raise Exception(f"{operation} failed: authentication service is not configured")
+
+
 class CognitoService:
     """Service for Firebase Authentication operations (renamed/compatible with CognitoService)"""
     
@@ -25,18 +36,24 @@ class CognitoService:
     def _init_firebase(self):
         import firebase_admin
         from firebase_admin import credentials
+        if settings.E2E_ACTIVE:
+            logger.warning("E2E mode: Firebase disabled, using mock auth against the e2e database")
+            return
         try:
             if not firebase_admin._apps:
+                # An explicit projectId lets ID-token verification work even without Google
+                # credentials (local dev); only admin calls such as create_user need them.
+                options = {'projectId': settings.FIREBASE_PROJECT_ID}
                 if settings.GOOGLE_APPLICATION_CREDENTIALS:
                     cred = credentials.Certificate(settings.GOOGLE_APPLICATION_CREDENTIALS)
-                    firebase_admin.initialize_app(cred)
+                    firebase_admin.initialize_app(cred, options)
                 else:
                     try:
                         cred = credentials.ApplicationDefault()
-                        firebase_admin.initialize_app(cred)
+                        firebase_admin.initialize_app(cred, options)
                     except Exception:
                         # Fallback for local development without default credentials
-                        firebase_admin.initialize_app()
+                        firebase_admin.initialize_app(options=options)
             self._initialized = True
             logger.info("Firebase Admin SDK initialized successfully in CognitoService compatibility wrapper")
         except Exception as e:
@@ -48,7 +65,7 @@ class CognitoService:
         username: str,
         password: str,
         email: str,
-        phone_number: str,
+        phone_number: Optional[str],
         full_name: str,
         user_attributes: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
@@ -56,7 +73,9 @@ class CognitoService:
         Register a new user in Firebase Auth / Mock Cognito Client
         """
         if self.client is not None:
-            cognito_attrs = [{'Name': 'email', 'Value': email}, {'Name': 'phone_number', 'Value': phone_number}, {'Name': 'name', 'Value': full_name}]
+            cognito_attrs = [{'Name': 'email', 'Value': email}, {'Name': 'name', 'Value': full_name}]
+            if phone_number:
+                cognito_attrs.append({'Name': 'phone_number', 'Value': phone_number})
             try:
                 res = self.client.sign_up(
                     ClientId="mock_client_id",
@@ -74,6 +93,7 @@ class CognitoService:
                 raise Exception(f"Sign up failed: {str(e)}")
 
         if not self._initialized:
+            _require_mock_allowed("Sign up")
             logger.info("Firebase Admin not initialized. Creating mock signup response.")
             return {
                 'user_sub': f"mock-sub-{username}",
@@ -118,6 +138,7 @@ class CognitoService:
                 raise Exception(f"Confirmation failed: {str(e)}")
 
         if not self._initialized:
+            _require_mock_allowed("Confirmation")
             return True
         try:
             from firebase_admin import auth
@@ -171,7 +192,12 @@ class CognitoService:
 
         api_key = os.getenv("FIREBASE_API_KEY")
         
-        if not api_key or settings.ENVIRONMENT == "development":
+        # Seeded e2e users all share E2E_PASSWORD, so wrong-password flows can be tested.
+        if settings.E2E_ACTIVE and password != settings.E2E_PASSWORD:
+            raise Exception("Sign in failed: INVALID_PASSWORD")
+
+        if settings.E2E_ACTIVE or not api_key or settings.ENVIRONMENT == "development":
+            _require_mock_allowed("Sign in")
             logger.info("Firebase Web API Key not set or in dev mode. Returning mock token instantly.")
             return {
                 'access_token': f"mock-token-{username}",
@@ -244,6 +270,7 @@ class CognitoService:
 
         api_key = os.getenv("FIREBASE_API_KEY")
         if not api_key:
+            _require_mock_allowed("Token refresh")
             return {
                 'access_token': refresh_token,
                 'id_token': refresh_token,
@@ -351,7 +378,21 @@ class CognitoService:
         try:
             from firebase_admin import auth
             decoded = auth.verify_id_token(access_token)
-            user = auth.get_user(decoded['uid'])
+            try:
+                user = auth.get_user(decoded['uid'])
+            except Exception as lookup_err:
+                # No admin credentials (e.g. local dev): the verified token carries what we need.
+                logger.warning(f"Firebase get_user unavailable, using token claims: {lookup_err}")
+                return {
+                    'username': decoded.get('email') or decoded['uid'],
+                    'user_sub': decoded['uid'],
+                    'email': decoded.get('email'),
+                    'email_verified': decoded.get('email_verified', False),
+                    'phone_number': decoded.get('phone_number'),
+                    'phone_verified': decoded.get('phone_number') is not None,
+                    'name': decoded.get('name') or "Firebase User",
+                    'attributes': {},
+                }
             return {
                 'username': user.email or user.uid,
                 'user_sub': user.uid,
@@ -363,7 +404,7 @@ class CognitoService:
                 'attributes': user.custom_claims or {},
             }
         except Exception as e:
-            if access_token.startswith("mock-") or access_token == "test-token" or settings.ENVIRONMENT == "development":
+            if _mock_auth_allowed() and (access_token.startswith("mock-") or access_token == "test-token" or settings.ENVIRONMENT == "development"):
                 username_or_email = "puneetxp"
                 if access_token.startswith("mock-token-"):
                     username_or_email = access_token.replace("mock-token-", "")
@@ -440,6 +481,7 @@ class CognitoService:
         Delete a user from Firebase Auth (Admin)
         """
         if not self._initialized:
+            _require_mock_allowed("Delete user")
             return True
         try:
             from firebase_admin import auth

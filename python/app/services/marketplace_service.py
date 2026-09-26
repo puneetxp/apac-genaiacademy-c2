@@ -32,168 +32,57 @@ class MarketplaceService:
     
     def create_automatic_listing(
         self,
-        crop_id: uuid.UUID,
-        farmer_id: uuid.UUID,
+        crop_id: int,
+        farmer_id: int,
         yield_prediction: Optional[Dict[str, Any]] = None
-    ) -> MarketplaceListing:
+    ) -> Dict[str, Any]:
         """
-        Automatically create marketplace listing when farmer plants a crop
-        
-        Args:
-            crop_id: Crop UUID
-            farmer_id: Farmer UUID
-            yield_prediction: Optional yield prediction data
-            
-        Returns:
-            Created Listing instance
-            
+        Automatically create a marketplace listing for a farmer's crop (idempotent per crop)
+
         Validates: AC4.1 - Automatic listing when farmer confirms crop selection
         Validates: AC4.2 - Include all required fields
         """
-        try:
-            # Get crop details
-            crop = self.db.query(Crop).filter(Crop.id == crop_id).first()
-            if not crop:
-                raise ValueError(f"Crop {crop_id} not found")
-            
-            # Get plot and farm details
-            plot = self.db.query(FarmPlot).filter(FarmPlot.id == crop.plot_id).first()
-            if not plot:
-                raise ValueError(f"Plot {crop.plot_id} not found")
-            
-            farm = self.db.query(Farm).filter(Farm.id == plot.farm_id).first()
-            if not farm:
-                raise ValueError(f"Farm {plot.farm_id} not found")
-            
-            # Get farmer details
-            farmer = self.db.query(User).filter(User.id == farmer_id).first()
-            if not farmer:
-                raise ValueError(f"Farmer {farmer_id} not found")
-            
-            # Check if listing already exists
-            existing_listing = self.db.query(MarketplaceListing).filter(
-                MarketplaceListing.crop_id == crop_id
-            ).first()
-            
-            if existing_listing:
-                logger.info(f"Listing already exists for crop {crop_id}")
-                return existing_listing
-            
-            # Get crop variety details
-            crop_variety = crop.crop_variety
-            crop_type = crop_variety.crop_type if crop_variety else "Unknown"
-            variety_name = crop_variety.variety_name if crop_variety else "Standard"
-            
-            # Use yield prediction or generate one
-            if not yield_prediction:
-                yield_prediction = self._generate_yield_prediction(crop, plot, farm)
-            
-            # Extract prediction details
-            expected_yield = yield_prediction.get('total_expected_yield', crop.area_planted * 20)
-            harvest_date = yield_prediction.get('harvest_date', 
-                                               (crop.expected_harvest_date or 
-                                                crop.planting_date + timedelta(days=120)).isoformat())
-            quality_grade = yield_prediction.get('quality_grade', 'B')
-            confidence_score = yield_prediction.get('confidence_score', 0.85)
-            
-            # Parse harvest date
-            if isinstance(harvest_date, str):
-                harvest_date = datetime.fromisoformat(harvest_date).date()
-            
-            # Calculate harvest window
-            harvest_window_start = harvest_date - timedelta(days=7)
-            harvest_window_end = harvest_date + timedelta(days=7)
-            
-            # Get market intelligence
-            market_data = self._get_market_intelligence(crop_type, farm.location_state, farm.location_district)
-            
-            # Create listing title and description
-            title = f"{crop_type} ({variety_name}) - {farm.location_district}, {farm.location_state}"
-            description = self._generate_listing_description(
-                crop_type=crop_type,
-                variety=variety_name,
-                area=float(crop.area_planted),
-                expected_yield=float(expected_yield),
-                quality_grade=quality_grade,
-                harvest_date=harvest_date,
-                farm_name=farm.name
-            )
-            
-            # Create listing
-            listing = MarketplaceListing(
-                id=uuid.uuid4(),
-                crop_id=crop_id,
-                farmer_id=farmer_id,
-                
-                # Listing details
-                title=title,
-                description=description,
-                
-                # Crop information
-                crop_type=crop_type,
-                crop_variety=variety_name,
-                
-                # Quantity and quality
-                estimated_quantity=expected_yield,
-                quantity_unit='quintals',
-                min_quantity=expected_yield * 0.1,  # 10% minimum
-                max_quantity=expected_yield,
-                quality_grade=quality_grade,
-                quality_confidence=confidence_score,
-                quality_description=f"Expected {quality_grade} grade based on AI prediction",
-                
-                # Harvest information
-                expected_harvest_date=harvest_date,
-                harvest_date_confidence=confidence_score,
-                harvest_window_start=harvest_window_start,
-                harvest_window_end=harvest_window_end,
-                
-                # Pricing
-                asking_price_per_unit=market_data.get('price_per_quintal', 2000),
-                price_negotiable=True,
-                
-                # Location
-                location_state=farm.location_state,
-                location_district=farm.location_district,
-                location_block=farm.location_block,
-                exact_location_shared=False,
-                
-                # Farmer contact (MVP - Direct Contact)
-                contact_enabled=True,
-                farmer_phone=farmer.phone,
-                farmer_email=farmer.email,
-                preferred_contact_method='phone',
-                
-                # Market intelligence
-                market_demand_score=market_data.get('demand_score', 0.75),
-                price_trend=market_data.get('price_trend', 'stable'),
-                yoy_price_growth=market_data.get('yoy_growth', 0),
-                
-                # Status
-                status='active',
-                visibility='public',
-                
-                # Booking
-                advance_booking_allowed=True,
-                advance_payment_required=False,
-                
-                # Expiry (30 days after harvest window end)
-                expires_at=datetime.combine(harvest_window_end + timedelta(days=30), datetime.min.time())
-            )
-            
-            self.db.add(listing)
-            self.db.commit()
-            self.db.refresh(listing)
-            
-            logger.info(f"Created automatic listing {listing.id} for crop {crop_id}")
-            
-            return listing
-            
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"Error creating automatic listing: {e}")
-            raise
-    
+        from app.core.db import DB
+
+        rows = DB.raw(
+            """SELECT c.*, f.id AS farm_id, f.location_state, f.location_district, f.location_village,
+                      f.user_id AS farm_user_id, f.owner_id AS farm_owner_id
+               FROM crops c JOIN farm_plots p ON p.id = c.farm_plot_id JOIN farms f ON f.id = p.farm_id
+               WHERE c.id = ?""",
+            [crop_id]
+        ).result
+        if not rows:
+            raise ValueError("Crop not found")
+        crop = rows[0]
+        if farmer_id not in (crop['farm_user_id'], crop['farm_owner_id']):
+            raise ValueError("Crop not found")
+
+        existing = DB.raw(
+            """SELECT * FROM marketplace_listings WHERE farm_id = ? AND farmer_id = ? AND crop_type = ?
+               AND expected_harvest_date = ? AND status = 'active'""",
+            [crop['farm_id'], farmer_id, crop['crop_name'], crop['expected_harvest_date']]
+        ).result
+        if existing:
+            logger.info(f"Listing already exists for crop {crop_id}")
+            return existing[0]
+
+        farmer = DB.raw("SELECT phone, email FROM users WHERE id = ?", [farmer_id]).result
+        farmer = farmer[0] if farmer else {}
+        quantity = (yield_prediction or {}).get('estimated_yield') or crop.get('expected_yield') or 0
+        listing = DB.raw(
+            """INSERT INTO marketplace_listings
+               (farm_id, farmer_id, crop_type, crop_variety, expected_harvest_date, estimated_quantity,
+                available_quantity, quality_grade, location_state, location_district, delivery_village,
+                farmer_contact_phone, farmer_contact_email, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active') RETURNING *""",
+            [crop['farm_id'], farmer_id, crop['crop_name'], crop.get('crop_variety'), crop['expected_harvest_date'],
+             int(float(quantity)), int(float(quantity)), (yield_prediction or {}).get('quality_grade'),
+             crop['location_state'], crop['location_district'], crop.get('location_village'),
+             farmer.get('phone'), farmer.get('email')]
+        ).result[0]
+        logger.info(f"Created marketplace listing {listing['id']} for crop {crop_id}")
+        return listing
+
     def _generate_yield_prediction(
         self,
         crop: Crop,
@@ -292,65 +181,56 @@ Contact farmer directly for inquiries and negotiations."""
     
     def register_buyer_interest(
         self,
-        listing_id: uuid.UUID,
-        buyer_id: uuid.UUID,
+        listing_id: int,
+        buyer_id: int,
         interest_data: Dict[str, Any]
-    ) -> BuyerInterest:
+    ) -> Dict[str, Any]:
         """
-        Register buyer interest in a listing
-        
+        Register buyer interest in a listing (one open interest per buyer and listing)
+
         Validates: AC4.3 - Buyers can express interest in advance booking
         """
-        try:
-            # Check if interest already exists
-            existing_interest = self.db.query(BuyerInterest).filter(
-                BuyerInterest.listing_id == listing_id,
-                BuyerInterest.buyer_id == buyer_id
-            ).first()
-            
-            if existing_interest:
-                logger.info(f"Buyer interest already exists for listing {listing_id}")
-                return existing_interest
-            
-            # Create buyer interest
-            interest = BuyerInterest(
-                id=uuid.uuid4(),
-                listing_id=listing_id,
-                buyer_id=buyer_id,
-                interest_type=interest_data.get('interest_type', 'inquiry'),
-                quantity_interested=interest_data.get('quantity_interested'),
-                preferred_price=interest_data.get('preferred_price'),
-                buyer_phone=interest_data.get('buyer_phone'),
-                buyer_email=interest_data.get('buyer_email'),
-                buyer_company=interest_data.get('buyer_company'),
-                quality_requirements=interest_data.get('quality_requirements'),
-                delivery_requirements=interest_data.get('delivery_requirements'),
-                payment_terms=interest_data.get('payment_terms'),
-                message_to_farmer=interest_data.get('message'),
-                contact_requested=True,
-                contact_request_date=datetime.now(),
-                status='pending'
-            )
-            
-            self.db.add(interest)
-            
-            # Update listing interest count
-            listing = self.db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
-            if listing:
-                listing.interest_count += 1
-            
-            self.db.commit()
-            self.db.refresh(interest)
-            
-            logger.info(f"Registered buyer interest {interest.id} for listing {listing_id}")
-            
-            return interest
-            
-        except Exception as e:
-            self.db.rollback()
-            logger.error(f"Error registering buyer interest: {e}")
-            raise
-    
+        from app.core.db import DB
+
+        listing = DB.raw("SELECT id, farmer_id, status FROM marketplace_listings WHERE id = ?", [listing_id]).result
+        if not listing:
+            raise ValueError("Listing not found")
+        buyer = DB.raw("SELECT id, name, phone, email, user_type FROM users WHERE id = ?", [buyer_id]).result
+        if not buyer:
+            raise ValueError("Buyer not found")
+        buyer = buyer[0]
+        if listing[0]['farmer_id'] == buyer_id:
+            raise ValueError("You cannot register interest in your own listing")
+
+        phone = interest_data.get('buyer_phone') or buyer.get('phone') or ''
+        existing = DB.raw(
+            "SELECT * FROM buyer_interests WHERE listing_id = ? AND buyer_phone = ? AND status = 'pending'",
+            [listing_id, phone]
+        ).result
+        if existing:
+            logger.info(f"Buyer interest already exists for listing {listing_id}")
+            return existing[0]
+
+        message_parts = [interest_data.get('message')]
+        for label, key in (("Company", "buyer_company"), ("Quality", "quality_requirements"),
+                           ("Delivery", "delivery_requirements"), ("Payment", "payment_terms"),
+                           ("Preferred price", "preferred_price")):
+            if interest_data.get(key) not in (None, ""):
+                message_parts.append(f"{label}: {interest_data[key]}")
+        message = "\n".join(str(m) for m in message_parts if m) or None
+
+        rows = DB.raw(
+            """INSERT INTO buyer_interests
+               (listing_id, buyer_name, buyer_phone, buyer_email, buyer_type, interested_quantity, message, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending') RETURNING *""",
+            [listing_id, buyer.get('name') or 'Buyer', phone,
+             interest_data.get('buyer_email') or buyer.get('email'),
+             interest_data.get('interest_type') or buyer.get('user_type') or 'buyer',
+             int(interest_data.get('quantity_interested') or 0), message]
+        ).result
+        logger.info(f"Registered buyer interest {rows[0]['id']} for listing {listing_id}")
+        return rows[0]
+
     def get_listings(
         self,
         filters: Optional[Dict[str, Any]] = None,
@@ -465,276 +345,103 @@ Contact farmer directly for inquiries and negotiations."""
             logger.error(f"Error getting listings: {e}")
             raise
     
-    def get_listing_detail(self, listing_id: uuid.UUID) -> Optional[Dict[str, Any]]:
+    def get_listing_detail(self, listing_id: int) -> Optional[Dict[str, Any]]:
         """
         Get detailed listing information with production predictions and market intelligence
-        
-        Args:
-            listing_id: Listing UUID
-            
-        Returns:
-            Dictionary with full listing details, production predictions, and market intelligence
-            
+
         Validates: AC4 - Listing detail view with comprehensive information
         """
-        try:
-            from app.orm.crop_market_data import CropMarketData
-            from app.orm.crop import Crop
-            
-            # Get listing
-            listing = self.db.query(MarketplaceListing).filter(MarketplaceListing.id == listing_id).first()
-            
-            if not listing:
-                return None
-            
-            # Increment view count
-            listing.view_count += 1
-            self.db.commit()
-            
-            # Get crop details for production predictions
-            crop = self.db.query(Crop).filter(Crop.id == listing.crop_id).first()
-            
-            # Get market intelligence data
-            market_data = self._get_market_intelligence_detail(
-                listing.crop_type,
-                listing.location_state,
-                listing.location_district
-            )
-            
-            # Build production predictions
-            production_predictions = {
-                'estimated_yield': {
-                    'quantity': float(listing.estimated_quantity),
-                    'unit': listing.quantity_unit,
-                    'confidence': float(listing.harvest_date_confidence) if listing.harvest_date_confidence else 0.85
-                },
-                'quality_prediction': {
-                    'grade': listing.quality_grade,
-                    'confidence': float(listing.quality_confidence) if listing.quality_confidence else 0.85,
-                    'description': listing.quality_description
-                },
-                'harvest_timing': {
-                    'expected_date': listing.expected_harvest_date.isoformat(),
-                    'window_start': listing.harvest_window_start.isoformat() if listing.harvest_window_start else None,
-                    'window_end': listing.harvest_window_end.isoformat() if listing.harvest_window_end else None,
-                    'confidence': float(listing.harvest_date_confidence) if listing.harvest_date_confidence else 0.85
-                }
-            }
-            
-            # Add crop-specific details if available
-            if crop:
-                production_predictions['crop_details'] = {
-                    'planting_date': crop.planting_date.isoformat() if crop.planting_date else None,
-                    'area_planted': float(crop.area_planted) if crop.area_planted else None,
-                    'growth_stage': crop.growth_stage if hasattr(crop, 'growth_stage') else None
-                }
-            
-            # Build comprehensive response
-            listing_detail = {
-                'id': str(listing.id),
-                'title': listing.title,
-                'description': listing.description,
-                
-                # Crop information
-                'crop_type': listing.crop_type,
-                'crop_variety': listing.crop_variety,
-                
-                # Production predictions
-                'production_predictions': production_predictions,
-                
-                # Quantity and quality
-                'estimated_quantity': float(listing.estimated_quantity),
-                'quantity_unit': listing.quantity_unit,
-                'min_quantity': float(listing.min_quantity) if listing.min_quantity else None,
-                'max_quantity': float(listing.max_quantity) if listing.max_quantity else None,
-                'quality_grade': listing.quality_grade,
-                'quality_confidence': float(listing.quality_confidence) if listing.quality_confidence else None,
-                
-                # Harvest information
-                'expected_harvest_date': listing.expected_harvest_date.isoformat(),
-                'harvest_window': {
-                    'start': listing.harvest_window_start.isoformat() if listing.harvest_window_start else None,
-                    'end': listing.harvest_window_end.isoformat() if listing.harvest_window_end else None
-                },
-                
-                # Pricing
-                'pricing': {
-                    'asking_price_per_unit': float(listing.asking_price_per_unit) if listing.asking_price_per_unit else None,
-                    'price_negotiable': listing.price_negotiable,
-                    'currency': listing.currency
-                },
-                
-                # Location
-                'location': {
-                    'state': listing.location_state,
-                    'district': listing.location_district,
-                    'block': listing.location_block
-                },
-                
-                # Farmer contact options
-                'contact': {
-                    'enabled': listing.contact_enabled,
-                    'phone': listing.farmer_phone if listing.contact_enabled else None,
-                    'email': listing.farmer_email if listing.contact_enabled else None,
-                    'preferred_method': listing.preferred_contact_method
-                },
-                
-                # Market intelligence context
-                'market_intelligence': market_data,
-                
-                # Interest registration
-                'interest_registration': {
-                    'allowed': listing.advance_booking_allowed,
-                    'endpoint': f'/marketplace/buyer-interest',
-                    'listing_id': str(listing.id)
-                },
-                
-                # Status and analytics
-                'status': listing.status,
-                'advance_booking_allowed': listing.advance_booking_allowed,
-                'view_count': listing.view_count,
-                'interest_count': listing.interest_count,
-                'listed_at': listing.listed_at.isoformat(),
-                
-                # Media
-                'images': listing.images if listing.images else [],
-                'videos': listing.videos if listing.videos else []
-            }
-            
-            return listing_detail
-            
-        except Exception as e:
-            logger.error(f"Error getting listing detail: {e}")
-            raise
-    
-    def _get_market_intelligence_detail(
-        self,
-        crop_type: str,
-        state: str,
-        district: str
-    ) -> Dict[str, Any]:
-        """
-        Get detailed market intelligence for a crop in a specific location
-        
-        Args:
-            crop_type: Crop type
-            state: State name
-            district: District name
-            
-        Returns:
-            Dictionary with market intelligence data including YoY growth and demand trends
-        """
-        try:
-            from app.orm.crop_market_data import CropMarketData
-            from datetime import datetime
-            from sqlalchemy import func, desc
-            
-            current_year = datetime.now().year
-            current_month = datetime.now().month
-            
-            # Get recent market data (last 12 months)
-            recent_data = self.db.query(CropMarketData).filter(
-                CropMarketData.crop_type.ilike(f'%{crop_type}%'),
-                CropMarketData.state == state,
-                CropMarketData.year >= current_year - 1
-            ).order_by(desc(CropMarketData.year), desc(CropMarketData.month)).limit(12).all()
-            
-            # Get district-specific data if available
-            district_data = self.db.query(CropMarketData).filter(
-                CropMarketData.crop_type.ilike(f'%{crop_type}%'),
-                CropMarketData.state == state,
-                CropMarketData.district == district,
-                CropMarketData.year >= current_year - 1
-            ).order_by(desc(CropMarketData.year), desc(CropMarketData.month)).first()
-            
-            # Calculate YoY growth
-            yoy_growth = None
-            if len(recent_data) >= 2:
-                # Compare current year with previous year
-                current_year_data = [d for d in recent_data if d.year == current_year]
-                previous_year_data = [d for d in recent_data if d.year == current_year - 1]
-                
-                if current_year_data and previous_year_data:
-                    current_avg = sum(float(d.avg_price_per_quintal) for d in current_year_data) / len(current_year_data)
-                    previous_avg = sum(float(d.avg_price_per_quintal) for d in previous_year_data) / len(previous_year_data)
-                    
-                    if previous_avg > 0:
-                        yoy_growth = ((current_avg - previous_avg) / previous_avg) * 100
-            
-            # Determine demand trend
-            demand_trend = 'stable'
-            demand_score = 0.75
-            
-            if recent_data:
-                latest = recent_data[0]
-                demand_score = float(latest.market_demand_score) if latest.market_demand_score else 0.75
-                
-                # Analyze price trend over last 6 months
-                if len(recent_data) >= 6:
-                    recent_6_months = recent_data[:6]
-                    prices = [float(d.avg_price_per_quintal) for d in recent_6_months]
-                    
-                    # Simple trend analysis
-                    if prices[0] > prices[-1] * 1.1:
-                        demand_trend = 'increasing'
-                    elif prices[0] < prices[-1] * 0.9:
-                        demand_trend = 'decreasing'
-                    else:
-                        demand_trend = 'stable'
-            
-            # Get price range
-            price_range = {
-                'min': None,
-                'max': None,
-                'average': None
-            }
-            
-            if recent_data:
-                prices = [float(d.avg_price_per_quintal) for d in recent_data]
-                price_range = {
-                    'min': min(prices),
-                    'max': max(prices),
-                    'average': sum(prices) / len(prices)
-                }
-            
-            # Build market intelligence response
-            market_intelligence = {
-                'demand_score': demand_score,
-                'demand_trend': demand_trend,
-                'price_trend': recent_data[0].price_trend if recent_data else 'stable',
-                'yoy_growth': round(yoy_growth, 2) if yoy_growth is not None else None,
-                'yoy_growth_description': self._get_yoy_growth_description(yoy_growth),
-                'price_range': price_range,
-                'market_context': {
-                    'state': state,
-                    'district': district,
-                    'data_points': len(recent_data),
-                    'last_updated': recent_data[0].updated_at.isoformat() if recent_data else None
-                },
-                'seasonal_insights': self._get_seasonal_insights(crop_type, state, recent_data)
-            }
-            
-            return market_intelligence
-            
-        except Exception as e:
-            logger.warning(f"Error getting market intelligence detail: {e}")
-            # Return fallback data
-            return {
-                'demand_score': 0.75,
-                'demand_trend': 'stable',
-                'price_trend': 'stable',
-                'yoy_growth': None,
-                'yoy_growth_description': 'Data not available',
-                'price_range': {'min': None, 'max': None, 'average': None},
-                'market_context': {
-                    'state': state,
-                    'district': district,
-                    'data_points': 0,
-                    'last_updated': None
-                },
-                'seasonal_insights': None
-            }
-    
+        from app.core.db import DB
+
+        rows = DB.raw("SELECT * FROM marketplace_listings WHERE id = ?", [listing_id]).result
+        if not rows:
+            return None
+        listing = rows[0]
+        interest_count = DB.raw(
+            "SELECT COUNT(*) AS n FROM buyer_interests WHERE listing_id = ?", [listing_id]
+        ).result[0]['n']
+
+        def num(v):
+            return float(v) if v is not None else None
+
+        harvest = listing['expected_harvest_date']
+        harvest_iso = harvest.isoformat() if hasattr(harvest, 'isoformat') else harvest
+        market_data = self._get_market_intelligence_detail(
+            listing['crop_type'], listing['location_state'], listing['location_district']
+        )
+        title = f"{listing['crop_type']}" + (f" ({listing['crop_variety']})" if listing.get('crop_variety') else "")
+
+        return {
+            'id': str(listing['id']),
+            'title': title,
+            'description': f"{title} from {listing['location_district']}, {listing['location_state']}",
+            'crop_type': listing['crop_type'],
+            'crop_variety': listing.get('crop_variety'),
+            'estimated_quantity': num(listing['estimated_quantity']),
+            'available_quantity': num(listing.get('available_quantity')),
+            'quantity_unit': 'kg',
+            'quality_grade': listing.get('quality_grade'),
+            'expected_harvest_date': harvest_iso,
+            'harvest_window': {'start': None, 'end': None},
+            'asking_price_per_unit': num(listing.get('price_per_unit')),
+            'price_negotiable': True,
+            'pricing': {'asking_price_per_unit': num(listing.get('price_per_unit')), 'price_negotiable': True, 'currency': 'INR'},
+            'location': {'state': listing['location_state'], 'district': listing['location_district'],
+                         'village': listing.get('delivery_village')},
+            'location_state': listing['location_state'],
+            'location_district': listing['location_district'],
+            'contact': {
+                'enabled': bool(listing.get('farmer_contact_phone') or listing.get('farmer_contact_email')),
+                'phone': listing.get('farmer_contact_phone'),
+                'email': listing.get('farmer_contact_email'),
+            },
+            'production_predictions': {
+                'estimated_yield': {'quantity': num(listing['estimated_quantity']), 'unit': 'kg'},
+                'quality_prediction': {'grade': listing.get('quality_grade')},
+                'harvest_timing': {'expected_date': harvest_iso},
+            },
+            'market_intelligence': market_data,
+            'interest_registration': {'allowed': listing.get('status') == 'active',
+                                      'endpoint': '/marketplace/buyer-interest', 'listing_id': str(listing['id'])},
+            'status': listing.get('status'),
+            'farmer_id': listing['farmer_id'],
+            'view_count': 0,
+            'interest_count': interest_count,
+            'listed_at': listing['created_at'].isoformat() if listing.get('created_at') else None,
+            'images': [],
+            'videos': [],
+        }
+
+    def _get_market_intelligence_detail(self, crop_type: str, state: str, district: str) -> Dict[str, Any]:
+        """Recent prices for this crop from crop_market_data (state and district level)."""
+        from app.core.db import DB
+
+        rows = DB.raw(
+            """SELECT district, price_per_kg, date, yoy_growth, demand_level FROM crop_market_data
+               WHERE crop_name ILIKE ? AND state = ? ORDER BY date DESC LIMIT 12""",
+            [crop_type, state]
+        ).result or []
+        if not rows:
+            return {'data_available': False, 'message': 'No recent market data for this crop and state'}
+        latest = next((r for r in rows if r.get('district') == district), rows[0])
+        prices = [float(r['price_per_kg']) for r in rows if r.get('price_per_kg') is not None]
+        trend = 'stable'
+        if len(prices) >= 2 and prices[0] > prices[-1] * 1.02:
+            trend = 'rising'
+        elif len(prices) >= 2 and prices[0] < prices[-1] * 0.98:
+            trend = 'falling'
+        yoy = float(latest['yoy_growth']) if latest.get('yoy_growth') is not None else None
+        return {
+            'data_available': True,
+            'current_price_per_kg': float(latest['price_per_kg']),
+            'average_price_per_kg': round(sum(prices) / len(prices), 2) if prices else None,
+            'price_trend': trend,
+            'yoy_growth': yoy,
+            'yoy_growth_description': self._get_yoy_growth_description(yoy),
+            'demand_level': latest.get('demand_level'),
+            'as_of': latest['date'].isoformat() if hasattr(latest['date'], 'isoformat') else latest['date'],
+        }
+
     def _get_yoy_growth_description(self, yoy_growth: Optional[float]) -> str:
         """Get human-readable description of YoY growth"""
         if yoy_growth is None:

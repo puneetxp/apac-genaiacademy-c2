@@ -15,6 +15,7 @@ import logging
 import json
 
 from app.services.bedrock_service import bedrock_service
+from app.services.veterinarian_directory_service import get_veterinarian_directory_service
 from app.orm.livestock import Livestock
 from app.orm.livestock_health_record import LivestockHealthRecord
 
@@ -489,7 +490,7 @@ Provide ONLY the JSON response."""
                 'treatment_plan': self._create_treatment_plan(symptom_check),
                 'follow_up_schedule': self._create_follow_up_schedule(symptom_check['triage']),
                 'cost_estimate': self._estimate_treatment_cost(symptom_check),
-                'telemedicine_options': self._get_telemedicine_options(symptom_check['triage']),
+                'telemedicine_options': self._get_telemedicine_options(symptom_check['triage'], species=livestock['species']),
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -660,20 +661,21 @@ Provide ONLY the JSON response."""
             'note': 'Costs are estimates and may vary by location and veterinarian'
         }
     
-    def _get_telemedicine_options(self, triage: Dict[str, Any]) -> Dict[str, Any]:
-        """Get telemedicine options (placeholder for future partnerships)"""
+    def _get_telemedicine_options(self, triage: Dict[str, Any], species: Optional[str] = None) -> Dict[str, Any]:
+        """Get nearby/available doctors from the veterinarian directory who can be called or messaged"""
+        doctors = []
+        if triage['telemedicine_suitable']:
+            doctors = get_veterinarian_directory_service().search(
+                species=species,
+                available_only=True,
+                limit=5
+            )
+
         return {
-            'available': triage['telemedicine_suitable'],
+            'available': triage['telemedicine_suitable'] and len(doctors) > 0,
             'recommended': triage['severity'] == 'low',
-            'services': [
-                {
-                    'provider': 'Veterinary Telemedicine Network (Placeholder)',
-                    'availability': '24/7',
-                    'cost_range': '₹200-500',
-                    'contact': 'Coming soon - partnership integration'
-                }
-            ] if triage['telemedicine_suitable'] else [],
-            'note': 'Telemedicine partnerships are under development'
+            'doctors': doctors,
+            'note': 'Doctors are added by farmers or admins to the directory. Add one if none are listed for your area.'
         }
     
     def _create_fallback_diagnosis(

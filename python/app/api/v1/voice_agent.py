@@ -20,8 +20,10 @@ import re
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/voice", tags=["Voice AI"])
+from app.core.auth import get_current_active_user
+from fastapi import Depends
 
+router = APIRouter(prefix="/voice", tags=["Voice AI"], dependencies=[Depends(get_current_active_user)])
 SUPPORTED_AUDIO_TYPES = {
     "audio/wav", "audio/wave", "audio/x-wav",
     "audio/mpeg", "audio/mp3",
@@ -52,6 +54,7 @@ Return your response as JSON with EXACTLY this structure (no markdown, no extra 
 async def voice_query(
     audio: UploadFile = File(..., description="Audio recording of the farmer's question (WAV/MP3/OGG/WebM)"),
     farm_id: Optional[int] = Form(None, description="Optional farm ID for contextual answers"),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Send a voice recording and receive an AI-powered agricultural response
@@ -84,7 +87,8 @@ async def voice_query(
     farm_context = ""
     if farm_id:
         try:
-            from app.agents.agent_tools import get_farm_details
+            from app.agents.agent_tools import get_farm_details, set_agent_user
+            set_agent_user(current_user)  # farm context only for the signed-in user's own farm
             farm_context = f"\n\nFarmer's farm context:\n{get_farm_details(farm_id)}"
         except Exception as e:
             logger.debug(f"Could not load farm context: {e}")

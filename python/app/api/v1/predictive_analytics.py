@@ -11,9 +11,9 @@ from typing import Optional
 from app.core.database import get_db
 from app.services.predictive_analytics_service import PredictiveAnalyticsService
 
-router = APIRouter(prefix="/predictive-analytics", tags=["Predictive Analytics"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/predictive-analytics", tags=["Predictive Analytics"], dependencies=[Depends(get_current_active_user)])
 @router.post("/predict-price")
 async def predict_price(
     item_type: str = Query(..., description="crop or livestock"),
@@ -146,11 +146,12 @@ async def get_opportunity_score(
 
 @router.post("/generate-opportunity-alerts")
 async def generate_opportunity_alerts(
-    farmer_id: int = Query(..., description="Farmer user ID"),
+    farmer_id: Optional[int] = Query(None, description="Farmer user ID (defaults to you; admins may pass any)"),
     state: str = Query(..., description="Farmer's state"),
     district: Optional[str] = Query(None, description="Farmer's district"),
     min_score: int = Query(70, ge=0, le=100, description="Minimum opportunity score to trigger alert"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Generate market opportunity alerts for farmers
@@ -159,6 +160,8 @@ async def generate_opportunity_alerts(
     
     Returns list of opportunities and SNS message IDs
     """
+    if farmer_id is None or getattr(current_user, "user_type", None) != "admin":
+        farmer_id = current_user.id
     service = PredictiveAnalyticsService(db)
     
     try:

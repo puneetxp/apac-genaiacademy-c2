@@ -11,9 +11,9 @@ from datetime import datetime
 from app.services.supply_request_matching_service import SupplyRequestMatchingService
 
 
-router = APIRouter(prefix="/supply-requests", tags=["supply-requests"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/supply-requests", tags=["supply-requests"], dependencies=[Depends(get_current_active_user)])
 class SupplyRequestCreate(BaseModel):
     """Schema for creating a supply request"""
     buyer_id: int = Field(..., description="ID of the buyer")

@@ -13,14 +13,24 @@ Validates: Requirements AC9 (Phase 6 - Required)
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 from decimal import Decimal
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func, desc
 
-from app.orm.fertilizer_application import FertilizerApplication
-from app.orm.soil_test_result import SoilTestResult
-from app.orm.farm import Farm
-from app.orm.farm_plot import FarmPlot
-from app.orm.crop import Crop
+from app.core.db import DB
+from app.services.farm_access import (
+    Row, fetch_one, fetch_all, farm_for_user, plot_for_user, crop_for_user, soil_test_for_user,
+)
+
+# Data access is raw SQL through app.core.db.DB (app/orm classes are not SQLAlchemy models).
+# Rows come back as farm_access.Row (dict with attribute access), so `FertilizerApplication` is an alias.
+FertilizerApplication = Row
+AsyncSession = Any  # kept for the constructor signature; queries don't use it
+
+APP_COLUMNS = (
+    "farm_id", "plot_id", "crop_id", "application_date", "fertilizer_type", "category", "quantity_kg",
+    "quantity_per_hectare", "area_applied_hectares", "nitrogen_kg", "phosphorus_kg", "potassium_kg",
+    "cost_total", "cost_per_kg", "cost_per_hectare", "application_method", "growth_stage",
+    "days_after_planting", "soil_test_before_id", "weather_conditions", "temperature_celsius",
+    "rainfall_mm_24h", "recommended_by", "recommendation_id", "notes",
+)
 
 
 class FertilizerTrackingService:
@@ -52,7 +62,8 @@ class FertilizerTrackingService:
         rainfall_mm_24h: Optional[float] = None,
         recommended_by: Optional[str] = None,
         recommendation_id: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        user=None,
     ) -> FertilizerApplication:
         """
         Record a fertilizer application with all details
@@ -93,46 +104,41 @@ class FertilizerTrackingService:
             quantity_per_hectare = quantity_kg / area_applied_hectares
             cost_per_hectare = cost_total / area_applied_hectares
 
-        # Create application record
-        application = FertilizerApplication(
-            farm_id=farm_id,
-            plot_id=plot_id,
-            crop_id=crop_id,
-            application_date=application_date,
-            fertilizer_type=fertilizer_type,
-            category=category,
-            quantity_kg=Decimal(str(quantity_kg)),
-            quantity_per_hectare=Decimal(str(quantity_per_hectare)) if quantity_per_hectare else None,
-            area_applied_hectares=Decimal(str(area_applied_hectares)) if area_applied_hectares else None,
-            nitrogen_kg=Decimal(str(nitrogen_kg)) if nitrogen_kg else None,
-            phosphorus_kg=Decimal(str(phosphorus_kg)) if phosphorus_kg else None,
-            potassium_kg=Decimal(str(potassium_kg)) if potassium_kg else None,
-            cost_total=Decimal(str(cost_total)),
-            cost_per_kg=Decimal(str(cost_per_kg)),
-            cost_per_hectare=Decimal(str(cost_per_hectare)) if cost_per_hectare else None,
-            application_method=application_method,
-            growth_stage=growth_stage,
-            days_after_planting=days_after_planting,
-            soil_test_before_id=soil_test_before_id,
-            weather_conditions=weather_conditions,
-            temperature_celsius=Decimal(str(temperature_celsius)) if temperature_celsius else None,
-            rainfall_mm_24h=Decimal(str(rainfall_mm_24h)) if rainfall_mm_24h else None,
-            recommended_by=recommended_by,
-            recommendation_id=recommendation_id,
-            notes=notes
+        # Owner checks: the farm must belong to the user; plot / crop / soil test must be on that farm.
+        farm_for_user(farm_id, user)
+        if plot_id is not None and plot_for_user(plot_id, user)["farm_id"] != farm_id:
+            raise ValueError(f"Plot {plot_id} is not on farm {farm_id}")
+        if crop_id is not None and crop_for_user(crop_id, user)["farm_id"] != farm_id:
+            raise ValueError(f"Crop {crop_id} is not on farm {farm_id}")
+        if soil_test_before_id is not None and soil_test_for_user(soil_test_before_id, user)["farm_id"] != farm_id:
+            raise ValueError(f"Soil test {soil_test_before_id} is not for farm {farm_id}")
+
+        values = {
+            "farm_id": farm_id, "plot_id": plot_id, "crop_id": crop_id,
+            "application_date": application_date, "fertilizer_type": fertilizer_type, "category": category,
+            "quantity_kg": quantity_kg, "quantity_per_hectare": quantity_per_hectare,
+            "area_applied_hectares": area_applied_hectares, "nitrogen_kg": nitrogen_kg,
+            "phosphorus_kg": phosphorus_kg, "potassium_kg": potassium_kg, "cost_total": cost_total,
+            "cost_per_kg": cost_per_kg, "cost_per_hectare": cost_per_hectare,
+            "application_method": application_method, "growth_stage": growth_stage,
+            "days_after_planting": days_after_planting, "soil_test_before_id": soil_test_before_id,
+            "weather_conditions": weather_conditions, "temperature_celsius": temperature_celsius,
+            "rainfall_mm_24h": rainfall_mm_24h, "recommended_by": recommended_by,
+            "recommendation_id": recommendation_id, "notes": notes,
+        }
+        application = fetch_one(
+            f"INSERT INTO fertilizer_applications ({', '.join(APP_COLUMNS)}) "
+            f"VALUES ({', '.join('?' for _ in APP_COLUMNS)}) RETURNING *",
+            [values[c] for c in APP_COLUMNS],
         )
-
-        self.db.add(application)
-        await self.db.commit()
-        await self.db.refresh(application)
-
         return application
 
     async def update_soil_response(
         self,
         application_id: int,
         soil_test_after_id: int,
-        soil_response_notes: Optional[str] = None
+        soil_response_notes: Optional[str] = None,
+        user=None,
     ) -> FertilizerApplication:
         """
         Update fertilizer application with soil test results after application
@@ -147,14 +153,17 @@ class FertilizerTrackingService:
             Updated FertilizerApplication with effectiveness score
         """
         # Get application
-        stmt = select(FertilizerApplication).where(
-            FertilizerApplication.id == application_id
-        )
-        result = await self.db.execute(stmt)
-        application = result.scalar_one_or_none()
-
+        application = fetch_one("SELECT * FROM fertilizer_applications WHERE id = ?", [application_id])
         if not application:
             raise ValueError(f"Fertilizer application {application_id} not found")
+        try:
+            farm_for_user(application.farm_id, user)
+            after_test = soil_test_for_user(soil_test_after_id, user)
+        except LookupError as e:
+            # Router maps ValueError -> 404; don't reveal other users' applications / tests.
+            raise ValueError(str(e))
+        if after_test["farm_id"] != application.farm_id:
+            raise ValueError(f"Soil test {soil_test_after_id} not found for this farm")
 
         # Update with after soil test
         application.soil_test_after_id = soil_test_after_id
@@ -169,8 +178,11 @@ class FertilizerTrackingService:
             )
             application.effectiveness_score = Decimal(str(effectiveness_score))
 
-        await self.db.commit()
-        await self.db.refresh(application)
+        application = fetch_one(
+            """UPDATE fertilizer_applications SET soil_test_after_id = ?, soil_response_notes = ?,
+               effectiveness_score = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *""",
+            [soil_test_after_id, soil_response_notes, application.get("effectiveness_score"), application_id],
+        )
 
         return application
 
@@ -198,14 +210,8 @@ class FertilizerTrackingService:
             Effectiveness score (0-100)
         """
         # Get before and after soil tests
-        stmt_before = select(SoilTestResult).where(SoilTestResult.id == before_test_id)
-        stmt_after = select(SoilTestResult).where(SoilTestResult.id == after_test_id)
-
-        result_before = await self.db.execute(stmt_before)
-        result_after = await self.db.execute(stmt_after)
-
-        before = result_before.scalar_one_or_none()
-        after = result_after.scalar_one_or_none()
+        before = fetch_one("SELECT * FROM soil_test_results WHERE id = ?", [before_test_id])
+        after = fetch_one("SELECT * FROM soil_test_results WHERE id = ?", [after_test_id])
 
         if not before or not after:
             return 0.0
@@ -272,7 +278,8 @@ class FertilizerTrackingService:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         fertilizer_type: Optional[str] = None,
-        category: Optional[str] = None
+        category: Optional[str] = None,
+        user=None,
     ) -> List[FertilizerApplication]:
         """
         Get fertilizer application history with filters
@@ -289,34 +296,28 @@ class FertilizerTrackingService:
         Returns:
             List of fertilizer applications
         """
-        conditions = [FertilizerApplication.farm_id == farm_id]
-
-        if plot_id:
-            conditions.append(FertilizerApplication.plot_id == plot_id)
-        if crop_id:
-            conditions.append(FertilizerApplication.crop_id == crop_id)
-        if start_date:
-            conditions.append(FertilizerApplication.application_date >= start_date)
-        if end_date:
-            conditions.append(FertilizerApplication.application_date <= end_date)
-        if fertilizer_type:
-            conditions.append(FertilizerApplication.fertilizer_type == fertilizer_type)
-        if category:
-            conditions.append(FertilizerApplication.category == category)
-
-        stmt = select(FertilizerApplication).where(
-            and_(*conditions)
-        ).order_by(desc(FertilizerApplication.application_date))
-
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        farm_for_user(farm_id, user)
+        where, bind = ["farm_id = ?"], [farm_id]
+        for col, op, val in (
+            ("plot_id", "=", plot_id), ("crop_id", "=", crop_id),
+            ("application_date", ">=", start_date), ("application_date", "<=", end_date),
+            ("fertilizer_type", "=", fertilizer_type), ("category", "=", category),
+        ):
+            if val:
+                where.append(f"{col} {op} ?")
+                bind.append(val)
+        return fetch_all(
+            f"SELECT * FROM fertilizer_applications WHERE {' AND '.join(where)} ORDER BY application_date DESC",
+            bind,
+        )
 
     async def analyze_fertilizer_effectiveness(
         self,
         farm_id: int,
         plot_id: Optional[int] = None,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Analyze fertilizer effectiveness with ROI calculations
@@ -334,7 +335,8 @@ class FertilizerTrackingService:
             farm_id=farm_id,
             plot_id=plot_id,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            user=user,
         )
 
         if not applications:
@@ -501,7 +503,8 @@ class FertilizerTrackingService:
         farm_id: int,
         plot_id: Optional[int] = None,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Generate comprehensive fertilizer usage report with cost analysis
@@ -526,7 +529,8 @@ class FertilizerTrackingService:
             farm_id=farm_id,
             plot_id=plot_id,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            user=user,
         )
 
         # Get effectiveness analysis
@@ -534,7 +538,8 @@ class FertilizerTrackingService:
             farm_id=farm_id,
             plot_id=plot_id,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            user=user,
         )
 
         # Calculate monthly breakdown

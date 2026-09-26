@@ -11,11 +11,12 @@ from datetime import datetime
 from app.core.database import get_db
 from app.services.price_tracking_service import PriceTrackingService
 from app.orm.market_price import MarketPrice
+from app.core.auth import get_current_admin
 
 router = APIRouter(prefix="/market-intelligence", tags=["market-intelligence"])
 
 
-@router.post("/collect/listing/{listing_id}")
+@router.post("/collect/listing/{listing_id}", dependencies=[Depends(get_current_admin)])
 async def collect_price_from_listing(
     listing_id: int,
     db: AsyncSession = Depends(get_db)
@@ -45,7 +46,7 @@ async def collect_price_from_listing(
     }
 
 
-@router.post("/collect/booking/{booking_id}")
+@router.post("/collect/booking/{booking_id}", dependencies=[Depends(get_current_admin)])
 async def collect_price_from_booking(
     booking_id: int,
     db: AsyncSession = Depends(get_db)
@@ -75,7 +76,7 @@ async def collect_price_from_booking(
     }
 
 
-@router.post("/collect/livestock-transaction/{transaction_id}")
+@router.post("/collect/livestock-transaction/{transaction_id}", dependencies=[Depends(get_current_admin)])
 async def collect_price_from_livestock_transaction(
     transaction_id: int,
     db: AsyncSession = Depends(get_db)
@@ -112,7 +113,7 @@ async def price_history_alias(
     db: AsyncSession = Depends(get_db)
 ):
     """Registry alias for price history"""
-    return await get_price_trends(item_type, item_name, db=db)
+    return await get_price_trends(item_type, item_name, state=None, district=None, days=90, db=db)
 
 
 @router.get("/trends/{item_type}/{item_name}")
@@ -223,7 +224,7 @@ async def get_demand_forecast(
 @router.get("/price-tracking")
 async def price_tracking_alias(db: AsyncSession = Depends(get_db)):
     """Registry alias for price tracking"""
-    return await get_market_prices(db=db)
+    return await get_market_prices(limit=100, offset=0, db=db)
 
 
 @router.get("/prices")
@@ -253,7 +254,8 @@ async def get_market_prices(
         List of market price records
     """
     # Get all prices and filter
-    all_prices = await MarketPrice.all(db)
+    from app.services.price_tracking_service import _all_prices
+    all_prices = await _all_prices()
     
     prices = []
     for p in all_prices:
@@ -303,7 +305,8 @@ async def get_market_summary(
         Market summary with key statistics
     """
     # Get all prices and filter
-    all_prices = await MarketPrice.all(db)
+    from app.services.price_tracking_service import _all_prices
+    all_prices = await _all_prices()
     
     prices = []
     for p in all_prices:
@@ -396,9 +399,12 @@ async def get_msp_rates(
     if season:
         filters["season"] = season
         
-    results = await MspRate.where(db, filters)
+    from app.core.db import DB
+    where = " AND ".join(f'"{k}" = ?' for k in filters)
+    results = [{k: float(v) if hasattr(v, "is_finite") else v for k, v in r.items()}
+               for r in DB.raw(f"SELECT * FROM msp_rates WHERE {where} ORDER BY year DESC, crop_name", list(filters.values())).result]
     return {
         "success": True,
-        "data": results.items if results else []
+        "data": results
     }
 

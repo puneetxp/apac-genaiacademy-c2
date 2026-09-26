@@ -681,6 +681,16 @@ class NotificationService:
             'error': None
         }
         
+        # Also deliver to the recipient's subscribed browsers (never blocks SMS/email)
+        notification_record['web_push'] = self._send_web_push(
+            subject=subject,
+            message=message,
+            phone_number=phone_number,
+            email=email,
+            notification_type=notification_type,
+            metadata=metadata,
+        )
+
         # If SNS is disabled, log local notification and return success
         if not self.sns_enabled or not self.sns_client:
             logger.info(f"[NOTIFICATION MIGRATED TO LOCAL/GCLOUD] Type: {notification_type}, Subject: {subject}, Msg: {message[:100]}...")
@@ -776,6 +786,80 @@ class NotificationService:
         
         return notification_record
     
+    # Page each notification type opens when the user clicks it
+    _WEB_PUSH_URLS = {
+        'buyer_interest': '/marketplace/my-listings',
+        'strategy_reminder': '/crops/annual-strategy/',
+        'weather_alert': '/climate/hub',
+        'harvest_reminder': '/crops/my-crops',
+        'booking_created': '/marketplace/bookings',
+        'booking_status_update': '/marketplace/bookings',
+        'payment_reminder': '/marketplace/bookings',
+        'payment_overdue': '/marketplace/bookings',
+        'quality_verification_reminder': '/marketplace/bookings',
+        'livestock_transaction': '/livestock/hub',
+    }
+
+    def _push_to_user(
+        self,
+        user_id: int,
+        subject: str,
+        message: str,
+        notification_type: str,
+    ) -> Dict[str, Any]:
+        """Send a web push to one user; failures are logged, never raised"""
+        try:
+            from app.services.web_push_service import web_push_service
+
+            if not web_push_service.configured:
+                return {'skipped': 'web push not configured'}
+
+            # SMS/email bodies are long; keep the browser notification short
+            body = ' '.join(message.split())
+            if len(body) > 180:
+                body = body[:177] + '...'
+
+            return web_push_service.send_to_user(
+                user_id=user_id,
+                title=subject,
+                body=body,
+                url=self._WEB_PUSH_URLS.get(notification_type, '/'),
+                notification_type=notification_type,
+            )
+        except Exception as e:
+            logger.error(f"Web push to user {user_id} failed: {e}")
+            return {'error': str(e)}
+
+    def _send_web_push(
+        self,
+        subject: str,
+        message: str,
+        phone_number: Optional[str],
+        email: Optional[str],
+        notification_type: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Find the recipient by user_id, email or phone and push to their browsers"""
+        try:
+            metadata = metadata or {}
+            user_id = metadata.get('user_id') or metadata.get('recipient_user_id')
+
+            if not user_id and (email or phone_number):
+                from app.orm.user import User
+
+                user = User.find(email, 'email') if email else None
+                if not user and phone_number:
+                    user = User.find(phone_number, 'phone')
+                user_id = user['id'] if user else None
+
+            if not user_id:
+                return None
+
+            return self._push_to_user(int(user_id), subject, message, notification_type)
+        except Exception as e:
+            logger.error(f"Web push lookup failed for {notification_type}: {e}")
+            return {'error': str(e)}
+
     def _format_buyer_interest_message(
         self,
         buyer_name: str,
@@ -1213,8 +1297,16 @@ Booking Details:
                 # Notify both (status_update, cancelled)
                 recipient_id = None  # Will need to send to both
             
+            # Push to the recipient's browsers (both parties when recipient_id is None)
+            recipients = [recipient_id] if recipient_id else [seller_id, buyer_id]
+            web_push = [
+                self._push_to_user(uid, subject, message, 'livestock_transaction')
+                for uid in recipients if uid
+            ]
+
             # Send notification (placeholder - would need actual phone/email from user record)
             result = {
+                'web_push': web_push,
                 'success': True,
                 'notification_type': notification_type,
                 'transaction_id': transaction_id,

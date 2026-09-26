@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -46,6 +46,8 @@ async def soil_lookup(
     db: DB,
     lat: float = Query(..., ge=-90, le=90, description="Farm latitude"),
     lon: float = Query(..., ge=-180, le=180, description="Farm longitude"),
+    state: Optional[str] = Query(None, description="State name (optional; same as /v2 when given)"),
+    district: Optional[str] = Query(None, description="District name"),
 ) -> SoilLookupResponse:
     """
     Real-time SHC WMS lookup + LCC cache query for a GPS coordinate.
@@ -59,6 +61,8 @@ async def soil_lookup(
     # the frontend should pass state/district as query params in a real call,
     # but for now we attempt to resolve from the coordinate via the DB.
     # For MVP: require state + district query params.
+    if state and district:
+        return await soil_lookup_v2(current_user, db, lat, lon, state, district)
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Please provide state and district query parameters for soil lookup",

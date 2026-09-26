@@ -9,9 +9,9 @@ Validates: Requirements AC8 (Phase 6 - Required)
 import logging
 from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
 from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, desc, Table, MetaData
-from sqlalchemy.dialects.postgresql import insert
+from typing import Any as AsyncSession  # db kept for compatibility; queries use app.core.db.DB
+
+from app.services.farm_access import fetch_one, farm_for_user, crop_for_user
 
 from app.services.weather_service import WeatherService
 
@@ -250,7 +250,8 @@ class SevereWeatherService:
     async def check_emergency_harvest_alert(
         self,
         farm_id: int,
-        crop_id: int
+        crop_id: int,
+        user=None,
     ) -> Optional[Dict[str, Any]]:
         """
         Check if emergency harvest is needed due to severe weather
@@ -262,28 +263,29 @@ class SevereWeatherService:
         Returns:
             Emergency harvest alert or None
         """
-        # Import here to avoid circular dependency
-        from app.orm.farm import Farm
-        from app.orm.crop import Crop
-        
-        # Get farm and crop details
-        farm_result = await self.db.execute(
-            select(Farm).where(Farm.id == farm_id)
-        )
-        farm = farm_result.scalar_one_or_none()
-        
-        if not farm:
-            logger.error(f"Farm {farm_id} not found")
-            return None
-        
-        crop_result = await self.db.execute(
-            select(Crop).where(Crop.id == crop_id)
-        )
-        crop = crop_result.scalar_one_or_none()
-        
+        # Get farm and crop details (raw SQL; owner-checked when `user` is given -> LookupError)
+        if user is not None:
+            farm = farm_for_user(farm_id, user)
+            crop = crop_for_user(crop_id, user)
+            if crop.farm_id != farm_id:
+                raise LookupError(f"Crop {crop_id} not found")
+        else:
+            farm = fetch_one("SELECT * FROM farms WHERE id = ?", [farm_id])
+            if not farm:
+                logger.error(f"Farm {farm_id} not found")
+                return None
+            try:
+                crop = crop_for_user(crop_id, None)
+            except LookupError:
+                crop = None
+
         if not crop:
             logger.error(f"Crop {crop_id} not found")
             return None
+        # farms has location_state / location_district; crops has crop_name (no state/district/crop_type columns)
+        farm.state = farm.get("location_state")
+        farm.district = farm.get("location_district")
+        crop.crop_type = crop.get("crop_name")
         
         # Get farm GPS coordinates
         latitude = float(farm.latitude) if hasattr(farm, 'latitude') and farm.latitude else None
@@ -524,9 +526,6 @@ class SevereWeatherService:
     ) -> None:
         """Store weather alerts in database"""
         try:
-            # Import here to avoid circular dependency
-            from app.orm.weather_alert import WeatherAlert
-            
             for alert in alerts:
                 alert_data = {
                     "farm_id": farm_id,
@@ -538,20 +537,26 @@ class SevereWeatherService:
                     "recommendation": alert.get("recommendation"),
                     "valid_from": alert.get("date", datetime.now()),
                     "valid_until": alert.get("date", datetime.now()) + timedelta(days=1),
-                    "is_active": True
+                    "is_active": 1  # smallint column
                 }
                 
-                # Insert or update alert
-                stmt = insert(WeatherAlert.__table__).values(**alert_data)
-                stmt = stmt.on_conflict_do_nothing()
-                await self.db.execute(stmt)
+                # Insert alert (skip an identical alert that is already stored)
+                exists = fetch_one(
+                    """SELECT id FROM weather_alerts WHERE COALESCE(farm_id, 0) = ? AND alert_type = ?
+                       AND valid_from = ? LIMIT 1""",
+                    [farm_id or 0, alert_data["alert_type"], alert_data["valid_from"]],
+                )
+                if not exists:
+                    cols = list(alert_data.keys())
+                    fetch_one(
+                        f"INSERT INTO weather_alerts ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)}) RETURNING id",
+                        [alert_data[c] for c in cols],
+                    )
             
-            await self.db.commit()
             logger.info(f"Stored {len(alerts)} weather alerts")
         
         except Exception as e:
             logger.error(f"Error storing weather alerts: {str(e)}")
-            await self.db.rollback()
 
 
 def get_severe_weather_service(

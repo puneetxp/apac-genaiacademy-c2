@@ -3,7 +3,7 @@ Livestock Health Record API Endpoints
 Handles health record management, vaccination schedules, and health reports
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
@@ -21,25 +21,78 @@ from app.services.livestock_health_service import get_health_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/livestock-health", tags=["livestock-health"])
+from app.core.auth import get_current_active_user
+from app.core.db import DB as RawDB
+from app.core.ownership import owner_condition
 
 
-@router.get("/{id}")
+def _is_admin(user) -> bool:
+    return getattr(user, 'user_type', None) == 'admin'
+
+
+def _owns(table: str, row_id, user) -> bool:
+    rows = RawDB.raw(f"SELECT 1 FROM {table} t WHERE t.id = ? AND {owner_condition(table, user.id)}", [int(row_id)]).result
+    return bool(rows)
+
+
+def _owned_livestock_ids(user) -> set:
+    rows = RawDB.raw(f"SELECT t.id FROM livestock t WHERE {owner_condition('livestock', user.id)}", []).result
+    return {r['id'] for r in rows}
+
+
+async def enforce_livestock_owner(request: Request, current_user=Depends(get_current_active_user)):
+    """Signed-in users only reach health data for their own animals (admins see everything).
+
+    Checks the livestock/record id in the path, the livestock_id query filter and a JSON body's livestock_id.
+    Someone else's id gets 404, the same as a missing one.
+    """
+    if _is_admin(current_user):
+        return current_user
+    path = request.path_params
+    livestock_ids = [path.get('livestock_id'), path.get('id'), request.query_params.get('livestock_id')]
+    if request.method in ('POST', 'PUT', 'PATCH'):
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                livestock_ids.append(body.get('livestock_id'))
+        except Exception:
+            pass
+    for lid in livestock_ids:
+        if lid not in (None, '') and not _owns('livestock', lid, current_user):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Livestock not found")
+    rid = path.get('record_id')
+    if rid is not None and not _owns('livestock_health_records', rid, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Health record not found")
+    return current_user
+
+
+router = APIRouter(prefix="/livestock-health", tags=["livestock-health"], dependencies=[Depends(enforce_livestock_owner)])
+# `{id:int}` only matches numbers, so /vaccinations and /records are no longer swallowed by this alias.
+@router.get("/{id:int}")
 def get_health_summary_alias(id: int, db: Session = Depends(get_db)):
     """Registry alias for health report"""
     return get_health_report(id, db)
 
 
+def _list_by_type(record_type: str, livestock_id: Optional[int], skip: int, limit: int, current_user):
+    # Pass every filter explicitly: calling the route function directly would leave its Query() defaults in place.
+    return list_health_records(livestock_id=livestock_id, record_type=record_type, start_date=None,
+                               end_date=None, skip=skip, limit=limit, db=None, current_user=current_user)
+
+
 @router.get("/vaccinations")
-def list_vaccinations_alias(db: Session = Depends(get_db)):
+def list_vaccinations_alias(livestock_id: Optional[int] = None, skip: int = Query(0, ge=0),
+                            limit: int = Query(100, ge=1, le=1000), current_user=Depends(get_current_active_user)):
     """Registry alias for vaccination list"""
-    return list_health_records(record_type='vaccination', db=db)
+    return _list_by_type('vaccination', livestock_id, skip, limit, current_user)
 
 
 @router.get("/veterinary/appointments")
-def list_veterinary_appointments_alias(db: Session = Depends(get_db)):
+def list_veterinary_appointments_alias(livestock_id: Optional[int] = None, skip: int = Query(0, ge=0),
+                                       limit: int = Query(100, ge=1, le=1000),
+                                       current_user=Depends(get_current_active_user)):
     """Registry alias for veterinary appointments (checkups)"""
-    return list_health_records(record_type='checkup', db=db)
+    return _list_by_type('checkup', livestock_id, skip, limit, current_user)
 
 
 @router.post("/records", response_model=HealthRecordResponse, status_code=status.HTTP_201_CREATED)
@@ -186,7 +239,8 @@ def list_health_records(
     end_date: Optional[date] = Query(None, description="Filter by end date"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     List health records with optional filters
@@ -206,6 +260,9 @@ def list_health_records(
             limit=limit
         )
         
+        if current_user is not None and not _is_admin(current_user):
+            owned = _owned_livestock_ids(current_user)
+            records = [r for r in records if r.get('livestock_id') in owned]
         return [HealthRecordResponse(**record) for record in records]
         
     except Exception as e:

@@ -15,9 +15,9 @@ from pydantic import BaseModel, Field
 from app.services.sagemaker_service import sagemaker_service
 
 
-router = APIRouter(prefix="/sagemaker", tags=["sagemaker"])
+from app.core.auth import get_current_admin
 
-
+router = APIRouter(prefix="/sagemaker", tags=["sagemaker"], dependencies=[Depends(get_current_admin)])
 # ==================== Request/Response Models ====================
 
 class EndpointConfigRequest(BaseModel):

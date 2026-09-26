@@ -14,8 +14,26 @@ from app.core.dependencies import AsyncDB, OptionalUser
 from app.core.auth import get_current_user, get_optional_current_user
 from app.services.analytics_service import AnalyticsService
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+from app.core.auth import get_current_active_user, get_current_admin
 
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(get_current_active_user)])
+
+def _ensure_farm_access(farm_id: int, current_user) -> None:
+    if getattr(current_user, "user_type", None) == "admin":
+        return
+    from app.core.db import DB
+    from app.core.ownership import owner_condition
+    if not DB.raw(f"SELECT 1 FROM farms t WHERE t.id = ? AND {owner_condition('farms', current_user.id)}", [farm_id]).result:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
+
+def _self_or_admin(user_id, current_user) -> int:
+    """Default to the signed-in user; only admins may look at someone else."""
+    if user_id is None or user_id == current_user.id:
+        return current_user.id
+    if getattr(current_user, "user_type", None) != "admin":
+        raise HTTPException(status_code=403, detail="You can only view your own analytics")
+    return user_id
 
 @router.get("/profile-status")
 async def get_profile_status(
@@ -242,10 +260,12 @@ async def get_farm_performance(
 
 @router.get("/crop-performance")
 async def get_crop_performance(
-    farmer_id: int = Query(..., description="Farmer ID"),
-    db: AsyncSession = Depends(get_async_db)
+    farmer_id: Optional[int] = Query(None, description="Farmer ID (defaults to you; admins may pass any)"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user=Depends(get_current_active_user)
 ):
     """Get overall crop performance for a farmer"""
+    farmer_id = _self_or_admin(farmer_id, current_user)
     service = AnalyticsService(db)
     try:
         start_date = datetime.now() - timedelta(days=730)
@@ -276,7 +296,8 @@ async def get_farmer_analytics(
     farmer_id: int,
     start_date: Optional[datetime] = Query(None, description="Start date for analysis (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End date for analysis (ISO format)"),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Get comprehensive farmer analytics
@@ -287,6 +308,7 @@ async def get_farmer_analytics(
         - ROI tracking (investment vs returns, profit margins)
         - Regional comparison with averages
     """
+    farmer_id = _self_or_admin(farmer_id, current_user)
     service = AnalyticsService(db)
     try:
         analytics = await service.get_farmer_analytics(farmer_id, start_date, end_date)
@@ -300,13 +322,15 @@ async def get_farm_analytics_api(
     farm_id: int,
     start_date: Optional[datetime] = Query(None, description="Start date for analysis (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End date for analysis (ISO format)"),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Get analytics for a specific farm
     
     Returns plot-level performance, profit trends, and latest strategy overview
     """
+    _ensure_farm_access(farm_id, current_user)
     service = AnalyticsService(db)
     try:
         analytics = await service.get_farm_analytics(farm_id, start_date, end_date)
@@ -323,7 +347,8 @@ async def get_farm_analytics_api(
 async def get_platform_analytics(
     start_date: Optional[datetime] = Query(None, description="Start date for analysis (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End date for analysis (ISO format)"),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
+    current_user=Depends(get_current_admin)
 ):
     """
     Get platform analytics
@@ -368,7 +393,8 @@ async def get_market_analytics(
 async def get_executive_report(
     start_date: Optional[datetime] = Query(None, description="Start date for report (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="End date for report (ISO format)"),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
+    current_user=Depends(get_current_admin)
 ):
     """
     Generate executive report with key insights and recommendations

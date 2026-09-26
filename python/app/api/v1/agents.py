@@ -10,6 +10,7 @@ import logging
 
 from app.core.dependencies import DB, CurrentUser
 from app.agents.orchestrator_agent import run_orchestrator_turn
+from app.agents.agent_tools import set_agent_user
 from app.services.explainability import wrap_with_explainability
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,8 @@ async def chat_with_agent(
     confidence score, data sources, reasoning chain, limitations, and bias disclosure.
     """
     try:
+        # Agent tools read farms / plots only for this user (tool arguments come from the prompt).
+        set_agent_user(current_user)
         response_text = await run_orchestrator_turn(
             query=query_data.query,
             farm_id=query_data.farm_id

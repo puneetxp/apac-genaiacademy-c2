@@ -24,9 +24,9 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/livestock", tags=["livestock"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/livestock", tags=["livestock"], dependencies=[Depends(get_current_active_user)])
 @router.post("", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 async def create_livestock(
     request: LivestockCreate,

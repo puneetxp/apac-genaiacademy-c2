@@ -19,11 +19,12 @@ from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.services.fertilizer_tracking_service import FertilizerTrackingService
+from app.services.farm_access import plot_for_user
 
 
-router = APIRouter(prefix="/fertilizer-tracking", tags=["fertilizer-tracking"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/fertilizer-tracking", tags=["fertilizer-tracking"], dependencies=[Depends(get_current_active_user)])
 # Request/Response Models
 
 class FertilizerApplicationCreate(BaseModel):
@@ -111,7 +112,8 @@ async def get_fertilizer_tracking_root():
 @router.post("/applications", response_model=FertilizerApplicationResponse, status_code=201)
 async def record_fertilizer_application(
     application: FertilizerApplicationCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Record a new fertilizer application
@@ -150,9 +152,12 @@ async def record_fertilizer_application(
             rainfall_mm_24h=application.rainfall_mm_24h,
             recommended_by=application.recommended_by,
             recommendation_id=application.recommendation_id,
-            notes=application.notes
+            notes=application.notes,
+            user=current_user,
         )
         return result
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -161,7 +166,8 @@ async def record_fertilizer_application(
 async def update_soil_response(
     application_id: int,
     response_data: SoilResponseUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Update fertilizer application with soil test results after application
@@ -180,10 +186,13 @@ async def update_soil_response(
         result = await service.update_soil_response(
             application_id=application_id,
             soil_test_after_id=response_data.soil_test_after_id,
-            soil_response_notes=response_data.soil_response_notes
+            soil_response_notes=response_data.soil_response_notes,
+            user=current_user,
         )
         return result
     except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -198,7 +207,8 @@ async def get_application_history(
     end_date: Optional[datetime] = Query(None, description="Optional end date filter"),
     fertilizer_type: Optional[str] = Query(None, description="Optional fertilizer type filter"),
     category: Optional[str] = Query(None, description="Optional category filter (organic/chemical)"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get fertilizer application history with optional filters
@@ -216,9 +226,12 @@ async def get_application_history(
             start_date=start_date,
             end_date=end_date,
             fertilizer_type=fertilizer_type,
-            category=category
+            category=category,
+            user=current_user,
         )
         return applications
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -226,17 +239,18 @@ async def get_application_history(
 @router.get("/history/{plot_id}", response_model=List[FertilizerApplicationResponse])
 async def get_fertilizer_history_alias(
     plot_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """Registry alias for fertilizer history by plot"""
     service = FertilizerTrackingService(db)
-    # Find farm_id for this plot
-    from app.orm.farm_plot import FarmPlot
-    plot_result = await db.get(FarmPlot, plot_id)
-    if not plot_result:
+    # Find farm_id for this plot (owner-scoped; other users' plots are 404)
+    try:
+        plot_result = plot_for_user(plot_id, current_user)
+    except LookupError:
         raise HTTPException(status_code=404, detail="Plot not found")
-        
-    return await service.get_application_history(farm_id=plot_result.farm_id, plot_id=plot_id)
+
+    return await service.get_application_history(farm_id=plot_result.farm_id, plot_id=plot_id, user=current_user)
 
 
 @router.get("/effectiveness-analysis")
@@ -245,7 +259,8 @@ async def analyze_fertilizer_effectiveness(
     plot_id: Optional[int] = Query(None, description="Optional plot filter"),
     start_date: Optional[datetime] = Query(None, description="Optional start date filter"),
     end_date: Optional[datetime] = Query(None, description="Optional end date filter"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Analyze fertilizer effectiveness with ROI calculations
@@ -265,9 +280,12 @@ async def analyze_fertilizer_effectiveness(
             farm_id=farm_id,
             plot_id=plot_id,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            user=current_user,
         )
         return analysis
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -278,7 +296,8 @@ async def generate_usage_report(
     plot_id: Optional[int] = Query(None, description="Optional plot filter"),
     start_date: Optional[datetime] = Query(None, description="Optional start date (defaults to 1 year ago)"),
     end_date: Optional[datetime] = Query(None, description="Optional end date (defaults to today)"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Generate comprehensive fertilizer usage report
@@ -299,8 +318,11 @@ async def generate_usage_report(
             farm_id=farm_id,
             plot_id=plot_id,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            user=current_user,
         )
         return report
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

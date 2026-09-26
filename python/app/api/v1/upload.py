@@ -3,120 +3,101 @@ File Upload API endpoints
 Handles photo uploads for quality verification and other features
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
-from typing import Dict
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
+from fastapi.responses import Response
+from typing import Any, Dict
 import os
 import uuid
 from datetime import datetime
 import logging
 
+from app.core.auth import get_current_active_user
+from app.services import file_storage
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Configure upload directory — use /tmp on App Engine/Cloud Run (read-only filesystem)
-UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/tmp/uploads/quality_photos")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# Kept for backwards compatibility; storage location now lives in app/services/file_storage.py
+UPLOAD_DIR = file_storage.UPLOAD_DIR
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+DOCUMENT_EXTENSIONS = ALLOWED_EXTENSIONS | {".pdf"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
+FILES_PATH = "/api/v1/upload/files"
 
-@router.post("/image", response_model=Dict[str, str])
-async def upload_image(file: UploadFile = File(...)):
-    """
-    Upload an image for quality verification
-    
-    Returns the URL of the uploaded image
-    """
-    try:
-        # Validate file extension
-        file_ext = os.path.splitext(file.filename)[1].lower()
-        if file_ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid file type. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
-            )
-        
-        # Read file content
-        content = await file.read()
-        
-        # Validate file size
-        if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File size exceeds maximum allowed size of {MAX_FILE_SIZE / (1024 * 1024)}MB"
-            )
-        
-        # Generate unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        filename = f"{timestamp}_{unique_id}{file_ext}"
-        filepath = os.path.join(UPLOAD_DIR, filename)
-        
-        # Save file
-        with open(filepath, "wb") as f:
-            f.write(content)
-        
-        # Generate URL (in production, this would be an S3 URL or CDN URL)
-        # For now, return a relative path
-        photo_url = f"/uploads/quality_photos/{filename}"
-        
-        logger.info(f"Image uploaded successfully: {filename}")
-        
-        return {
-            "success": True,
-            "url": photo_url,
-            "filename": filename
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error uploading photo: {str(e)}")
+
+async def _store(file: UploadFile, allowed: set) -> Dict[str, Any]:
+    file_ext = os.path.splitext(file.filename or "")[1].lower()
+    if file_ext not in allowed:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload photo: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(sorted(allowed))}"
         )
 
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File size exceeds maximum allowed size of {MAX_FILE_SIZE / (1024 * 1024)}MB"
+        )
 
-@router.post("/document", response_model=Dict[str, str])
-async def upload_document(file: UploadFile = File(...)):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{timestamp}_{uuid.uuid4().hex[:12]}{file_ext}"
+    try:
+        storage = file_storage.save(filename, content)
+    except Exception as e:
+        logger.error(f"Error uploading file: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to upload file")
+
+    logger.info(f"File uploaded ({storage}): {filename}")
+    return {"success": True, "url": f"{FILES_PATH}/{filename}", "filename": filename}
+
+
+@router.post("/image", response_model=Dict[str, Any])
+async def upload_image(file: UploadFile = File(...), current_user=Depends(get_current_active_user)):
     """
-    Upload a document
+    Upload an image for quality verification
+
+    Returns the URL of the uploaded image
     """
-    # For now, reuse photo logic but with different allowed extensions
-    return await upload_image(file)
+    return await _store(file, ALLOWED_EXTENSIONS)
 
 
-@router.delete("/photo/{filename}", response_model=Dict[str, str])
-async def delete_photo(filename: str):
+@router.post("/document", response_model=Dict[str, Any])
+async def upload_document(file: UploadFile = File(...), current_user=Depends(get_current_active_user)):
+    """
+    Upload a document (images or PDF)
+    """
+    return await _store(file, DOCUMENT_EXTENSIONS)
+
+
+@router.get("/files/{filename}")
+async def get_file(filename: str):
+    """Serve an uploaded file. Names are random, so links work like unlisted URLs."""
+    try:
+        found = file_storage.load(filename)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file name")
+    if not found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    content, content_type = found
+    return Response(content=content, media_type=content_type,
+                    headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.delete("/photo/{filename}", response_model=Dict[str, Any])
+async def delete_photo(filename: str, current_user=Depends(get_current_active_user)):
     """
     Delete an uploaded photo
     """
     try:
-        filepath = os.path.join(UPLOAD_DIR, filename)
-        
-        if not os.path.exists(filepath):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Photo not found"
-            )
-        
-        os.remove(filepath)
-        
-        logger.info(f"Photo deleted successfully: {filename}")
-        
-        return {
-            "success": True,
-            "message": "Photo deleted successfully"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting photo: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete photo: {str(e)}"
-        )
+        deleted = file_storage.delete(filename)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid file name")
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
+
+    logger.info(f"Photo deleted successfully: {filename}")
+    return {"success": True, "message": "Photo deleted successfully"}

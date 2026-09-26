@@ -15,7 +15,6 @@ from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional, Any
 from decimal import Decimal
 
-from sqlalchemy import select, func, and_, or_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 # AWS imports removed for GCP/local migration
 
@@ -27,6 +26,33 @@ from app.orm.advance_booking import AdvanceBooking
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Crop and livestock listings in one shape. The ORM classes are the lightweight kind (no SQLAlchemy
+# select/execute), so everything here is parameterised SQL through DB.raw.
+SUPPLY = """(
+    SELECT id, 'crop' AS item_type, crop_type AS item_name, crop_variety AS variety, location_state AS state,
+           location_district AS district, COALESCE(available_quantity, estimated_quantity) AS quantity,
+           price_per_unit, quality_grade, status, expected_harvest_date
+    FROM marketplace_listings
+    UNION ALL
+    SELECT id, 'livestock', species, breed, location_state, location_district, quantity, price, NULL, status, NULL
+    FROM livestock_listings
+) s"""
+
+
+def _rows(sql: str, bind: list) -> List[Dict[str, Any]]:
+    from app.core.db import DB
+    return [{k: float(v) if isinstance(v, Decimal) else v for k, v in r.items()} for r in DB.raw(sql, bind).result]
+
+
+def _match(alias: str, item_type: str, item_name: str, state: str, district: Optional[str]) -> tuple:
+    """WHERE fragment + binds for one item in one place (names compared case-insensitively)."""
+    where = [f"{alias}.item_type = ?", f"{alias}.item_name ILIKE ?", f"{alias}.state = ?"]
+    bind: list = [item_type, item_name, state]
+    if district:
+        where.append(f"{alias}.district = ?")
+        bind.append(district)
+    return " AND ".join(where), bind
 
 
 class PredictiveAnalyticsService:
@@ -215,69 +241,37 @@ class PredictiveAnalyticsService:
         """
         gaps = []
         
-        # Get all active listings (supply)
-        supply_query = select(MarketplaceListing).where(
-            and_(
-                MarketplaceListing.state == state,
-                MarketplaceListing.status == 'active'
-            )
-        )
+        # Supply: active listings in the area
+        where, bind = ["s.state = ?", "s.status = 'active'"], [state]
         if district:
-            supply_query = supply_query.where(MarketplaceListing.district == district)
+            where.append("s.district = ?")
+            bind.append(district)
         if item_type:
-            supply_query = supply_query.where(MarketplaceListing.item_type == item_type)
-        
-        result = await self.db.execute(supply_query)
-        listings = result.scalars().all()
-        
-        # Group supply by item
+            where.append("s.item_type = ?")
+            bind.append(item_type)
         supply_by_item = {}
-        for listing in listings:
-            key = f"{listing.item_type}:{listing.item_name}"
-            if key not in supply_by_item:
-                supply_by_item[key] = {
-                    "item_type": listing.item_type,
-                    "item_name": listing.item_name,
-                    "total_quantity": 0,
-                    "listing_count": 0
-                }
-            supply_by_item[key]["total_quantity"] += float(listing.quantity or 0)
-            supply_by_item[key]["listing_count"] += 1
-        
-        # Get buyer interests (demand)
-        demand_query = select(BuyerInterest).join(
-            MarketplaceListing, BuyerInterest.listing_id == MarketplaceListing.id
-        ).where(
-            and_(
-                MarketplaceListing.state == state,
-                BuyerInterest.status.in_(['pending', 'contacted'])
-            )
-        )
+        for listing in _rows(f"SELECT * FROM {SUPPLY} WHERE {' AND '.join(where)}", bind):
+            key = f"{listing['item_type']}:{listing['item_name']}"
+            item = supply_by_item.setdefault(key, {"item_type": listing["item_type"], "item_name": listing["item_name"],
+                                                   "total_quantity": 0, "listing_count": 0})
+            item["total_quantity"] += float(listing["quantity"] or 0)
+            item["listing_count"] += 1
+
+        # Demand: open buyer interests on crop listings in the area
+        dwhere, dbind = ["m.location_state = ?", "b.status IN ('pending', 'contacted')"], [state]
         if district:
-            demand_query = demand_query.where(MarketplaceListing.district == district)
-        
-        result = await self.db.execute(demand_query)
-        interests = result.scalars().all()
-        
-        # Group demand by item
+            dwhere.append("m.location_district = ?")
+            dbind.append(district)
         demand_by_item = {}
-        for interest in interests:
-            # Get the listing to know item details
-            listing_result = await self.db.execute(
-                select(MarketplaceListing).where(MarketplaceListing.id == interest.listing_id)
-            )
-            listing = listing_result.scalar_one_or_none()
-            if listing:
-                key = f"{listing.item_type}:{listing.item_name}"
-                if key not in demand_by_item:
-                    demand_by_item[key] = {
-                        "item_type": listing.item_type,
-                        "item_name": listing.item_name,
-                        "total_demand": 0,
-                        "interest_count": 0
-                    }
-                demand_by_item[key]["total_demand"] += float(interest.interested_quantity or 0)
-                demand_by_item[key]["interest_count"] += 1
+        if item_type in (None, "crop"):
+            for interest in _rows(
+                f"""SELECT m.crop_type AS item_name, b.interested_quantity FROM buyer_interests b
+                    JOIN marketplace_listings m ON m.id = b.listing_id WHERE {' AND '.join(dwhere)}""", dbind):
+                key = f"crop:{interest['item_name']}"
+                item = demand_by_item.setdefault(key, {"item_type": "crop", "item_name": interest["item_name"],
+                                                       "total_demand": 0, "interest_count": 0})
+                item["total_demand"] += float(interest["interested_quantity"] or 0)
+                item["interest_count"] += 1
         
         # Identify gaps
         all_items = set(supply_by_item.keys()) | set(demand_by_item.keys())
@@ -405,7 +399,7 @@ class PredictiveAnalyticsService:
         gaps_result = await self.identify_supply_demand_gaps(state, district, item_type)
         gaps = gaps_result.get("data", {}).get("gaps", [])
         
-        item_gap = next((g for g in gaps if g["item_name"] == item_name), None)
+        item_gap = next((g for g in gaps if str(g["item_name"]).lower() == item_name.lower()), None)
         if item_gap:
             if item_gap["gap_type"] == "shortage":
                 # Shortage = opportunity for farmers
@@ -577,29 +571,16 @@ class PredictiveAnalyticsService:
         # Get upcoming harvests from marketplace listings
         future_date = date.today() + timedelta(days=months_ahead * 30)
         
-        query = select(MarketplaceListing).where(
-            and_(
-                MarketplaceListing.item_type == item_type,
-                MarketplaceListing.item_name == item_name,
-                MarketplaceListing.state == state,
-                MarketplaceListing.status == 'active',
-                MarketplaceListing.expected_harvest_date <= future_date,
-                MarketplaceListing.expected_harvest_date >= date.today()
-            )
-        )
-        
-        if district:
-            query = query.where(MarketplaceListing.district == district)
-        
-        query = query.order_by(MarketplaceListing.expected_harvest_date)
-        
-        result = await self.db.execute(query)
-        listings = result.scalars().all()
+        where, bind = _match("s", item_type, item_name, state, district)
+        listings = _rows(
+            f"""SELECT * FROM {SUPPLY} WHERE {where} AND s.status = 'active'
+                AND s.expected_harvest_date BETWEEN ? AND ? ORDER BY s.expected_harvest_date""",
+            bind + [date.today(), future_date])
         
         # Group by month
         supply_by_month = {}
         for listing in listings:
-            month_key = listing.expected_harvest_date.strftime("%Y-%m")
+            month_key = listing["expected_harvest_date"].strftime("%Y-%m")
             if month_key not in supply_by_month:
                 supply_by_month[month_key] = {
                     "month": month_key,
@@ -610,14 +591,16 @@ class PredictiveAnalyticsService:
                     "price_sum": 0
                 }
             
-            supply_by_month[month_key]["total_quantity"] += float(listing.quantity or 0)
+            supply_by_month[month_key]["total_quantity"] += float(listing["quantity"] or 0)
             supply_by_month[month_key]["listing_count"] += 1
             
-            if listing.quality_grade:
-                supply_by_month[month_key]["quality_distribution"][listing.quality_grade] += 1
+            grade = listing["quality_grade"]
+            if grade:
+                dist = supply_by_month[month_key]["quality_distribution"]
+                dist[grade] = dist.get(grade, 0) + 1
             
-            if listing.price_per_unit:
-                supply_by_month[month_key]["price_sum"] += float(listing.price_per_unit)
+            if listing["price_per_unit"]:
+                supply_by_month[month_key]["price_sum"] += float(listing["price_per_unit"])
         
         # Calculate averages
         for month_data in supply_by_month.values():
@@ -670,37 +653,35 @@ class PredictiveAnalyticsService:
         variety: Optional[str],
         days: int
     ) -> List[Dict[str, Any]]:
-        """Get historical price data"""
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        query = select(MarketPrice).where(
-            and_(
-                MarketPrice.item_type == item_type,
-                MarketPrice.item_name == item_name,
-                MarketPrice.state == state,
-                MarketPrice.transaction_date >= cutoff_date
-            )
-        ).order_by(MarketPrice.transaction_date)
-        
-        if district:
-            query = query.where(MarketPrice.district == district)
+        """Recorded transaction prices, plus crop_market_data mandi prices for crops"""
+        cutoff = datetime.now() - timedelta(days=days)
+        where, bind = _match("p", item_type, item_name, state, district)
+        sql = f"""SELECT transaction_date AS date, price_per_unit AS price, quantity, quality_grade, season
+                  FROM market_prices p WHERE {where} AND p.transaction_date >= ?"""
+        bind = bind + [cutoff]
         if variety:
-            query = query.where(MarketPrice.variety == variety)
-        
-        result = await self.db.execute(query)
-        prices = result.scalars().all()
-        
-        return [
-            {
-                "date": p.transaction_date,
-                "price": float(p.price_per_unit),
-                "quantity": float(p.quantity),
-                "quality_grade": p.quality_grade,
-                "season": p.season
-            }
-            for p in prices
-        ]
+            sql += " AND p.variety = ?"
+            bind.append(variety)
+        prices = _rows(sql, bind)
+        if item_type == "crop":
+            cwhere, cbind = ["crop_name ILIKE ?", "state = ?", "date >= ?"], [item_name, state, cutoff.date()]
+            if district:
+                cwhere.append("district = ?")
+                cbind.append(district)
+            prices += _rows(f"""SELECT date, price_per_kg AS price, 0 AS quantity, NULL AS quality_grade, season
+                                FROM crop_market_data WHERE {' AND '.join(cwhere)}""", cbind)
+        prices.sort(key=lambda p: str(p["date"]))
+        return [dict(p, quantity=float(p["quantity"] or 0)) for p in prices]
     
+    def _interests(self, item_name: str, state: str, district: Optional[str], days: int) -> List[Dict[str, Any]]:
+        where, bind = ["m.crop_type ILIKE ?", "m.location_state = ?", "b.created_at >= ?"], \
+            [item_name, state, datetime.now() - timedelta(days=days)]
+        if district:
+            where.append("m.location_district = ?")
+            bind.append(district)
+        return _rows(f"""SELECT b.* FROM buyer_interests b JOIN marketplace_listings m ON m.id = b.listing_id
+                         WHERE {' AND '.join(where)}""", bind)
+
     async def _get_demand_patterns(
         self,
         item_type: str,
@@ -709,35 +690,14 @@ class PredictiveAnalyticsService:
         district: Optional[str],
         days: int
     ) -> Dict[str, Any]:
-        """Get demand patterns from buyer interests"""
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        # Get buyer interests for this item
-        query = select(BuyerInterest).join(
-            MarketplaceListing, BuyerInterest.listing_id == MarketplaceListing.id
-        ).where(
-            and_(
-                MarketplaceListing.item_type == item_type,
-                MarketplaceListing.item_name == item_name,
-                MarketplaceListing.state == state,
-                BuyerInterest.created_at >= cutoff_date
-            )
-        )
-        
-        if district:
-            query = query.where(MarketplaceListing.district == district)
-        
-        result = await self.db.execute(query)
-        interests = result.scalars().all()
-        
-        total_demand = sum(float(i.interested_quantity) for i in interests)
-        avg_demand = total_demand / len(interests) if interests else 0
-        
+        """Get demand patterns from buyer interests (crop listings only)"""
+        interests = self._interests(item_name, state, district, days) if item_type == "crop" else []
+        total_demand = sum(float(i["interested_quantity"] or 0) for i in interests)
         return {
             "total_interest_count": len(interests),
             "total_demand_quantity": total_demand,
-            "avg_demand_per_interest": avg_demand,
-            "buyer_types": list(set(i.buyer_type for i in interests))
+            "avg_demand_per_interest": total_demand / len(interests) if interests else 0,
+            "buyer_types": sorted({i["buyer_type"] for i in interests if i.get("buyer_type")})
         }
     
     async def _get_supply_patterns(
@@ -747,24 +707,10 @@ class PredictiveAnalyticsService:
         state: str,
         district: Optional[str]
     ) -> Dict[str, Any]:
-        """Get supply patterns from marketplace listings"""
-        query = select(MarketplaceListing).where(
-            and_(
-                MarketplaceListing.item_type == item_type,
-                MarketplaceListing.item_name == item_name,
-                MarketplaceListing.state == state,
-                MarketplaceListing.status == 'active'
-            )
-        )
-        
-        if district:
-            query = query.where(MarketplaceListing.district == district)
-        
-        result = await self.db.execute(query)
-        listings = result.scalars().all()
-        
-        total_supply = sum(float(l.quantity) for l in listings if l.quantity)
-        
+        """Get supply patterns from active listings"""
+        where, bind = _match("s", item_type, item_name, state, district)
+        listings = _rows(f"SELECT quantity FROM {SUPPLY} WHERE {where} AND s.status = 'active'", bind)
+        total_supply = sum(float(l["quantity"] or 0) for l in listings)
         return {
             "total_listings": len(listings),
             "total_supply_quantity": total_supply,
@@ -780,34 +726,9 @@ class PredictiveAnalyticsService:
         days: int
     ) -> List[Dict[str, Any]]:
         """Get buyer interest history"""
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        query = select(BuyerInterest).join(
-            MarketplaceListing, BuyerInterest.listing_id == MarketplaceListing.id
-        ).where(
-            and_(
-                MarketplaceListing.item_type == item_type,
-                MarketplaceListing.item_name == item_name,
-                MarketplaceListing.state == state,
-                BuyerInterest.created_at >= cutoff_date
-            )
-        )
-        
-        if district:
-            query = query.where(MarketplaceListing.district == district)
-        
-        result = await self.db.execute(query)
-        interests = result.scalars().all()
-        
-        return [
-            {
-                "created_at": i.created_at,
-                "interested_quantity": float(i.interested_quantity),
-                "buyer_type": i.buyer_type,
-                "status": i.status
-            }
-            for i in interests
-        ]
+        interests = self._interests(item_name, state, district, days) if item_type == "crop" else []
+        return [{"created_at": i["created_at"], "interested_quantity": float(i["interested_quantity"] or 0),
+                 "buyer_type": i["buyer_type"], "status": i["status"]} for i in interests]
     
     async def _get_booking_patterns(
         self,
@@ -817,35 +738,18 @@ class PredictiveAnalyticsService:
         district: Optional[str],
         days: int
     ) -> List[Dict[str, Any]]:
-        """Get advance booking patterns"""
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        query = select(AdvanceBooking).join(
-            MarketplaceListing, AdvanceBooking.listing_id == MarketplaceListing.id
-        ).where(
-            and_(
-                MarketplaceListing.item_type == item_type,
-                MarketplaceListing.item_name == item_name,
-                MarketplaceListing.state == state,
-                AdvanceBooking.created_at >= cutoff_date
-            )
-        )
-        
+        """Get advance booking patterns (crop listings only)"""
+        if item_type != "crop":
+            return []
+        where, bind = ["m.crop_type ILIKE ?", "m.location_state = ?", "a.created_at >= ?"], \
+            [item_name, state, datetime.now() - timedelta(days=days)]
         if district:
-            query = query.where(MarketplaceListing.district == district)
-        
-        result = await self.db.execute(query)
-        bookings = result.scalars().all()
-        
-        return [
-            {
-                "created_at": b.created_at,
-                "quantity": float(b.quantity),
-                "price_per_unit": float(b.price_per_unit) if b.price_per_unit else 0,
-                "status": b.status
-            }
-            for b in bookings
-        ]
+            where.append("m.location_district = ?")
+            bind.append(district)
+        bookings = _rows(f"""SELECT a.* FROM advance_bookings a JOIN marketplace_listings m ON m.id = a.listing_id
+                             WHERE {' AND '.join(where)}""", bind)
+        return [{"created_at": b["created_at"], "quantity": float(b["quantity_booked"] or 0),
+                 "price_per_unit": float(b["price_per_unit"] or 0), "status": b["status"]} for b in bookings]
     
     async def _get_historical_demand(
         self,
@@ -855,26 +759,11 @@ class PredictiveAnalyticsService:
         district: Optional[str],
         days: int
     ) -> Dict[str, Any]:
-        """Get historical demand from market prices"""
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        query = select(MarketPrice).where(
-            and_(
-                MarketPrice.item_type == item_type,
-                MarketPrice.item_name == item_name,
-                MarketPrice.state == state,
-                MarketPrice.transaction_date >= cutoff_date
-            )
-        )
-        
-        if district:
-            query = query.where(MarketPrice.district == district)
-        
-        result = await self.db.execute(query)
-        prices = result.scalars().all()
-        
-        total_volume = sum(float(p.quantity) for p in prices)
-        
+        """Get historical demand from recorded transactions"""
+        where, bind = _match("p", item_type, item_name, state, district)
+        prices = _rows(f"SELECT quantity FROM market_prices p WHERE {where} AND p.transaction_date >= ?",
+                       bind + [datetime.now() - timedelta(days=days)])
+        total_volume = sum(float(p["quantity"] or 0) for p in prices)
         return {
             "transaction_count": len(prices),
             "total_volume": total_volume,
@@ -890,53 +779,24 @@ class PredictiveAnalyticsService:
         days: int
     ) -> List[Dict[str, Any]]:
         """Get quality premium data"""
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        query = select(MarketPrice).where(
-            and_(
-                MarketPrice.item_type == item_type,
-                MarketPrice.item_name == item_name,
-                MarketPrice.state == state,
-                MarketPrice.transaction_date >= cutoff_date,
-                MarketPrice.quality_premium_percent.isnot(None)
-            )
-        )
-        
-        if district:
-            query = query.where(MarketPrice.district == district)
-        
-        result = await self.db.execute(query)
-        prices = result.scalars().all()
-        
-        return [
-            {
-                "quality_grade": p.quality_grade,
-                "premium": float(p.quality_premium_percent) if p.quality_premium_percent else 0
-            }
-            for p in prices
-        ]
+        where, bind = _match("p", item_type, item_name, state, district)
+        prices = _rows(f"""SELECT quality_grade, quality_premium_percent FROM market_prices p
+                           WHERE {where} AND p.transaction_date >= ? AND p.quality_premium_percent IS NOT NULL""",
+                       bind + [datetime.now() - timedelta(days=days)])
+        return [{"quality_grade": p["quality_grade"], "premium": float(p["quality_premium_percent"] or 0)} for p in prices]
     
     async def _get_regional_crops(
         self,
         state: str,
         district: Optional[str]
     ) -> List[Dict[str, str]]:
-        """Get common crops for a region"""
-        # Get crops from recent marketplace listings
-        query = select(MarketplaceListing.item_name).where(
-            and_(
-                MarketplaceListing.item_type == 'crop',
-                MarketplaceListing.state == state
-            )
-        ).distinct()
-        
+        """Crops listed in the region"""
+        where, bind = ["location_state = ?"], [state]
         if district:
-            query = query.where(MarketplaceListing.district == district)
-        
-        result = await self.db.execute(query)
-        crop_names = result.scalars().all()
-        
-        return [{"name": name} for name in crop_names]
+            where.append("location_district = ?")
+            bind.append(district)
+        return [{"name": r["crop_type"]} for r in
+                _rows(f"SELECT DISTINCT crop_type FROM marketplace_listings WHERE {' AND '.join(where)}", bind)]
 
     async def _invoke_bedrock_price_prediction(
         self,
@@ -1081,29 +941,20 @@ Consider seasonal patterns, supply-demand dynamics, and regional agricultural tr
         else:
             season = "Zaid"
         
-        prediction_record = PricePrediction(
-            item_type=item_type,
-            item_name=item_name,
-            variety=variety,
-            state=state,
-            district=district,
-            prediction_date=datetime.now(),
-            target_date=target_date,
-            predicted_price=Decimal(str(prediction.get('predicted_price', 0))),
-            confidence_score=Decimal(str(prediction.get('confidence_score', 0))),
-            price_range_min=Decimal(str(prediction.get('price_range_min', 0))),
-            price_range_max=Decimal(str(prediction.get('price_range_max', 0))),
-            trend=prediction.get('trend'),
-            demand_forecast=prediction.get('demand_forecast'),
-            supply_forecast=prediction.get('supply_forecast'),
-            season=season,
-            model_version=prediction.get('model_version'),
-            factors=json.dumps(prediction.get('factors', []))
-        )
-        
-        self.db.add(prediction_record)
-        await self.db.commit()
-        await self.db.refresh(prediction_record)
+        try:
+            _rows(
+                """INSERT INTO price_predictions (item_type, item_name, variety, state, district, prediction_date,
+                   target_date, predicted_price, confidence_score, price_range_min, price_range_max, trend,
+                   demand_forecast, supply_forecast, season, model_version, factors)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+                [item_type, item_name, variety, state, district, datetime.now(), target_date,
+                 prediction.get('predicted_price', 0), prediction.get('confidence_score', 0),
+                 prediction.get('price_range_min', 0), prediction.get('price_range_max', 0), prediction.get('trend'),
+                 prediction.get('demand_forecast'), prediction.get('supply_forecast'), season,
+                 prediction.get('model_version'), json.dumps(prediction.get('factors', []))])
+        except Exception as e:  # a prediction is still useful to the caller if storing it fails
+            logger.warning(f"Could not store price prediction: {e}")
+            return
         
         logger.info(f"Saved price prediction for {item_name} in {state}")
     

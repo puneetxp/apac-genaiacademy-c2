@@ -27,16 +27,15 @@ from app.schemas.livestock_listing import (
     VaccinationStatusEnum,
     ListingStatusEnum
 )
-from app.services.livestock_listing_service import LivestockListingService
+from app.services.livestock_listing_catalog import LivestockListingService
+from app.core.auth import get_current_active_user
 
 router = APIRouter(prefix="/livestock-listings", tags=["livestock-listings"])
 
 
-# Dependency to get current user ID (simplified for MVP)
-async def get_current_user_id() -> int:
-    """Get current authenticated user ID"""
-    # TODO: Implement proper JWT authentication
-    return 1
+async def get_current_user_id(current_user=Depends(get_current_active_user)) -> int:
+    """The signed-in user's id (this used to be hard-coded to 1, letting everyone act as user 1)."""
+    return current_user.id
 
 
 @router.post("/", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
@@ -361,46 +360,21 @@ async def get_seller_dashboard(
     - Total views, interests, and inquiries
     - Recent listings
     """
-    from app.orm.livestock_listing import LivestockListing
-    from sqlalchemy import select, func
-
-    # Get listing counts
-    active_count_query = select(func.count()).select_from(LivestockListing).where(
-        LivestockListing.farmer_id == user_id,
-        LivestockListing.status == 'active'
-    )
-    result = await db.execute(active_count_query)
-    active_count = result.scalar()
-
-    total_count_query = select(func.count()).select_from(LivestockListing).where(
-        LivestockListing.farmer_id == user_id
-    )
-    result = await db.execute(total_count_query)
-    total_count = result.scalar()
-
-    # Get aggregate stats
-    stats_query = select(
-        func.sum(LivestockListing.views_count).label('total_views'),
-        func.sum(LivestockListing.interest_count).label('total_interests'),
-        func.sum(LivestockListing.inquiry_count).label('total_inquiries')
-    ).where(LivestockListing.farmer_id == user_id)
-    result = await db.execute(stats_query)
-    stats = result.one()
-
-    # Get recent listings
-    recent_query = select(LivestockListing).where(
-        LivestockListing.farmer_id == user_id
-    ).order_by(LivestockListing.created_at.desc()).limit(5)
-    result = await db.execute(recent_query)
-    recent_listings = result.scalars().all()
-
+    from app.core.db import DB
+    stats = DB.raw(
+        """SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status = 'active') AS active,
+                  COALESCE(SUM(views_count), 0) AS views, COALESCE(SUM(interest_count), 0) AS interests,
+                  COALESCE(SUM(inquiry_count), 0) AS inquiries
+           FROM livestock_listings WHERE farmer_id = ?""", [user_id]).result[0]
     service = LivestockListingService(db)
+    recent_listings = service.recent_for(user_id)
+    total_count, active_count = stats["total"], stats["active"]
 
     return {
         "total_listings": total_count,
         "active_listings": active_count,
-        "total_views": int(stats.total_views or 0),
-        "total_interests": int(stats.total_interests or 0),
-        "total_inquiries": int(stats.total_inquiries or 0),
-        "recent_listings": [service._format_listing_response(listing) for listing in recent_listings]
+        "total_views": int(stats["views"]),
+        "total_interests": int(stats["interests"]),
+        "total_inquiries": int(stats["inquiries"]),
+        "recent_listings": recent_listings
     }

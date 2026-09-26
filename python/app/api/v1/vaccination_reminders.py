@@ -17,9 +17,10 @@ from app.services.vaccination_reminder_service import get_vaccination_reminder_s
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/vaccination-reminders", tags=["vaccination-reminders"])
+from app.core.auth import get_current_active_user
+from fastapi import Depends
 
-
+router = APIRouter(prefix="/vaccination-reminders", tags=["vaccination-reminders"], dependencies=[Depends(get_current_active_user)])
 # ==================== REQUEST/RESPONSE MODELS ====================
 
 class ReminderRequest(BaseModel):

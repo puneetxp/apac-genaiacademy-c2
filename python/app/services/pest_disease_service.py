@@ -9,8 +9,9 @@ Task 25.2: Build pest and disease early warning system
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from typing import Any as AsyncSession  # db kept for compatibility; queries use app.core.db.DB
+
+from app.services.farm_access import Row, fetch_one, fetch_all, crop_for_user
 
 from app.services.notification_service import get_notification_service
 
@@ -273,7 +274,8 @@ class PestDiseaseService:
         crop_id: int,
         weather_data: Dict[str, Any],
         current_stage: str,
-        save_to_db: bool = True
+        save_to_db: bool = True,
+        user=None,
     ) -> List[Dict[str, Any]]:
         """
         Check for pest and disease risks based on weather and crop stage
@@ -291,20 +293,23 @@ class PestDiseaseService:
         """
         try:
             import json
-            from app.orm.pest_disease_alert import PestDiseaseAlert
-            from app.orm.crop import Crop
-            from sqlalchemy import select
-            
+
             risks = []
             
             temp = weather_data.get('temperature', 0)
             humidity = weather_data.get('humidity', 0)
             rainfall = weather_data.get('rainfall', 0)
             
-            # Get crop details for farm_id
-            result = await self.db.execute(select(Crop).where(Crop.id == crop_id))
-            crop = result.scalar_one_or_none()
-            
+            # Get crop details for farm_id (crops link to farms through farm_plots).
+            # With a user, someone else's crop raises LookupError (router -> 404).
+            if user is not None:
+                crop = crop_for_user(crop_id, user)
+            else:
+                try:
+                    crop = crop_for_user(crop_id, None)
+                except LookupError:
+                    crop = None
+
             if not crop:
                 logger.warning(f"Crop {crop_id} not found")
                 return risks
@@ -356,27 +361,19 @@ class PestDiseaseService:
                 # Save alert to database
                 if save_to_db:
                     try:
-                        alert = PestDiseaseAlert()
-                        alert.crop_id = crop_id
-                        alert.farm_id = crop.farm_id
-                        alert.pest_disease_name = pest_disease
-                        alert.alert_type = 'pest' if 'borer' in pest_disease or 'fly' in pest_disease or 'aphid' in pest_disease or 'miner' in pest_disease else 'disease'
-                        alert.severity = thresholds['severity']
-                        alert.description = thresholds['description']
-                        alert.crop_stage = current_stage
-                        alert.weather_conditions = json.dumps({
-                            'temperature': temp,
-                            'humidity': humidity,
-                            'rainfall': rainfall
-                        })
-                        alert.organic_recommendations = json.dumps(management.get('organic', []))
-                        alert.chemical_recommendations = json.dumps(management.get('chemical', []))
-                        alert.prevention_measures = json.dumps(management.get('prevention', []))
-                        alert.timing_instructions = management.get('timing', '')
-                        alert.notification_sent = False
-                        alert.is_resolved = False
-                        
-                        await alert.save(self.db)
+                        alert_type = 'pest' if 'borer' in pest_disease or 'fly' in pest_disease or 'aphid' in pest_disease or 'miner' in pest_disease else 'disease'
+                        alert = fetch_one(
+                            """INSERT INTO pest_disease_alerts
+                               (crop_id, farm_id, pest_disease_name, alert_type, severity, description, crop_stage,
+                                weather_conditions, organic_recommendations, chemical_recommendations,
+                                prevention_measures, timing_instructions, notification_sent, is_resolved)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0) RETURNING *""",
+                            [crop_id, crop.farm_id, pest_disease, alert_type, thresholds['severity'],
+                             thresholds['description'], current_stage,
+                             json.dumps({'temperature': temp, 'humidity': humidity, 'rainfall': rainfall}),
+                             json.dumps(management.get('organic', [])), json.dumps(management.get('chemical', [])),
+                             json.dumps(management.get('prevention', [])), management.get('timing', '')],
+                        )
                         logger.info(f"Saved pest/disease alert {alert.id} for crop {crop_id}")
                     except Exception as e:
                         logger.error(f"Error saving alert to database: {e}")
@@ -449,9 +446,6 @@ class PestDiseaseService:
         Validates: AC10.3 - Automated pest/disease monitoring
         """
         try:
-            # Import here to avoid circular dependency
-            from app.orm.crop import Crop
-            
             summary = {
                 'crops_checked': 0,
                 'risks_detected': 0,
@@ -459,16 +453,23 @@ class PestDiseaseService:
                 'errors': 0
             }
             
-            # Get all active crops (not harvested)
-            result = await self.db.execute(
-                select(Crop).where(
-                    and_(
-                        Crop.status == 'active',
-                        Crop.expected_harvest_date >= datetime.now().date()
-                    )
-                )
+            # Get all active crops (not harvested). crops.status values are planned/planted/growing/harvested,
+            # so "active" means planted or growing. Farm location and farmer contact come from joins.
+            active_crops = fetch_all(
+                """SELECT c.*, p.farm_id AS farm_id, f.latitude AS farm_latitude, f.longitude AS farm_longitude,
+                          u.phone AS farmer_phone, u.email AS farmer_email, u.name AS farmer_name
+                   FROM crops c
+                   JOIN farm_plots p ON p.id = c.farm_plot_id
+                   JOIN farms f ON f.id = p.farm_id
+                   LEFT JOIN users u ON u.id = f.user_id
+                   WHERE c.status IN ('active', 'planted', 'growing')
+                     AND (c.expected_harvest_date IS NULL OR c.expected_harvest_date >= ?)""",
+                [datetime.now().date()],
             )
-            active_crops = result.scalars().all()
+            for crop in active_crops:
+                crop.farm = Row(latitude=crop.farm_latitude or 0.0, longitude=crop.farm_longitude or 0.0)
+                crop.farmer = Row(phone=crop.farmer_phone or '', email=crop.farmer_email,
+                                  name=crop.farmer_name or 'Farmer')
             
             for crop in active_crops:
                 try:
@@ -554,9 +555,6 @@ class PestDiseaseService:
         Validates: AC10.3 - Early warning alerts via SNS
         """
         try:
-            from app.orm.pest_disease_alert import PestDiseaseAlert
-            from sqlalchemy import select
-            
             pest_disease = risk['pest_disease'].replace('_', ' ').title()
             severity = risk['severity'].upper()
             
@@ -598,14 +596,12 @@ class PestDiseaseService:
             # Mark alert as notified in database
             if alert_id:
                 try:
-                    result_db = await self.db.execute(
-                        select(PestDiseaseAlert).where(PestDiseaseAlert.id == alert_id)
+                    alert = fetch_one(
+                        """UPDATE pest_disease_alerts SET notification_sent = 1, notification_sent_at = ?,
+                           updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id""",
+                        [datetime.now(), alert_id],
                     )
-                    alert = result_db.scalar_one_or_none()
                     if alert:
-                        alert.notification_sent = True
-                        alert.notification_sent_at = datetime.now()
-                        await alert.save(self.db)
                         logger.info(f"Marked alert {alert_id} as notified")
                 except Exception as e:
                     logger.error(f"Error marking alert as notified: {e}")

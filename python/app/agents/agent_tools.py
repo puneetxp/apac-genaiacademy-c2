@@ -4,15 +4,24 @@ These tools allow the agents to query the primary PostgreSQL database and the Op
 """
 
 import logging
+from contextvars import ContextVar
 from typing import Dict, Any, List, Optional
 from app.core.database import get_db_context
-from app.orm.farm import Farm
-from app.orm.farm_plot import FarmPlot
-from app.orm.soil_test_result import SoilTestResult
-from app.orm.market_price import MarketPrice
+from app.services.farm_access import fetch_one, fetch_all, farm_for_user, plot_for_user
 from app.services.weather_service import WeatherService
 
 logger = logging.getLogger(__name__)
+
+# Data access: raw SQL through app.core.db.DB (app/orm classes are not SQLAlchemy models).
+# Owner scoping: the tool arguments come from the model/prompt, so they are never trusted. The API
+# layer sets the signed-in user with set_agent_user(); farm / plot tools only return that user's
+# data (admins: any). With no user set, farm / plot tools return "not found" (fail closed).
+_agent_user: ContextVar[Any] = ContextVar("cropsense_agent_user", default=None)
+
+
+def set_agent_user(user) -> None:
+    """Set the signed-in user whose farms / plots the agent tools may read (call before running an agent)."""
+    _agent_user.set(user)
 
 def get_farm_details(farm_id: int) -> str:
     """Retrieves metadata for a specific farm (owner user ID, size in acres, location details).
@@ -21,23 +30,28 @@ def get_farm_details(farm_id: int) -> str:
         farm_id: The unique ID of the farm.
     """
     try:
-        with get_db_context() as db:
-            farm = db.query(Farm).filter(Farm.id == farm_id).first()
-            if not farm:
-                return f"Farm with ID {farm_id} not found."
-            
-            return (
-                f"Farm ID: {farm.id}\n"
-                f"User ID: {farm.user_id}\n"
-                f"State: {farm.state}\n"
-                f"District: {farm.district}\n"
-                f"Pincode: {farm.pincode}\n"
-                f"Latitude: {farm.latitude}\n"
-                f"Longitude: {farm.longitude}\n"
-                f"Total Area: {farm.total_area_acres} acres\n"
-                f"Soil Type: {farm.primary_soil_type}\n"
-                f"Irrigation: {farm.irrigation_source}\n"
-            )
+        user = _agent_user.get()
+        try:
+            if user is None:
+                raise LookupError("no signed-in user")
+            farm = farm_for_user(farm_id, user)
+        except LookupError:
+            return f"Farm with ID {farm_id} not found."
+
+        # farms columns: location_state / location_district / total_area (+ area_unit) / irrigation_type;
+        # there is no pincode column on farms.
+        return (
+            f"Farm ID: {farm.id}\n"
+            f"User ID: {farm.user_id}\n"
+            f"State: {farm.location_state}\n"
+            f"District: {farm.location_district}\n"
+            f"Pincode: {farm.get('pincode')}\n"
+            f"Latitude: {farm.latitude}\n"
+            f"Longitude: {farm.longitude}\n"
+            f"Total Area: {farm.total_area} {farm.area_unit or 'acres'}\n"
+            f"Soil Type: {farm.primary_soil_type}\n"
+            f"Irrigation: {farm.irrigation_type}\n"
+        )
     except Exception as e:
         logger.error(f"Error getting farm details: {e}")
         return f"Error retrieving details for farm {farm_id}: {str(e)}"
@@ -49,30 +63,35 @@ def get_soil_info(plot_id: int) -> str:
         plot_id: The unique ID of the farm plot.
     """
     try:
-        with get_db_context() as db:
-            plot = db.query(FarmPlot).filter(FarmPlot.id == plot_id).first()
-            if not plot:
-                return f"Farm plot with ID {plot_id} not found."
-            
-            soil_test = db.query(SoilTestResult).filter(
-                SoilTestResult.farm_plot_id == plot_id
-            ).order_by(SoilTestResult.tested_at.desc()).first()
-            
-            plot_info = f"Plot ID: {plot.id}, Size: {plot.area_acres} acres, Soil Type: {plot.soil_type}\n"
-            if not soil_test:
-                return plot_info + "No soil test records found for this plot."
-            
-            return (
-                plot_info +
-                f"Soil Test Date: {soil_test.tested_at}\n"
-                f"Nitrogen (N): {soil_test.nitrogen_content} kg/ha\n"
-                f"Phosphorus (P): {soil_test.phosphorus_content} kg/ha\n"
-                f"Potassium (K): {soil_test.potassium_content} kg/ha\n"
-                f"pH level: {soil_test.ph_level}\n"
-                f"Organic Carbon: {soil_test.organic_carbon_content}%\n"
-                f"Electrical Conductivity: {soil_test.electrical_conductivity} dS/m\n"
-                f"Recommendation: {soil_test.fertilizer_recommendation or 'None'}"
-            )
+        user = _agent_user.get()
+        try:
+            if user is None:
+                raise LookupError("no signed-in user")
+            plot = plot_for_user(plot_id, user)
+        except LookupError:
+            return f"Farm plot with ID {plot_id} not found."
+
+        # soil_test_results columns: plot_id, test_date, *_kg_per_ha, organic_carbon_percent, recommendations
+        soil_test = fetch_one(
+            "SELECT * FROM soil_test_results WHERE plot_id = ? ORDER BY test_date DESC, id DESC LIMIT 1",
+            [plot_id],
+        )
+
+        plot_info = f"Plot ID: {plot.id}, Size: {plot.area} acres, Soil Type: {plot.soil_type}\n"
+        if not soil_test:
+            return plot_info + "No soil test records found for this plot."
+
+        return (
+            plot_info +
+            f"Soil Test Date: {soil_test.test_date}\n"
+            f"Nitrogen (N): {soil_test.nitrogen_kg_per_ha} kg/ha\n"
+            f"Phosphorus (P): {soil_test.phosphorus_kg_per_ha} kg/ha\n"
+            f"Potassium (K): {soil_test.potassium_kg_per_ha} kg/ha\n"
+            f"pH level: {soil_test.ph_level}\n"
+            f"Organic Carbon: {soil_test.organic_carbon_percent}%\n"
+            f"Electrical Conductivity: {soil_test.electrical_conductivity} dS/m\n"
+            f"Recommendation: {soil_test.recommendations or 'None'}"
+        )
     except Exception as e:
         logger.error(f"Error getting soil info: {e}")
         return f"Error retrieving soil info for plot {plot_id}: {str(e)}"
@@ -111,21 +130,26 @@ def get_market_prices(crop_name: str) -> str:
         crop_name: The name of the crop (e.g. "Rice", "Wheat").
     """
     try:
-        with get_db_context() as db:
-            prices = db.query(MarketPrice).filter(
-                MarketPrice.crop_name.ilike(f"%{crop_name}%")
-            ).order_by(MarketPrice.updated_at.desc()).limit(5).all()
-            
-            if not prices:
-                return f"No price listings found for crop '{crop_name}'."
-            
-            summary = []
-            for price in prices:
-                summary.append(
-                    f"Market: {price.market_name}, State: {price.state}, District: {price.district}, "
-                    f"Price: Rs.{price.min_price} to Rs.{price.max_price} per quintal, Date: {price.updated_at.strftime('%Y-%m-%d')}"
-                )
-            return "\n".join(summary)
+        # market_prices is a transaction log: item_name / price_per_unit / state / district / transaction_date
+        # (no crop_name, market_name, min_price or max_price columns). Public market data, no owner scoping.
+        prices = fetch_all(
+            """SELECT * FROM market_prices WHERE item_name ILIKE ?
+               ORDER BY transaction_date DESC NULLS LAST, id DESC LIMIT 5""",
+            ["%" + crop_name.replace("%", "").replace("_", "") + "%"],
+        )
+
+        if not prices:
+            return f"No price listings found for crop '{crop_name}'."
+
+        summary = []
+        for price in prices:
+            when = price.transaction_date or price.updated_at
+            summary.append(
+                f"Market: {price.source or 'N/A'}, State: {price.state}, District: {price.district}, "
+                f"Price: Rs.{price.price_per_unit} per unit, "
+                f"Date: {when.strftime('%Y-%m-%d') if hasattr(when, 'strftime') else when}"
+            )
+        return "\n".join(summary)
     except Exception as e:
         logger.error(f"Error getting market prices: {e}")
         return f"Error retrieving market prices: {str(e)}"

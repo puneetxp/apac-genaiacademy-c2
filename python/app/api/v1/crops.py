@@ -124,6 +124,44 @@ async def get_crop_expenses(
         raise HTTPException(status_code=500, detail=f"Failed to get expenses: {str(e)}")
 
 
+# Typical Indian crop duration (days) and yield (quintals/acre) for when AI predictions are unavailable.
+_CROP_BASELINES = {
+    "rice": (120, 22), "paddy": (120, 22), "wheat": (125, 18), "maize": (100, 20), "soybean": (100, 10),
+    "cotton": (170, 8), "sugarcane": (330, 350), "groundnut": (110, 9), "mustard": (120, 7), "chickpea": (110, 8),
+    "gram": (110, 8), "tur": (160, 6), "pigeon pea": (160, 6), "onion": (130, 100), "potato": (100, 100),
+    "tomato": (120, 120), "bajra": (85, 10), "jowar": (110, 10), "sunflower": (95, 7),
+}
+
+
+def _baseline_yield(crop_name: str, planting_date, area_acres: float) -> Dict[str, Any]:
+    from datetime import timedelta
+    days, per_acre = _CROP_BASELINES.get((crop_name or "").strip().lower(), (120, 12))
+    harvest = planting_date + timedelta(days=days)
+    total = round(per_acre * float(area_acres or 0), 2)
+    return {
+        "harvest_date": harvest.isoformat(),
+        "harvest_date_range": {"min": (harvest - timedelta(days=7)).isoformat(),
+                               "max": (harvest + timedelta(days=7)).isoformat()},
+        "expected_yield_per_acre": per_acre,
+        "yield_range": {"min": round(per_acre * 0.8, 2), "max": round(per_acre * 1.2, 2)},
+        "total_expected_yield": total,
+        "quality_grade": "B",
+        "confidence_score": 0.55,
+        "key_factors": ["Typical duration and yield for this crop (AI prediction unavailable)"],
+        "recommendations": ["Follow the recommended sowing window and fertilizer schedule for your district"],
+    }
+
+
+def _owned_crop(crop_id: int, current_user) -> Dict[str, Any]:
+    """The crop, if it sits on one of the signed-in user's farms (404 otherwise)."""
+    from app.core.db import DB
+    from app.core.ownership import owner_condition
+    rows = DB.raw(f"SELECT * FROM crops t WHERE t.id = ? AND {owner_condition('crops', current_user.id)}", [crop_id]).result
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Crop not found")
+    return rows[0]
+
+
 async def _ensure_farmer_active_role(user_id: int) -> int:
     """Fetch or create an active role record for the farmer."""
     farmer_role_id = 1
@@ -344,11 +382,9 @@ async def predict_yield(
             irrigation_type=plot_data.get('irrigation_type', '')
         )
         
-        if not prediction:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to generate yield prediction"
-            )
+        # Fill anything the AI answer lacks (e.g. the offline mock) with the rule-based estimate.
+        prediction = {**_baseline_yield(request.crop_name, request.planting_date, request.area_acres),
+                      **{k: v for k, v in (prediction or {}).items() if v not in (None, "", [], {})}}
         
         # Build response
         response = YieldPredictionResponse(
@@ -521,28 +557,7 @@ async def update_yield_prediction(
         from app.services.yield_prediction_update_service import get_yield_prediction_update_service
         from app.orm.crop import Crop
         
-        # Get crop and verify ownership
-        crop = db.query(Crop).filter(Crop.id == crop_id).first()
-        if not crop:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Crop not found"
-            )
-        
-        # Get farm plot to verify ownership
-        plot = db.query(FarmPlot).filter(FarmPlot.id == crop.farm_plot_id).first()
-        if not plot:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Farm plot not found"
-            )
-        
-        farm = db.query(Farm).filter(Farm.id == plot.farm_id).first()
-        if not farm or farm.farmer_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
+        crop = _owned_crop(crop_id, current_user)
         
         # Validate growth rate
         if growth_rate < 0.0 or growth_rate > 2.0:
@@ -596,28 +611,7 @@ async def check_harvest_readiness(
         from app.services.yield_prediction_update_service import get_yield_prediction_update_service
         from app.orm.crop import Crop
         
-        # Get crop and verify ownership
-        crop = db.query(Crop).filter(Crop.id == crop_id).first()
-        if not crop:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Crop not found"
-            )
-        
-        # Get farm plot to verify ownership
-        plot = db.query(FarmPlot).filter(FarmPlot.id == crop.farm_plot_id).first()
-        if not plot:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Farm plot not found"
-            )
-        
-        farm = db.query(Farm).filter(Farm.id == plot.farm_id).first()
-        if not farm or farm.farmer_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
+        crop = _owned_crop(crop_id, current_user)
         
         # Check readiness
         service = get_yield_prediction_update_service(db)
@@ -657,36 +651,15 @@ async def send_harvest_readiness_alert(
         from app.services.yield_prediction_update_service import get_yield_prediction_update_service
         from app.orm.crop import Crop
         
-        # Get crop and verify ownership
-        crop = db.query(Crop).filter(Crop.id == crop_id).first()
-        if not crop:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Crop not found"
-            )
-        
-        # Get farm plot to verify ownership
-        plot = db.query(FarmPlot).filter(FarmPlot.id == crop.farm_plot_id).first()
-        if not plot:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Farm plot not found"
-            )
-        
-        farm = db.query(Farm).filter(Farm.id == plot.farm_id).first()
-        if not farm or farm.farmer_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
+        crop = _owned_crop(crop_id, current_user)
         
         # Send alert
         service = get_yield_prediction_update_service(db)
         result = await service.send_harvest_readiness_alert(
             crop_id=crop_id,
-            farmer_phone=current_user.phone_number,
+            farmer_phone=getattr(current_user, 'phone', None),
             farmer_email=current_user.email,
-            farmer_name=current_user.full_name or current_user.email
+            farmer_name=getattr(current_user, 'name', None) or current_user.email
         )
         
         logger.info(f"Harvest readiness alert sent for crop {crop_id}")

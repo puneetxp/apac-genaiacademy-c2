@@ -11,10 +11,19 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.crop_milestone_service import get_service as get_crop_milestone_service
+from app.services.crop_growth_tracker import get_crop_growth_tracker as get_crop_milestone_service
 from app.services.weather_service import get_weather_service
 from app.services.notification_service import get_notification_service
 from app.services.bedrock_service import bedrock_service
+
+
+from app.services.farm_access import run_named  # raw SQL via app.core.db.DB; :name params, autocommit
+
+
+def text(sql: str) -> str:
+    """Stand-in for sqlalchemy.text(): queries here are plain SQL strings run with run_named()."""
+    return sql
+
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +63,7 @@ class YieldPredictionUpdateService:
     
     def __init__(self, db: AsyncSession):
         """Initialize service with database session"""
-        self.db = db
+        self.db = db  # kept for compatibility; queries go through run_named (app.core.db.DB)
         self.milestone_service = get_crop_milestone_service(db)
         self.weather_service = get_weather_service(db)
         self.notification_service = get_notification_service()
@@ -83,7 +92,6 @@ class YieldPredictionUpdateService:
         """
         try:
             # Get crop details using raw SQL
-            from sqlalchemy import text
             
             query = text("""
                 SELECT id, crop_name, crop_variety, planting_date, expected_harvest_date,
@@ -92,7 +100,7 @@ class YieldPredictionUpdateService:
                 WHERE id = :crop_id
             """)
             
-            result = await self.db.execute(query, {"crop_id": crop_id})
+            result = run_named(query, {"crop_id": crop_id})
             crop_row = result.first()
             
             if not crop_row:
@@ -170,7 +178,7 @@ class YieldPredictionUpdateService:
                 WHERE id = :crop_id
             """)
             
-            await self.db.execute(
+            run_named(
                 update_query,
                 {
                     "crop_id": crop_id,
@@ -178,7 +186,7 @@ class YieldPredictionUpdateService:
                     "expected_harvest_date": updated_harvest_date
                 }
             )
-            await self.db.commit()
+            # committed by DB.raw
             
             logger.info(
                 f"Updated yield prediction for crop {crop_id}: "
@@ -535,7 +543,6 @@ class YieldPredictionUpdateService:
         """
         try:
             # Get crop details using raw SQL
-            from sqlalchemy import text
             
             query = text("""
                 SELECT id, crop_name, planting_date, expected_harvest_date
@@ -543,7 +550,7 @@ class YieldPredictionUpdateService:
                 WHERE id = :crop_id
             """)
             
-            result = await self.db.execute(query, {"crop_id": crop_id})
+            result = run_named(query, {"crop_id": crop_id})
             crop_row = result.first()
             
             if not crop_row:
@@ -680,7 +687,6 @@ class YieldPredictionUpdateService:
         Validates: AC10.4 - Weekly yield prediction updates
         """
         try:
-            from sqlalchemy import text
             
             summary = {
                 'crops_checked': 0,
@@ -697,7 +703,7 @@ class YieldPredictionUpdateService:
                   AND expected_harvest_date >= CURRENT_DATE
             """)
             
-            result = await self.db.execute(query)
+            result = run_named(query)
             crops = result.fetchall()
             
             summary['crops_checked'] = len(crops)

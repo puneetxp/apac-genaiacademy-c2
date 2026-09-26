@@ -11,11 +11,12 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.services.crop_milestone_service import get_crop_milestone_service
+from app.services.crop_growth_tracker import get_crop_growth_tracker as get_crop_milestone_service
+from app.core.auth import get_current_admin
 
-router = APIRouter(prefix="/crop-milestones", tags=["crop-milestones"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/crop-milestones", tags=["crop-milestones"], dependencies=[Depends(get_current_active_user)])
 # Request/Response Models
 class MilestoneCreate(BaseModel):
     """Request model for creating milestones"""
@@ -74,7 +75,8 @@ class ProgressDashboardResponse(BaseModel):
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_milestones(
     request: MilestoneCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Create milestone tracking records for a newly planted crop
@@ -87,7 +89,8 @@ async def create_milestones(
             crop_id=request.crop_id,
             crop_name=request.crop_name,
             planting_date=request.planting_date,
-            expected_harvest_date=request.expected_harvest_date
+            expected_harvest_date=request.expected_harvest_date,
+            user=current_user
         )
         
         return {
@@ -96,6 +99,10 @@ async def create_milestones(
             'milestones': milestones
         }
         
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -107,7 +114,8 @@ async def create_milestones(
 async def update_milestone_progress(
     id: int,
     request: MilestoneUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Update milestone progress and status
@@ -121,7 +129,8 @@ async def update_milestone_progress(
             progress_percentage=request.progress_percentage,
             actual_start_date=request.actual_start_date,
             actual_end_date=request.actual_end_date,
-            notes=request.notes
+            notes=request.notes,
+            user=current_user
         )
         
         return {
@@ -130,6 +139,8 @@ async def update_milestone_progress(
             'milestone': updated
         }
         
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -140,16 +151,18 @@ async def update_milestone_progress(
 @router.post("/{id}/complete", status_code=status.HTTP_200_OK)
 async def complete_milestone_alias(
     id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """Registry alias for complete milestone"""
-    return await update_milestone_progress(id, MilestoneUpdate(progress_percentage=100), db)
+    return await update_milestone_progress(id, MilestoneUpdate(progress_percentage=100), db, current_user)
 
 
 @router.get("/{crop_id}/current-stage", status_code=status.HTTP_200_OK)
 async def get_current_stage(
     crop_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Get current growth stage for a crop
@@ -158,7 +171,7 @@ async def get_current_stage(
     """
     try:
         service = get_crop_milestone_service(db)
-        current_stage = await service.get_current_stage(crop_id)
+        current_stage = await service.get_current_stage(crop_id, user=current_user)
         
         if not current_stage:
             raise HTTPException(
@@ -173,6 +186,8 @@ async def get_current_stage(
         
     except HTTPException:
         raise
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -184,7 +199,8 @@ async def get_current_stage(
 async def get_milestone_recommendations(
     crop_id: int,
     stage: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Get recommendations for current or specific growth stage
@@ -195,7 +211,8 @@ async def get_milestone_recommendations(
         service = get_crop_milestone_service(db)
         recommendations = await service.get_milestone_recommendations(
             crop_id=crop_id,
-            stage=stage
+            stage=stage,
+            user=current_user
         )
         
         if 'error' in recommendations:
@@ -221,7 +238,8 @@ async def get_milestone_recommendations(
 @router.post("/send-stage-alert", status_code=status.HTTP_200_OK)
 async def send_stage_transition_alert(
     request: StageTransitionAlert,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Send alert when crop transitions to new growth stage
@@ -234,7 +252,8 @@ async def send_stage_transition_alert(
         # Get recommendations for the new stage
         recommendations_data = await service.get_milestone_recommendations(
             crop_id=request.crop_id,
-            stage=request.new_stage
+            stage=request.new_stage,
+            user=current_user
         )
         
         if 'error' in recommendations_data:
@@ -272,7 +291,8 @@ async def send_stage_transition_alert(
 @router.get("/{id}", response_model=ProgressDashboardResponse, status_code=status.HTTP_200_OK)
 async def get_progress_dashboard(
     id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Get progress tracking dashboard data for a crop
@@ -281,7 +301,7 @@ async def get_progress_dashboard(
     """
     try:
         service = get_crop_milestone_service(db)
-        dashboard = await service.get_progress_dashboard(id)
+        dashboard = await service.get_progress_dashboard(id, user=current_user)
         
         if 'error' in dashboard:
             raise HTTPException(
@@ -300,9 +320,10 @@ async def get_progress_dashboard(
         )
 
 
-@router.post("/update-stages", status_code=status.HTTP_200_OK)
+@router.post("/update-stages", status_code=status.HTTP_200_OK, dependencies=[Depends(get_current_admin)])
 async def check_and_update_stages(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     """
     Background job endpoint to check and update crop growth stages

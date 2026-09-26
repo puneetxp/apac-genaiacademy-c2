@@ -12,13 +12,14 @@ from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.services.nbss_service import get_nbss_service, NBSSService
+from app.services.farm_access import farm_for_user
 import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/soil-maps", tags=["soil-maps"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/soil-maps", tags=["soil-maps"], dependencies=[Depends(get_current_active_user)])
 # Request/Response Models
 class SoilCharacteristicsResponse(BaseModel):
     """Soil characteristics response"""
@@ -224,7 +225,8 @@ async def find_similar_farms(
     latitude: float = Query(..., description="GPS latitude", ge=-90, le=90),
     longitude: float = Query(..., description="GPS longitude", ge=-180, le=180),
     radius_km: float = Query(50, description="Search radius in kilometers", ge=1, le=200),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Find similar farms within radius using spatial search
@@ -241,7 +243,8 @@ async def find_similar_farms(
         similar_farms = await service.find_similar_farms(
             latitude=latitude,
             longitude=longitude,
-            radius_km=radius_km
+            radius_km=radius_km,
+            user=current_user,
         )
         
         return [SimilarFarm(**farm) for farm in similar_farms]
@@ -259,7 +262,8 @@ async def get_peer_comparison_insights(
     farm_id: int,
     latitude: float = Query(..., description="GPS latitude", ge=-90, le=90),
     longitude: float = Query(..., description="GPS longitude", ge=-180, le=180),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Get peer comparison insights for a farm
@@ -272,13 +276,18 @@ async def get_peer_comparison_insights(
     - Top 10 similar farms
     """
     logger.info(f"GET /soil-maps/peer-comparison/{farm_id}")
-    
+    try:
+        farm_for_user(farm_id, current_user)  # owner check (raw SQL); someone else's farm is 404
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Farm not found")
+
     try:
         service = get_nbss_service(db)
         insights = await service.get_peer_comparison_insights(
             farm_id=farm_id,
             latitude=latitude,
-            longitude=longitude
+            longitude=longitude,
+            user=current_user,
         )
         
         # Convert similar farms to response models

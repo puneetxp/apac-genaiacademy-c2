@@ -377,7 +377,7 @@ async def get_my_farms(
         )
 
 
-@router.get("/{id}", response_model=FarmDetailResponse)
+@router.get("/{id:int}", response_model=FarmDetailResponse)
 async def get_farm(
     id: int,
     current_user: CurrentUser,
@@ -480,7 +480,7 @@ async def get_farm(
         )
 
 
-@router.put("/{id}", response_model=FarmResponse)
+@router.put("/{id:int}", response_model=FarmResponse)
 async def update_farm(
     id: int,
     farm_update: FarmUpdate,
@@ -592,7 +592,7 @@ async def update_farm(
         )
 
 
-@router.delete("/{id}", response_model=MessageResponse)
+@router.delete("/{id:int}", response_model=MessageResponse)
 async def delete_farm(
     id: int,
     current_user: CurrentFarmer,

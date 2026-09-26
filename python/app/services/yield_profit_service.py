@@ -19,7 +19,7 @@ class YieldProfitService:
     def __init__(self):
         self.bedrock = bedrock_service
     
-    def get_comprehensive_prediction(
+    async def get_comprehensive_prediction(
         self,
         crop_name: str,
         variety: str,
@@ -52,7 +52,7 @@ class YieldProfitService:
         """
         try:
             # Get base prediction from Bedrock
-            base_prediction = self.bedrock.predict_yield_and_harvest(
+            base_prediction = await self.bedrock.predict_yield_and_harvest(
                 crop_name=crop_name,
                 variety=variety,
                 state=state,

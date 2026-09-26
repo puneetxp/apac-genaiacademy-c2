@@ -24,7 +24,7 @@ router = APIRouter(prefix="/marketplace")
 # Request/Response Schemas
 class CreateListingRequest(BaseModel):
     """Request to create marketplace listing"""
-    crop_id: str = Field(..., description="Crop UUID")
+    crop_id: str = Field(..., description="Crop ID")
     yield_prediction: Optional[Dict[str, Any]] = Field(None, description="Optional yield prediction data")
 
 
@@ -80,23 +80,25 @@ async def create_listing(
     Validates: AC4.2 - Include all required fields
     """
     try:
+        if not str(request.crop_id).isdigit():
+            raise ValueError("Crop not found")
         listing = marketplace_service.create_automatic_listing(
-            crop_id=uuid.UUID(request.crop_id),
+            crop_id=int(request.crop_id),
             farmer_id=current_user.id,
             yield_prediction=request.yield_prediction
         )
-        
+        harvest = listing['expected_harvest_date']
         return {
             'success': True,
-            'listing_id': str(listing.id),
+            'listing_id': str(listing['id']),
             'message': 'Marketplace listing created successfully',
             'listing': {
-                'id': str(listing.id),
-                'title': listing.title,
-                'crop_type': listing.crop_type,
-                'estimated_quantity': float(listing.estimated_quantity),
-                'expected_harvest_date': listing.expected_harvest_date.isoformat(),
-                'status': listing.status
+                'id': str(listing['id']),
+                'title': listing['crop_type'],
+                'crop_type': listing['crop_type'],
+                'estimated_quantity': float(listing['estimated_quantity']),
+                'expected_harvest_date': harvest.isoformat() if hasattr(harvest, 'isoformat') else harvest,
+                'status': listing['status']
             }
         }
         
@@ -283,7 +285,7 @@ async def get_listings(
 @router.post("/buyer-interest")
 async def register_buyer_interest(
     request: BuyerInterestRequest,
-    current_user: CurrentFarmer,
+    current_user: CurrentUser,
     db: DB,
     marketplace_service: MarketplaceSvc
 ):
@@ -307,18 +309,20 @@ async def register_buyer_interest(
         }
         
         interest = marketplace_service.register_buyer_interest(
-            listing_id=uuid.UUID(request.listing_id),
+            listing_id=int(request.listing_id),
             buyer_id=current_user.id,
             interest_data=interest_data
         )
         
         return {
             'success': True,
-            'interest_id': str(interest.id),
+            'interest_id': str(interest['id']),
             'message': 'Buyer interest registered successfully',
-            'status': interest.status
+            'status': interest['status']
         }
         
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error registering buyer interest: {e}")
         raise HTTPException(
@@ -542,7 +546,9 @@ async def get_listing_detail(
     """
     try:
         # Get listing with full details
-        listing_detail = marketplace_service.get_listing_detail(uuid.UUID(id))
+        if not id.isdigit():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
+        listing_detail = marketplace_service.get_listing_detail(int(id))
         
         if not listing_detail:
             raise HTTPException(

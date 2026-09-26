@@ -130,7 +130,8 @@ async def analyze_plot(
             plot_id=plot_id,
             season=request.season,
             budget_per_acre=request.budget_per_acre,
-            preferences=request.preferences
+            preferences=request.preferences,
+            user=current_user,
         )
         
         return analysis
@@ -189,7 +190,8 @@ async def compare_plot_profitability(
                 plot_id=plot_id,
                 season=season,
                 budget_per_acre=20000,  # Default budget
-                preferences={}
+                preferences={},
+                user=current_user,
             )
             
             # Find this crop in recommendations

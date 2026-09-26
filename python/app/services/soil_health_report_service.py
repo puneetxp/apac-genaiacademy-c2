@@ -26,7 +26,8 @@ class SoilHealthReportService:
         db: AsyncSession,
         farm_id: int,
         plot_id: Optional[int] = None,
-        include_charts: bool = True
+        include_charts: bool = True,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Generate comprehensive soil health report
@@ -40,20 +41,13 @@ class SoilHealthReportService:
         Returns:
             Report data structure (PDF generation to be implemented)
         """
-        from app.services.soil_testing_service import soil_testing_service
-        from app.orm.soil_test_result import SoilTestResult
-        from sqlalchemy import select, desc
-        
+        from app.services.soil_testing_service import soil_testing_service, _load_soil_tests
+
         logger.info(f"Generating soil health report for farm {farm_id}")
-        
-        # Get latest test
-        query = select(SoilTestResult).where(SoilTestResult.farm_id == farm_id)
-        if plot_id:
-            query = query.where(SoilTestResult.plot_id == plot_id)
-        query = query.order_by(desc(SoilTestResult.test_date)).limit(1)
-        
-        result = await db.execute(query)
-        latest_test = result.scalar_one_or_none()
+
+        # Get latest test (raw SQL via app.core.db.DB; owner-checked when `user` is given)
+        latest = _load_soil_tests(farm_id, plot_id, newest_first=True, limit=1, user=user)
+        latest_test = latest[0] if latest else None
         
         if not latest_test:
             return {
@@ -62,16 +56,16 @@ class SoilHealthReportService:
             }
         
         # Get test history
-        history = await soil_testing_service.get_soil_test_history(db, farm_id, plot_id, limit=10)
+        history = await soil_testing_service.get_soil_test_history(db, farm_id, plot_id, limit=10, user=user)
         
         # Get degradation analysis
-        degradation = await soil_testing_service.detect_soil_degradation(db, farm_id, plot_id)
+        degradation = await soil_testing_service.detect_soil_degradation(db, farm_id, plot_id, user=user)
         
         # Get predictions
-        predictions = await soil_testing_service.predict_future_soil_health(db, farm_id, plot_id)
+        predictions = await soil_testing_service.predict_future_soil_health(db, farm_id, plot_id, user=user)
         
         # Get action plan
-        action_plan = await soil_testing_service.generate_improvement_action_plan(db, farm_id, plot_id)
+        action_plan = await soil_testing_service.generate_improvement_action_plan(db, farm_id, plot_id, user=user)
         
         # Build report structure
         report = {
@@ -154,7 +148,8 @@ class SoilHealthReportService:
         self,
         db: AsyncSession,
         farm_id: int,
-        plot_id: Optional[int] = None
+        plot_id: Optional[int] = None,
+        user=None,
     ) -> str:
         """
         Export soil test history as CSV
@@ -172,7 +167,7 @@ class SoilHealthReportService:
         logger.info(f"Exporting soil test history as CSV for farm {farm_id}")
         
         # Get history
-        history = await soil_testing_service.get_soil_test_history(db, farm_id, plot_id, limit=100)
+        history = await soil_testing_service.get_soil_test_history(db, farm_id, plot_id, limit=100, user=user)
         
         if not history:
             return "No data available"
@@ -216,7 +211,8 @@ class SoilHealthReportService:
         self,
         db: AsyncSession,
         farm_id: int,
-        plot_id: Optional[int] = None
+        plot_id: Optional[int] = None,
+        user=None,
     ) -> bytes:
         """
         Generate PDF report (placeholder for future implementation)

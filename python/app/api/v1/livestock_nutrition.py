@@ -19,9 +19,9 @@ from app.services.livestock_service import get_service as get_livestock_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/livestock-nutrition", tags=["livestock-nutrition"])
+from app.core.auth import get_current_active_user
 
-
+router = APIRouter(prefix="/livestock-nutrition", tags=["livestock-nutrition"], dependencies=[Depends(get_current_active_user)])
 # Request/Response Schemas
 
 class FeedingRecommendationRequest(BaseModel):
@@ -78,9 +78,10 @@ class FeedEfficiencyReportRequest(BaseModel):
 # API Endpoints
 
 @router.get("/{id}")
-def get_nutrition_summary_alias(id: int, db: Session = Depends(get_db)):
+def get_nutrition_summary_alias(id: int, db: Session = Depends(get_db),
+                                current_user=Depends(get_current_active_user)):
     """Registry alias for nutrition summary"""
-    return get_livestock_nutrition_summary(id, db)
+    return get_livestock_nutrition_summary(id, db, current_user)
 
 
 @router.post("/feeding-recommendations")
@@ -235,7 +236,8 @@ def get_growth_stage_plan(
 def generate_feed_efficiency_report(
     request: FeedEfficiencyReportRequest,
     db: Session = Depends(get_db)
-):
+,
+    current_user=Depends(get_current_active_user)):
     """
     Generate feed efficiency report with cost per kg gain
     
@@ -253,7 +255,7 @@ def generate_feed_efficiency_report(
     try:
         # Get livestock details
         livestock_service = get_livestock_service()
-        livestock = livestock_service.get_by_id(request.livestock_id)
+        livestock = livestock_service.find(request.livestock_id, owner=current_user)
         
         if not livestock:
             raise HTTPException(
@@ -294,7 +296,8 @@ def generate_feed_efficiency_report(
 def get_livestock_nutrition_summary(
     livestock_id: int,
     db: Session = Depends(get_db)
-):
+,
+    current_user=Depends(get_current_active_user)):
     """
     Get comprehensive nutrition summary for specific livestock
     
@@ -310,7 +313,7 @@ def get_livestock_nutrition_summary(
     try:
         # Get livestock details
         livestock_service = get_livestock_service()
-        livestock = livestock_service.get_by_id(livestock_id)
+        livestock = livestock_service.find(livestock_id, owner=current_user)
         
         if not livestock:
             raise HTTPException(

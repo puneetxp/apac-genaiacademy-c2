@@ -11,11 +11,42 @@ from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, date, timedelta
 import json
 import re
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, desc, func
+from typing import Any as AsyncSession  # db args are kept for compatibility; queries use app.core.db.DB
+
+from app.services.farm_access import fetch_all, farm_for_user, plot_for_user
 
 logger = logging.getLogger(__name__)
 
+
+
+def _as_date(value):
+    """soil_test_results.test_date is a timestamp column; the analysis code works in dates."""
+    return value.date() if isinstance(value, datetime) else value
+
+
+def _load_soil_tests(farm_id: int, plot_id: Optional[int] = None, since: Optional[date] = None,
+                     newest_first: bool = True, limit: Optional[int] = None, user=None) -> List[Any]:
+    """Soil test rows for a farm (owner-checked when `user` is given), as attribute-access rows."""
+    if user is not None:
+        farm_for_user(farm_id, user)
+        if plot_id and plot_for_user(plot_id, user)["farm_id"] != farm_id:
+            raise LookupError(f"Plot {plot_id} not found")
+    where, bind = ["farm_id = ?"], [farm_id]
+    if plot_id:
+        where.append("plot_id = ?")
+        bind.append(plot_id)
+    if since:
+        where.append("test_date >= ?")
+        bind.append(since)
+    sql = (f"SELECT * FROM soil_test_results WHERE {' AND '.join(where)} "
+           f"ORDER BY test_date {'DESC' if newest_first else 'ASC'}, id {'DESC' if newest_first else 'ASC'}")
+    if limit:
+        sql += " LIMIT ?"
+        bind.append(int(limit))
+    tests = fetch_all(sql, bind)
+    for t in tests:
+        t.test_date = _as_date(t.test_date)
+    return tests
 
 class SoilTestingService:
     """Service for soil testing laboratory integration and soil health analysis"""
@@ -460,7 +491,8 @@ class SoilTestingService:
         db: AsyncSession,
         farm_id: int,
         plot_id: Optional[int] = None,
-        limit: int = 10
+        limit: int = 10,
+        user=None,
     ) -> List[Dict[str, Any]]:
         """
         Get soil test history for a farm or plot
@@ -474,21 +506,9 @@ class SoilTestingService:
         Returns:
             List of soil test results ordered by date (newest first)
         """
-        from app.orm.soil_test_result import SoilTestResult
-        
         logger.info(f"Fetching soil test history for farm {farm_id}")
         
-        # Build query
-        query = select(SoilTestResult).where(SoilTestResult.farm_id == farm_id)
-        
-        if plot_id:
-            query = query.where(SoilTestResult.plot_id == plot_id)
-        
-        query = query.order_by(desc(SoilTestResult.test_date)).limit(limit)
-        
-        # Execute query
-        result = await db.execute(query)
-        tests = result.scalars().all()
+        tests = _load_soil_tests(farm_id, plot_id, newest_first=True, limit=limit, user=user)
         
         # Convert to dict
         history = []
@@ -530,7 +550,8 @@ class SoilTestingService:
         db: AsyncSession,
         farm_id: int,
         plot_id: Optional[int] = None,
-        months_lookback: int = 6
+        months_lookback: int = 6,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Detect soil degradation by analyzing trends over time
@@ -546,27 +567,12 @@ class SoilTestingService:
         Returns:
             Degradation analysis with alerts
         """
-        from app.orm.soil_test_result import SoilTestResult
-        
         logger.info(f"Detecting soil degradation for farm {farm_id}")
         
         # Get tests from specified period
         cutoff_date = date.today() - timedelta(days=months_lookback * 30)
         
-        query = select(SoilTestResult).where(
-            and_(
-                SoilTestResult.farm_id == farm_id,
-                SoilTestResult.test_date >= cutoff_date
-            )
-        )
-        
-        if plot_id:
-            query = query.where(SoilTestResult.plot_id == plot_id)
-        
-        query = query.order_by(SoilTestResult.test_date)
-        
-        result = await db.execute(query)
-        tests = result.scalars().all()
+        tests = _load_soil_tests(farm_id, plot_id, since=cutoff_date, newest_first=False, user=user)
         
         if len(tests) < 2:
             return {
@@ -644,7 +650,8 @@ class SoilTestingService:
         db: AsyncSession,
         farm_id: int,
         plot_id: Optional[int] = None,
-        months_ahead: int = 6
+        months_ahead: int = 6,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Predict future soil health using linear regression on historical data
@@ -658,20 +665,10 @@ class SoilTestingService:
         Returns:
             Predictions for key soil parameters
         """
-        from app.orm.soil_test_result import SoilTestResult
-        
         logger.info(f"Predicting future soil health for farm {farm_id}")
         
         # Get all historical tests
-        query = select(SoilTestResult).where(SoilTestResult.farm_id == farm_id)
-        
-        if plot_id:
-            query = query.where(SoilTestResult.plot_id == plot_id)
-        
-        query = query.order_by(SoilTestResult.test_date)
-        
-        result = await db.execute(query)
-        tests = result.scalars().all()
+        tests = _load_soil_tests(farm_id, plot_id, newest_first=False, user=user)
         
         if len(tests) < 3:
             return {
@@ -740,8 +737,9 @@ class SoilTestingService:
     async def generate_improvement_action_plan(
         self,
         db: AsyncSession,
-        farm_id: int,
-        plot_id: Optional[int] = None
+        farm_id: Optional[int] = None,
+        plot_id: Optional[int] = None,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Generate prioritized action plan for soil improvement
@@ -757,20 +755,13 @@ class SoilTestingService:
         Returns:
             Prioritized action plan with timeline
         """
-        from app.orm.soil_test_result import SoilTestResult
-        
         logger.info(f"Generating improvement action plan for farm {farm_id}")
         
-        # Get latest test
-        query = select(SoilTestResult).where(SoilTestResult.farm_id == farm_id)
-        
-        if plot_id:
-            query = query.where(SoilTestResult.plot_id == plot_id)
-        
-        query = query.order_by(desc(SoilTestResult.test_date)).limit(1)
-        
-        result = await db.execute(query)
-        latest_test = result.scalar_one_or_none()
+        # Get latest test (callers may pass only plot_id; resolve its farm)
+        if farm_id is None and plot_id:
+            farm_id = plot_for_user(plot_id, user)["farm_id"]
+        tests = _load_soil_tests(farm_id, plot_id, newest_first=True, limit=1, user=user) if farm_id else []
+        latest_test = tests[0] if tests else None
         
         if not latest_test:
             return {

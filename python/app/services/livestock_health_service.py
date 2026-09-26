@@ -68,7 +68,7 @@ class LivestockHealthService:
                 raise ValueError(f"Livestock with ID {record_data['livestock_id']} not found")
             
             # Create health record
-            result = self.health_record_model.create(record_data)
+            result = self.health_record_model.create(record_data).get_inserted()
             
             logger.info(f"Created health record {result['id']} for livestock {record_data['livestock_id']}")
             

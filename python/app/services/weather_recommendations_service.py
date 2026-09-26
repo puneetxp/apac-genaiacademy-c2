@@ -9,8 +9,9 @@ Validates: Requirements AC8 (Phase 6 - Required)
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta, date
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from typing import Any as AsyncSession  # db kept for compatibility; queries use app.core.db.DB
+
+from app.services.farm_access import fetch_one, farm_for_user, crop_for_user
 
 from app.services.weather_service import WeatherService
 from app.services.severe_weather_service import SevereWeatherService
@@ -162,7 +163,8 @@ class WeatherRecommendationsService:
         self,
         farm_id: int,
         crop_id: int,
-        expected_harvest_date: date
+        expected_harvest_date: date,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Generate optimal harvest timing based on weather windows
@@ -175,26 +177,22 @@ class WeatherRecommendationsService:
         Returns:
             Harvest timing recommendations with dry windows
         """
-        # Import here to avoid circular dependency
-        from app.orm.farm import Farm
-        from app.orm.crop import Crop
-        
-        # Get farm details
-        farm_result = await self.db.execute(
-            select(Farm).where(Farm.id == farm_id)
-        )
-        farm = farm_result.scalar_one_or_none()
-        
-        if not farm:
-            logger.error(f"Farm {farm_id} not found")
-            return {"status": "error", "message": "Farm not found"}
-        
-        # Get crop details
-        crop_result = await self.db.execute(
-            select(Crop).where(Crop.id == crop_id)
-        )
-        crop = crop_result.scalar_one_or_none()
-        
+        # Get farm and crop details (raw SQL; owner-checked when `user` is given -> LookupError)
+        if user is not None:
+            farm = farm_for_user(farm_id, user)
+            crop = crop_for_user(crop_id, user)
+            if crop.farm_id != farm_id:
+                raise LookupError(f"Crop {crop_id} not found")
+        else:
+            farm = fetch_one("SELECT * FROM farms WHERE id = ?", [farm_id])
+            if not farm:
+                logger.error(f"Farm {farm_id} not found")
+                return {"status": "error", "message": "Farm not found"}
+            try:
+                crop = crop_for_user(crop_id, None)
+            except LookupError:
+                crop = None
+
         if not crop:
             logger.error(f"Crop {crop_id} not found")
             return {"status": "error", "message": "Crop not found"}
@@ -217,7 +215,7 @@ class WeatherRecommendationsService:
         
         # Check for emergency harvest needs
         emergency_alert = await self.severe_weather_service.check_emergency_harvest_alert(
-            farm_id, crop_id
+            farm_id, crop_id, user=user
         )
         
         # Calculate days until expected harvest

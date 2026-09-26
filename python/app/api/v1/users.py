@@ -302,7 +302,10 @@ async def get_user_by_id(
     Requires authentication.
     """
     try:
-        user = db.query(User).filter(User.id == user_id).first()
+        # Raw SQL via app.core.db.DB (app.orm.user.User is not a SQLAlchemy model)
+        from app.core.db import DB as RawDB
+        rows = RawDB.raw("SELECT * FROM users WHERE id = ?", [user_id]).result
+        user = dict(rows[0]) if rows else None
         
         if not user:
             raise HTTPException(
@@ -310,7 +313,14 @@ async def get_user_by_id(
                 detail="User not found"
             )
         
-        return UserResponse.from_orm(user)
+        user.pop('password', None)
+        # Public profile: contact details and identity-provider ids only for yourself or an admin.
+        if user['id'] != current_user.id and getattr(current_user, 'user_type', None) != 'admin':
+            for private in ('email', 'phone', 'phone_number', 'cognito_user_id', 'firebase_id',
+                            'google_id', 'facebook_id'):
+                user[private] = None
+        
+        return UserResponse.model_validate(user)
         
     except HTTPException:
         raise

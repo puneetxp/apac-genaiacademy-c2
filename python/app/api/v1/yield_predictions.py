@@ -90,38 +90,23 @@ async def get_comprehensive_prediction(
     Validates: AC3.4, AC3.5, AC3.6
     """
     try:
-        # Get farm details
-        farm = db.query(Farm).filter(Farm.id == request.farm_id).first()
-        
-        if not farm:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Farm not found"
-            )
-        
-        # Verify ownership
-        if farm.owner_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
-        
-        # Get plot details
-        plot = db.query(FarmPlot).filter(
-            FarmPlot.id == request.plot_id,
-            FarmPlot.farm_id == request.farm_id
-        ).first()
-        
-        if not plot:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Plot not found"
-            )
+        from types import SimpleNamespace
+        from app.core.db import DB
+        from app.core.ownership import owner_condition
+        rows = DB.raw(f"SELECT * FROM farms t WHERE t.id = ? AND {owner_condition('farms', current_user.id)}",
+                      [request.farm_id]).result
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Farm not found")
+        farm = SimpleNamespace(**rows[0])
+        rows = DB.raw("SELECT * FROM farm_plots WHERE id = ? AND farm_id = ?", [request.plot_id, request.farm_id]).result
+        if not rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plot not found")
+        plot = SimpleNamespace(**rows[0])
         
         # Get comprehensive prediction
         logger.info(f"Generating comprehensive prediction for {request.crop_name} on farm {farm.id}")
         
-        prediction = yield_profit_service.get_comprehensive_prediction(
+        prediction = await yield_profit_service.get_comprehensive_prediction(
             crop_name=request.crop_name,
             variety=request.variety,
             state=farm.location_state,
@@ -189,7 +174,7 @@ async def get_quick_estimate(
         planting_date = date.today()
         
         # Get prediction with default soil and irrigation
-        prediction = yield_profit_service.get_comprehensive_prediction(
+        prediction = await yield_profit_service.get_comprehensive_prediction(
             crop_name=crop_name,
             variety=variety,
             state=state,
