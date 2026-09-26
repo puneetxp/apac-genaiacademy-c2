@@ -31,10 +31,13 @@ const NotificationSettings: Component = () => {
           body: 'You will now receive important updates',
           type: 'general',
         });
+      } else {
+        setPermissionState(notificationService.getPermissionState());
+        alert('Notification permission was not granted. Allow notifications for this site in your browser settings.');
       }
     } catch (error) {
       console.error('Failed to enable notifications:', error);
-      alert('Failed to enable notifications. Please try again.');
+      alert(`Failed to enable notifications: ${error instanceof Error ? error.message : 'Please try again.'}`);
     } finally {
       setIsLoading(false);
     }
@@ -59,6 +62,17 @@ const NotificationSettings: Component = () => {
   };
 
   const handleTestNotification = async () => {
+    if (isSubscribed()) {
+      // Round-trip through the backend so the real push path is exercised
+      try {
+        const result = await notificationService.sendServerTestNotification();
+        if (result.sent > 0) return;
+        console.warn('Server test push reached no browsers:', result);
+      } catch (error) {
+        console.error('Server test push failed, falling back to local notification:', error);
+      }
+    }
+
     try {
       await notificationService.showLocalNotification({
         title: 'Test Notification',

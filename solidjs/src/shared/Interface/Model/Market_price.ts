@@ -18,8 +18,5 @@ export interface Market_price {
    district: string,
    transaction_date: Date,
    season: string | null,
-   source: string,
-   active_role_id: number,
-   active_role_id: number,
-   active_role_id: number
+   source: string
 }

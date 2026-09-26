@@ -19,5 +19,5 @@ export interface Price_prediction {
    supply_forecast: string | null,
    season: string | null,
    model_version: string | null,
-   factors: text | null
+   factors: string | null
 }

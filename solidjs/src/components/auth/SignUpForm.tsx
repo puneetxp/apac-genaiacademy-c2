@@ -6,9 +6,12 @@
 import { Component, createSignal, Show } from 'solid-js';
 import { AuthService, type SignUpData } from '../../services/auth.service';
 import AddressFields, { type AddressData } from './AddressFields';
+import QuickSignIn from './QuickSignIn';
 
 interface SignUpFormProps {
   onSuccess: (username: string) => void;
+  /** Google / phone sign-up: the account already exists and the user is signed in */
+  onQuickSuccess: () => void;
   onSignInClick: () => void;
 }
 
@@ -47,7 +50,7 @@ const SignUpForm: Component<SignUpFormProps> = (props) => {
       errors.email = 'Valid email is required';
     }
 
-    if (!data.phone_number || !/^\+91\d{10}$/.test(data.phone_number)) {
+    if (data.phone_number && !/^\+91\d{10}$/.test(data.phone_number)) {
       errors.phone_number = 'Phone must be in format +919876543210';
     }
 
@@ -81,6 +84,7 @@ const SignUpForm: Component<SignUpFormProps> = (props) => {
       // Merge form data with address data
       const signUpData: SignUpData = {
         ...formData(),
+        phone_number: formData().phone_number?.trim() || undefined,
         ...addressData()
       };
       await AuthService.signUp(signUpData);
@@ -115,6 +119,14 @@ const SignUpForm: Component<SignUpFormProps> = (props) => {
           {error()}
         </div>
       </Show>
+
+      <QuickSignIn onSuccess={props.onQuickSuccess} onError={setError} disabled={isLoading()} />
+
+      <div class="my-5 flex items-center gap-3 text-xs text-gray-400">
+        <div class="h-px flex-1 bg-gray-200" />
+        or create an account with email
+        <div class="h-px flex-1 bg-gray-200" />
+      </div>
 
       <form onSubmit={handleSubmit} class="space-y-4">
         {/* Username */}
@@ -177,7 +189,7 @@ const SignUpForm: Component<SignUpFormProps> = (props) => {
         {/* Phone Number */}
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">
-            Phone Number *
+            Phone Number (optional)
           </label>
           <input
             type="tel"
@@ -185,7 +197,6 @@ const SignUpForm: Component<SignUpFormProps> = (props) => {
             onInput={(e) => updateField('phone_number', e.currentTarget.value)}
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
             placeholder="+919876543210"
-            required
           />
           <Show when={validationErrors().phone_number}>
             <p class="mt-1 text-sm text-red-600">{validationErrors().phone_number}</p>

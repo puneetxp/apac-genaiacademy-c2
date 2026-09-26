@@ -57,7 +57,7 @@ const SelectFarmPage: Component = () => {
             <div class="text-center py-8">
               <p class="text-gray-600 mb-4">You don't have any farms registered yet.</p>
               <button
-                onClick={() => navigate('/farms/register')}
+                onClick={() => navigate('/farm/register')}
                 class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
               >
                 Register Your First Farm

@@ -12,6 +12,5 @@ export interface Weather_alert {
    recommendation: string | null,
    valid_from: Date,
    valid_until: Date,
-   is_active: boolean | null,
-   active_role_id: number
+   is_active: boolean | null
 }

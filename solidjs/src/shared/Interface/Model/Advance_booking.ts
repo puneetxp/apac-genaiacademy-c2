@@ -14,9 +14,6 @@ export interface Advance_booking {
    booking_date: Date,
    expected_delivery_date: Date,
    status: string,
-   quality_standards: text | null,
-   contract_terms: text | null,
-   active_role_id: number,
-   active_role_id: number,
-   active_role_id: number
+   quality_standards: string | null,
+   contract_terms: string | null
 }

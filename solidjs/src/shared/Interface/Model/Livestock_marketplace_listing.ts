@@ -25,7 +25,5 @@ export interface Livestock_marketplace_listing {
    farmer_contact_email: string | null,
    listing_status: string | null,
    views_count: number | null,
-   bedrock_analysis: string | null,
-   active_role_id: number,
-   active_role_id: number
+   bedrock_analysis: string | null
 }

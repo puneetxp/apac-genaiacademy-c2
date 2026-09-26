@@ -1,4 +1,5 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
+import apiClient from '../../lib/api-client';
 
 interface TrackingUpdate {
   status: string;
@@ -43,14 +44,10 @@ const TransportTracking: Component<TransportTrackingProps> = (props) => {
 
   const loadBooking = async () => {
     try {
-      const response = await fetch(`/transport/bookings/${props.bookingId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const response = await apiClient.get(`/transport/bookings/${props.bookingId}`, { cache: false });
+      const data = response.data;
 
-      if (response.ok) {
-        const data = await response.json();
+      if (data) {
         setBooking(data);
         
         if (data.tracking_updates) {
@@ -74,22 +71,12 @@ const TransportTracking: Component<TransportTrackingProps> = (props) => {
 
   const submitRating = async () => {
     try {
-      const response = await fetch(`/transport/bookings/${props.bookingId}/review`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          rating: rating(),
-          review: review()
-        })
+      await apiClient.post(`/transport/bookings/${props.bookingId}/review`, {
+        rating: rating(),
+        review: review()
       });
-
-      if (response.ok) {
-        await loadBooking();
-        setShowRatingForm(false);
-      }
+      await loadBooking();
+      setShowRatingForm(false);
     } catch (err) {
       console.error('Failed to submit rating:', err);
     }
@@ -162,13 +149,13 @@ const TransportTracking: Component<TransportTrackingProps> = (props) => {
                 {b().actual_pickup_date && (
                   <div>
                     <p class="text-sm text-gray-600">Actual Pickup</p>
-                    <p class="font-medium">{new Date(b().actual_pickup_date).toLocaleString()}</p>
+                    <p class="font-medium">{new Date(b().actual_pickup_date!).toLocaleString()}</p>
                   </div>
                 )}
                 {b().actual_delivery_date && (
                   <div>
                     <p class="text-sm text-gray-600">Actual Delivery</p>
-                    <p class="font-medium">{new Date(b().actual_delivery_date).toLocaleString()}</p>
+                    <p class="font-medium">{new Date(b().actual_delivery_date!).toLocaleString()}</p>
                   </div>
                 )}
               </div>

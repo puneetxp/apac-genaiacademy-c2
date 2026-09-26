@@ -217,6 +217,10 @@ export class ApiClient {
     // Ensure endpoint doesn't start with / if baseURL ends with /
     // and vice versa to avoid double slashes or missing slashes
     let fullPath = this.config.baseURL;
+    // Some callers pass '/api/v1/...' although baseURL already ends in /api/v1
+    if (fullPath.replace(/\/$/, '').endsWith('/api/v1') && endpoint.startsWith('/api/v1/')) {
+      endpoint = endpoint.slice('/api/v1'.length);
+    }
     if (!fullPath.endsWith('/') && !endpoint.startsWith('/')) {
       fullPath += '/';
     } else if (fullPath.endsWith('/') && endpoint.startsWith('/')) {
@@ -534,11 +538,12 @@ export class ApiClient {
 
 // Create default API client instance
 function deriveBaseURL(): string {
-  // Try to get VITE_API_URL from import.meta.env
-  const envBaseURL = (import.meta as any)?.env?.VITE_API_URL;
-  
+  // Must be written as import.meta.env.VITE_API_URL: Vite only substitutes that exact form,
+  // so `(import.meta as any)?.env` was undefined in dev and always fell back to :8000.
+  const envBaseURL = import.meta.env.VITE_API_URL;
+
   console.log('🔍 Environment check:', {
-    'import.meta.env': (import.meta as any)?.env,
+    'import.meta.env.MODE': import.meta.env.MODE,
     'VITE_API_URL': envBaseURL,
     'window.location.origin': typeof window !== 'undefined' ? window.location?.origin : 'N/A'
   });

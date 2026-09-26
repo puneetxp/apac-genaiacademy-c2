@@ -20,7 +20,5 @@ export interface Annual_strategy {
    alternative_options: string | null,
    risk_mitigation: string | null,
    bedrock_response: string | null,
-   status: string | null,
-   active_role_id: number,
-   active_role_id: number
+   status: string | null
 }

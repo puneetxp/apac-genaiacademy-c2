@@ -62,7 +62,7 @@ export async function initServiceWorker(): Promise<void> {
     // Register background sync if supported
     if ('sync' in registration) {
       try {
-        await registration.sync.register('sync-offline-queue');
+        await (registration as any).sync.register('sync-offline-queue');
         console.log('[App] Background sync registered');
       } catch (error) {
         console.warn('[App] Background sync registration failed:', error);

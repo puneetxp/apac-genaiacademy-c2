@@ -21,6 +21,5 @@ export interface Farm_plot {
    sulfur: number | null,
    zinc: number | null,
    iron: number | null,
-   boron: number | null,
-   active_role_id: number
+   boron: number | null
 }

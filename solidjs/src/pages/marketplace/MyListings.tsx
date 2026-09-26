@@ -3,7 +3,7 @@ import { useNavigate } from '@solidjs/router';
 import apiClient from '../../lib/api-client';
 
 const fetchMyListings = async () => {
-  const response = await apiClient.get('/api/v1/marketplace/listings/my-listings', {
+  const response = await apiClient.get('/marketplace/my-listings', {
     cache: false,
     requiresAuth: true
   });

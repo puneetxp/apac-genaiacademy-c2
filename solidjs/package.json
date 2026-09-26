@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@solidjs/router": "^0.15.4",
+    "firebase": "^12.19.0",
     "solid-icons": "^1.1.0",
     "solid-js": "^1.8.11"
   },
@@ -28,5 +29,9 @@
     "vite": "^5.0.11",
     "vite-plugin-solid": "^2.11.10",
     "vitest": "^4.0.18"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "esbuild@0.27.3": true
   }
 }

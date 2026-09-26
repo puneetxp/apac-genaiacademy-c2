@@ -10,6 +10,5 @@ export interface Livestock_health_record {
    veterinarian_name: string | null,
    cost: number | null,
    next_due_date: Date | null,
-   notes: string | null,
-   active_role_id: number
+   notes: string | null
 }

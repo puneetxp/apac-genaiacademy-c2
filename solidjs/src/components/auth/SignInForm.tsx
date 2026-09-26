@@ -5,6 +5,7 @@
 
 import { Component, createSignal, Show } from 'solid-js';
 import { signIn } from '../../stores/auth.store';
+import QuickSignIn from './QuickSignIn';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { InlineError } from '../ui/ErrorDisplay';
 import { showToast } from '../ui/Toast';
@@ -60,6 +61,14 @@ const SignInForm: Component<SignInFormProps> = (props) => {
           <span class="text-sm">{error()}</span>
         </div>
       </Show>
+
+      <QuickSignIn onSuccess={props.onSuccess} onError={setError} disabled={isLoading()} />
+
+      <div class="my-5 flex items-center gap-3 text-xs text-gray-400">
+        <div class="h-px flex-1 bg-gray-200" />
+        or sign in with username / email
+        <div class="h-px flex-1 bg-gray-200" />
+      </div>
 
       <form onSubmit={handleSubmit} class="space-y-4">
         {/* Username */}

@@ -61,7 +61,7 @@ const PlotManagement: Component<PlotManagementProps> = (props) => {
     }
 
     try {
-      await deletePlot(plotId);
+      await deletePlot(props.farmId, plotId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete plot');
     }

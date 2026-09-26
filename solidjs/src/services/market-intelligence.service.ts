@@ -6,6 +6,96 @@
 import apiClient from '../lib/api-client';
 import { buildUrl } from '~/config/api-registry';
 
+// ── Backend → UI shape adapters ──────────────────────────────────────────────
+// The API wraps payloads as { success, data } and uses different field names than these
+// interfaces (e.g. opportunity_score / score_components). Missing numbers become 0 so the
+// pages' .toFixed() calls never hit undefined.
+const num = (v: any): number => (typeof v === 'number' && isFinite(v) ? v : Number(v) || 0);
+const unwrap = (body: any): any => (body && typeof body === 'object' && 'success' in body && 'data' in body ? body.data : body);
+
+function toTrend(d: any): TrendAnalysis {
+  const series = (d?.time_series || []).map((p: any) => ({
+    date: p.date || p.month,
+    avg_price: num(p.avg_price),
+    min_price: num(p.min_price ?? p.avg_price),
+    max_price: num(p.max_price ?? p.avg_price),
+    transaction_count: num(p.transaction_count ?? p.transactions),
+  }));
+  const first = series[0]?.avg_price, last = series[series.length - 1]?.avg_price;
+  const avg = num(d?.current_avg_price ?? d?.avg_price);
+  const t = String(d?.trend_direction || d?.trend || '');
+  return {
+    item_type: d?.item_type, item_name: d?.item_name, state: d?.state ?? null, district: d?.district ?? null,
+    period_days: num(d?.period_days),
+    current_avg_price: avg,
+    price_change_percent: num(d?.price_change_percent ?? (first ? ((last - first) / first) * 100 : 0)),
+    trend_direction: /rising|increas|up/.test(t) ? 'rising' : /falling|decreas|down/.test(t) ? 'falling' : 'stable',
+    volatility: num(d?.volatility ?? (avg ? (num(d?.max_price) - num(d?.min_price)) / avg : 0)),
+    time_series: series,
+  };
+}
+
+function toOpportunity(d: any): OpportunityScore {
+  const c = d?.score_components || {};
+  // each component is { score, max }; the page shows it out of 100
+  const pct = (x: any) => (x && num(x.max) ? (num(x.score) / num(x.max)) * 100 : num(x?.score ?? x));
+  return {
+    item_type: d?.item_type, item_name: d?.item_name, state: d?.state, district: d?.district ?? null,
+    overall_score: num(d?.overall_score ?? d?.opportunity_score),
+    breakdown: d?.breakdown ? {
+      price_trend_score: num(d.breakdown.price_trend_score), demand_score: num(d.breakdown.demand_score),
+      supply_gap_score: num(d.breakdown.supply_gap_score), profitability_score: num(d.breakdown.profitability_score),
+    } : {
+      price_trend_score: pct(c.price_trend), demand_score: pct(c.demand_level),
+      supply_gap_score: pct(c.supply_demand_gap), profitability_score: pct(c.profitability),
+    },
+    recommendation: d?.recommendation || '',
+    confidence: num(d?.confidence ?? d?.confidence_score),
+  };
+}
+
+function toGap(g: any): SupplyDemandGap {
+  const supply = num(g.supply_quantity ?? g.supply), demand = num(g.demand_quantity ?? g.demand);
+  return {
+    item_name: g.item_name, item_type: g.item_type,
+    gap_type: g.gap_type === 'surplus' ? 'surplus' : 'shortage',
+    severity: g.severity || 'low',
+    supply_quantity: supply, demand_quantity: demand,
+    gap_quantity: num(g.gap_quantity ?? g.gap ?? demand - supply),
+    opportunity_description: g.opportunity_description ||
+      `${g.gap_type === 'surplus' ? 'Surplus' : 'Shortage'} of ${Math.abs(num(g.gap_percent)).toFixed(0)}% (${num(g.listing_count)} listings, ${num(g.interest_count)} buyers interested)`,
+  };
+}
+
+function toPrediction(d: any): PricePrediction {
+  return {
+    ...d,
+    predicted_price: num(d?.predicted_price),
+    confidence_score: num(d?.confidence_score),
+    price_range: d?.price_range || { min: num(d?.price_range_min), max: num(d?.price_range_max) },
+    trend: d?.trend || 'stable',
+    factors: d?.factors || [],
+  };
+}
+
+function toMonth(m: any): MonthlySupply {
+  return {
+    ...m,
+    month: m.month,
+    expected_quantity: num(m.expected_quantity ?? m.total_quantity),
+    expected_avg_price: num(m.expected_avg_price ?? m.avg_price),
+    quality_distribution: m.quality_distribution || {},
+    supplier_count: num(m.supplier_count ?? m.listing_count),
+  };
+}
+
+function toSummary(d: any): MarketSummary {
+  const crops: any = {}, livestock: any = {};
+  Object.entries(d?.crops || {}).forEach(([k, v]: any) => crops[k] = { ...v, transactions: num(v.transactions), total_volume: num(v.total_volume), avg_price: num(v.avg_price) });
+  Object.entries(d?.livestock || {}).forEach(([k, v]: any) => livestock[k] = { ...v, transactions: num(v.transactions), total_animals: num(v.total_animals ?? v.total_volume), avg_price: num(v.avg_price) });
+  return { ...d, total_transactions: num(d?.total_transactions), total_value: num(d?.total_value), crops, livestock };
+}
+
 export interface PriceTrend {
   date: string;
   avg_price: number;
@@ -136,7 +226,7 @@ class MarketIntelligenceService {
     const response = await apiClient.get(
       `${url}?${params}`
     );
-    return response.data;
+    return toTrend(unwrap(response.data));
   }
 
   /**
@@ -157,7 +247,8 @@ class MarketIntelligenceService {
     const response = await apiClient.get(
       `${url}?${params}`
     );
-    return response.data;
+    const d = unwrap(response.data);
+    return Array.isArray(d) ? d : (d?.premiums || d?.quality_premiums || []);
   }
 
   /**
@@ -178,7 +269,7 @@ class MarketIntelligenceService {
     const response = await apiClient.get(
       `${url}?${params}`
     );
-    return response.data;
+    return unwrap(response.data);
   }
 
   /**
@@ -188,7 +279,7 @@ class MarketIntelligenceService {
     const params = state ? `?state=${state}` : '';
     const url = buildUrl('marketIntelligence', 'summary');
     const response = await apiClient.get(`${url}${params}`);
-    return response.data;
+    return toSummary(unwrap(response.data));
   }
 
   /**
@@ -213,7 +304,7 @@ class MarketIntelligenceService {
 
     const url = buildUrl('predictiveAnalytics', 'predictPrice');
     const response = await apiClient.post(`${url}?${params}`);
-    return response.data;
+    return toPrediction(unwrap(response.data));
   }
 
   /**
@@ -236,7 +327,7 @@ class MarketIntelligenceService {
 
     const url = buildUrl('predictiveAnalytics', 'predictDemand');
     const response = await apiClient.get(`${url}?${params}`);
-    return response.data;
+    return unwrap(response.data);
   }
 
   /**
@@ -253,7 +344,7 @@ class MarketIntelligenceService {
 
     const url = buildUrl('predictiveAnalytics', 'supplyDemandGaps');
     const response = await apiClient.get(`${url}?${params}`);
-    return response.data.gaps || [];
+    return (unwrap(response.data)?.gaps || []).map(toGap);
   }
 
   /**
@@ -276,7 +367,7 @@ class MarketIntelligenceService {
 
     const url = buildUrl('predictiveAnalytics', 'opportunityScore');
     const response = await apiClient.get(`${url}?${params}`);
-    return response.data;
+    return toOpportunity(unwrap(response.data));
   }
 
   /**
@@ -299,7 +390,8 @@ class MarketIntelligenceService {
 
     const url = buildUrl('predictiveAnalytics', 'buyerSupplyPlanning');
     const response = await apiClient.get(`${url}?${params}`);
-    return response.data;
+    const d = unwrap(response.data);
+    return { ...d, monthly_supply: (d?.monthly_supply || d?.supply_by_month || []).map(toMonth) };
   }
 
   /**

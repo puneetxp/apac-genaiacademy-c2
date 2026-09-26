@@ -167,7 +167,7 @@ export class DashboardService {
     // These endpoints don't exist in registry, use direct URLs
     const [cropsRes, listingsRes, strategiesRes] = await Promise.allSettled([
       apiClient.get("/api/v1/crops/my-crops", { cache: true, cacheTTL: 60000 }),
-      apiClient.get("/api/v1/marketplace/listings/my-listings", {
+      apiClient.get("/marketplace/my-listings", {
         cache: true,
         cacheTTL: 60000,
       }),

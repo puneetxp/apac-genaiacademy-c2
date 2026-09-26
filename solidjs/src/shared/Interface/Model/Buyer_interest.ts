@@ -17,6 +17,5 @@ export interface Buyer_interest {
    delivery_state: string | null,
    delivery_district: string | null,
    delivery_village: string | null,
-   delivery_address_line: string | null,
-   active_role_id: number
+   delivery_address_line: string | null
 }

@@ -25,7 +25,7 @@ export interface UseAsyncOptions {
  * Hook for managing async operations
  */
 export function useAsync<T>(
-  asyncFunction: () => Promise<T>,
+  asyncFunction: (...args: any[]) => Promise<T>,
   options: UseAsyncOptions = {}
 ) {
   const [data, setData] = createSignal<T | null>(null);

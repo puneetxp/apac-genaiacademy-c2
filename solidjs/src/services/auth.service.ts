@@ -6,11 +6,14 @@
 import apiClient from '../lib/api-client';
 import { buildUrl } from '~/config/api-registry';
 
+// Sign-in can be the request that wakes a cold Cloud Run backend (~30s+), so allow longer than the 30s default.
+const SIGN_IN_TIMEOUT_MS = 90000;
+
 export interface SignUpData {
   username: string;
   password: string;
   email: string;
-  phone_number: string;
+  phone_number?: string;
   full_name: string;
   user_type?: string; // farmer, buyer, admin
   // Optional address fields
@@ -115,7 +118,23 @@ export class AuthService {
     const response = await apiClient.post<AuthTokens | { challenge: string; session: string }>(
       url,
       data,
-      { requiresAuth: false }
+      { requiresAuth: false, timeout: SIGN_IN_TIMEOUT_MS }
+    );
+    return response.data;
+  }
+
+  /**
+   * Exchange a Firebase ID token (Google or phone) for an app session; creates the user on first sign-in
+   */
+  static async firebaseSignIn(
+    idToken: string,
+    refreshToken: string
+  ): Promise<AuthTokens & { user?: { username?: string } }> {
+    const response = await apiClient.post<AuthTokens & { user?: { username?: string } }>(
+      // Same handler as /auth/firebase; ad/privacy blockers drop requests whose URL contains "firebase".
+      '/auth/google',
+      { id_token: idToken, refresh_token: refreshToken },
+      { requiresAuth: false, timeout: SIGN_IN_TIMEOUT_MS }
     );
     return response.data;
   }
@@ -126,7 +145,7 @@ export class AuthService {
   static async verifyMFA(data: MFAVerifyData): Promise<AuthTokens> {
     // MFA verify endpoint not in registry, use direct URL
     const response = await apiClient.post<AuthTokens>(
-      '/api/v1/auth/mfa-verify',
+      '/auth/verify-mfa',
       data,
       { requiresAuth: false }
     );

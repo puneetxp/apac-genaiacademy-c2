@@ -59,7 +59,7 @@ const GeolocationTest: Component = () => {
               {capturedLocation()!.accuracy && (
                 <div class="flex justify-between">
                   <span class="font-medium text-blue-800">Accuracy:</span>
-                  <span class="text-blue-900">±{capturedLocation()!.accuracy.toFixed(0)}m</span>
+                  <span class="text-blue-900">±{(capturedLocation()!.accuracy ?? 0).toFixed(0)}m</span>
                 </div>
               )}
             </div>

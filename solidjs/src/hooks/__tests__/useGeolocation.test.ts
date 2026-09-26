@@ -354,7 +354,8 @@ describe('useGeolocation', () => {
       const watchId = 123;
       mockGeolocation.watchPosition.mockReturnValue(watchId);
 
-      const { result, unmount } = renderHook(() => useGeolocation());
+      // @solidjs/testing-library's renderHook returns `cleanup` (disposes the hook's owner)
+      const { result, cleanup: unmount } = renderHook(() => useGeolocation());
       
       result.watchPosition();
       unmount();

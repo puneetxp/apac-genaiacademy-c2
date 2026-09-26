@@ -381,9 +381,11 @@ const MarketIntelligence: Component = () => {
                 <p class="text-sm text-green-700 mt-1">
                   {opportunities()!.recommendation}
                 </p>
-                <p class="text-xs text-green-600 mt-2">
-                  Confidence: {(opportunities()!.confidence * 100).toFixed(0)}%
-                </p>
+                <Show when={opportunities()!.confidence > 0}>
+                  <p class="text-xs text-green-600 mt-2">
+                    Confidence: {(opportunities()!.confidence * 100).toFixed(0)}%
+                  </p>
+                </Show>
               </div>
             </div>
           </Show>

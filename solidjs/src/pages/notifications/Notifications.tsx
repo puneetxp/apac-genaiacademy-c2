@@ -10,6 +10,7 @@ import {
 } from 'solid-icons/fi';
 import { NotificationService } from '../../shared/Service/Services';
 import { onMount } from 'solid-js';
+import apiClient from '../../lib/api-client';
 
 
 const Notifications: Component = () => {
@@ -31,9 +32,20 @@ const Notifications: Component = () => {
     };
 
     const markAsRead = async (id: number) => {
-        const n = NotificationService.findState(id);
-        if (n) {
-            await NotificationService.update(id, { ...n, is_read: true });
+        try {
+            const res = await apiClient.post(`/notifications/${id}/read`);
+            if (res.data) NotificationService.updatestate(res.data);
+        } catch (error) {
+            console.error('Failed to mark notification read:', error);
+        }
+    };
+
+    const markAllRead = async () => {
+        try {
+            await apiClient.post('/notifications/read-all');
+            await NotificationService.all();
+        } catch (error) {
+            console.error('Failed to mark all notifications read:', error);
         }
     };
 
@@ -82,7 +94,7 @@ const Notifications: Component = () => {
                             class="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-medium"
                         />
                     </div>
-                    <button class="px-6 py-4 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold hover:bg-slate-50 transition-all text-sm whitespace-nowrap">
+                    <button onClick={markAllRead} class="px-6 py-4 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold hover:bg-slate-50 transition-all text-sm whitespace-nowrap">
                         Mark all read
                     </button>
                 </div>

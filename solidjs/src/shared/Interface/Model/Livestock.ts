@@ -20,7 +20,5 @@ export interface Livestock {
    state: string | null,
    district: string | null,
    village: string | null,
-   address_line: string | null,
-   active_role_id: number,
-   active_role_id: number
+   address_line: string | null
 }
