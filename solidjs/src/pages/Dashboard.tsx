@@ -20,6 +20,7 @@ import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { ErrorDisplay } from "../components/ui/ErrorDisplay";
 import { SkeletonDashboard } from "../components/ui/SkeletonScreen";
 import { showToast } from "../components/ui/Toast";
+import ServicesMenu from "../components/ui/ServicesMenu";
 
 // Lazy load heavy dashboard components for better performance
 const QuickStats = lazy(() => import("../components/dashboard/QuickStats"));
@@ -117,6 +118,21 @@ const Dashboard: Component = () => {
               >
                 <span>➕</span> Add Farm
               </A>
+              {/* BottomNav (Pashu / Menu) is mobile-only, so desktop needs its own way into services. */}
+              <A
+                href="/livestock/doctors"
+                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                title="Veterinary doctors"
+              >
+                🩺 Vet Doctors
+              </A>
+              <A
+                href="/menu"
+                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                title="All services"
+              >
+                ☰ Services
+              </A>
               <button
                 type="button"
                 onClick={handleRefresh}
@@ -139,6 +155,11 @@ const Dashboard: Component = () => {
 
       {/* Main Content */}
       <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Every service in one place; outside the loading/empty states so navigation always works. */}
+        <section class="bg-white rounded-lg shadow p-4 sm:p-6 mb-8" aria-label="All services">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">सभी सेवाएं · All Services</h2>
+          <ServicesMenu variant="grid" searchable />
+        </section>
         <Show
           when={!profileStatus.loading}
           fallback={<SkeletonDashboard />}

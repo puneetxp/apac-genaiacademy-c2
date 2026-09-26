@@ -2,7 +2,14 @@
 # =============================================================================
 # CropSense AI — GCP deployment (idempotent: safe to re-run for updates)
 #
-#   ./deploy-gcp.sh
+#   ./deploy-gcp.sh            # auto: rebuild only what changed since the last deploy
+#   ./deploy-gcp.sh backend    # just the API (python/)
+#   ./deploy-gcp.sh frontend   # just the web app (solidjs/)
+#   ./deploy-gcp.sh app        # backend + frontend, skip infrastructure
+#   ./deploy-gcp.sh infra      # APIs, secrets, Terraform, DB schema, Firebase settings; no image builds
+#   ./deploy-gcp.sh all        # everything (first deploy, or after changing terraform/ or secrets)
+#
+# See "Deploying to GCP" in README.md for what each step does.
 #
 # Override defaults with env vars, e.g.:
 #   GCP_PROJECT=my-proj BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX ./deploy-gcp.sh
@@ -36,9 +43,37 @@ create_secret() {  # name, value-from-stdin
   gc secrets create "$1" --replication-policy=automatic --data-file=- >/dev/null
 }
 
+MODE="${1:-auto}"
+case "$MODE" in
+  auto|all|app|backend|frontend|infra) ;;
+  -h|--help) sed -n 2,21p "$0"; exit 0 ;;
+  *) die "Unknown mode '$MODE'. Use: auto | backend | frontend | app | infra | all" ;;
+esac
+
 for tool in gcloud terraform npm; do
   command -v "$tool" >/dev/null || die "$tool is not installed"
 done
+
+# Image tag = commit; uncommitted changes get a unique suffix so a dirty build never overwrites a commit's image.
+COMMIT=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo nogit)
+image_tag() {  # dir
+  if [ -n "$(git -C "$ROOT" status --porcelain -- "$1" 2>/dev/null)" ]; then
+    echo "${COMMIT}-dirty-$(date +%Y%m%d%H%M%S)"
+  else
+    echo "$COMMIT"
+  fi
+}
+
+# True when <dir> differs from the commit the running <service> was built from (or that can't be told).
+needs_deploy() {  # service, dir
+  local img tag
+  img=$(gc run services describe "$1" --region="$GCP_REGION" \
+    --format='value(spec.template.spec.containers[0].image)' 2>/dev/null) || return 0
+  tag="${img##*:}"
+  git -C "$ROOT" cat-file -e "${tag}^{commit}" 2>/dev/null || return 0
+  [ -n "$(git -C "$ROOT" status --porcelain -- "$2")" ] && return 0
+  ! git -C "$ROOT" diff --quiet "$tag" HEAD -- "$2"
+}
 
 # ── 1. Auth & project ─────────────────────────────────────────────────────────
 step "1/9  Checking auth & project"
@@ -56,7 +91,32 @@ if [ "$(gcloud billing projects describe "$GCP_PROJECT" --format='value(billingE
 fi
 PROJECT_NUMBER=$(gcloud projects describe "$GCP_PROJECT" --format='value(projectNumber)')
 
+DO_INFRA=false; DO_BACKEND=false; DO_FRONTEND=false
+case "$MODE" in
+  all)      DO_INFRA=true; DO_BACKEND=true; DO_FRONTEND=true ;;
+  infra)    DO_INFRA=true ;;
+  app)      DO_BACKEND=true; DO_FRONTEND=true ;;
+  backend)  DO_BACKEND=true ;;
+  frontend) DO_FRONTEND=true ;;
+  auto)
+    if ! gc run services describe "$BACKEND_SERVICE" --region="$GCP_REGION" >/dev/null 2>&1 || \
+       ! gc run services describe "$FRONTEND_SERVICE" --region="$GCP_REGION" >/dev/null 2>&1; then
+      echo "First deploy — running everything."
+      DO_INFRA=true; DO_BACKEND=true; DO_FRONTEND=true
+    else
+      needs_deploy "$BACKEND_SERVICE" python && DO_BACKEND=true
+      needs_deploy "$FRONTEND_SERVICE" solidjs && DO_FRONTEND=true
+    fi ;;
+esac
+echo "Plan: infra=$DO_INFRA backend=$DO_BACKEND frontend=$DO_FRONTEND"
+if ! $DO_INFRA && ! $DO_BACKEND && ! $DO_FRONTEND; then
+  echo -e "${GREEN}✓ Nothing changed in python/ or solidjs/ since the last deploy — nothing to do.${NC}"
+  echo "  (After changing terraform/ or secrets, run: ./deploy-gcp.sh infra)"
+  exit 0
+fi
+
 # ── 2. APIs ───────────────────────────────────────────────────────────────────
+if $DO_INFRA; then
 step "2/9  Enabling APIs"
 gc services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
   sqladmin.googleapis.com secretmanager.googleapis.com bigquery.googleapis.com firestore.googleapis.com \
@@ -107,8 +167,6 @@ TF_VAR_db_password="$(gc secrets versions access latest --secret=cropsense-db-pa
 export TF_VAR_db_password
 terraform init -input=false >/dev/null
 terraform apply -input=false -auto-approve
-DB_CONN=$(terraform output -raw postgres_connection_name)
-RUN_SA=$(terraform output -raw run_service_account)
 cd "$ROOT"
 
 for S in cropsense-db-password cropsense-secret-key cropsense-openweather-key cropsense-vapid-private-key cropsense-vapid-public-key; do
@@ -122,9 +180,22 @@ gc storage buckets describe "gs://$UPLOAD_BUCKET" >/dev/null 2>&1 || \
   gc storage buckets create "gs://$UPLOAD_BUCKET" --location="$GCP_REGION" --uniform-bucket-level-access
 gc storage buckets add-iam-policy-binding "gs://$UPLOAD_BUCKET" --member="serviceAccount:$RUN_SA" \
   --role=roles/storage.objectAdmin >/dev/null
+fi  # DO_INFRA
+
+# Deploy settings from Terraform state (read-only when infra was skipped)
+cd "$ROOT/terraform/gcp"
+GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
+export GOOGLE_OAUTH_ACCESS_TOKEN
+terraform init -input=false >/dev/null
+DB_CONN=$(terraform output -raw postgres_connection_name)
+RUN_SA=$(terraform output -raw run_service_account)
+cd "$ROOT"
+UPLOAD_BUCKET="${UPLOAD_BUCKET:-${GCP_PROJECT}-uploads}"
 
 # ── 6. Database schema (first deploy only) ───────────────────────────────────
+if $DO_INFRA || $DO_BACKEND; then
 step "6/9  Database schema"
+TF_VAR_db_password="${TF_VAR_db_password:-$(gc secrets versions access latest --secret=cropsense-db-password)}"
 PSQL=$(command -v psql || echo /opt/homebrew/opt/libpq/bin/psql)
 if [ -x "$PSQL" ] && command -v cloud-sql-proxy >/dev/null; then
   cloud-sql-proxy --port 55432 --token "$GOOGLE_OAUTH_ACCESS_TOKEN" "$DB_CONN" >/dev/null 2>&1 &
@@ -147,6 +218,7 @@ if [ -x "$PSQL" ] && command -v cloud-sql-proxy >/dev/null; then
 else
   warn "psql/cloud-sql-proxy not found — skipping schema check. First deploy needs: brew install libpq cloud-sql-proxy"
 fi
+fi  # DO_INFRA || DO_BACKEND
 
 # ── 6b. Firebase (Google sign-in) web config ─────────────────────────────────
 step "6b    Firebase web config (Google sign-in)"
@@ -172,14 +244,14 @@ FIREBASE_API_KEY=$(echo "$FB_CONFIG" | python3 -c "import sys,json; print(json.l
 FIREBASE_AUTH_DOMAIN=$(echo "$FB_CONFIG" | python3 -c "import sys,json; print(json.load(sys.stdin)['authDomain'])")
 
 # ── 7. Backend: build & deploy ───────────────────────────────────────────────
-step "7/9  Backend (Cloud Build → Cloud Run)"
-TAG=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)
-BACKEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${GAR_REPO}/${BACKEND_SERVICE}:${TAG}"
-gc builds submit "$ROOT/python" --tag="$BACKEND_IMAGE" --timeout=1800s
-
 FRONTEND_URL_A="https://${FRONTEND_SERVICE}-${PROJECT_NUMBER}.${GCP_REGION}.run.app"
 FRONTEND_URL_B=$(gc run services describe "$FRONTEND_SERVICE" --region="$GCP_REGION" --format='value(status.url)' 2>/dev/null || true)
 ORIGINS="$FRONTEND_URL_A${FRONTEND_URL_B:+,$FRONTEND_URL_B},http://localhost:3000,http://localhost:5173"
+
+if $DO_BACKEND; then
+step "7/9  Backend (Cloud Build → Cloud Run)"
+BACKEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${GAR_REPO}/${BACKEND_SERVICE}:$(image_tag python)"
+gc builds submit "$ROOT/python" --tag="$BACKEND_IMAGE" --timeout=1800s
 
 # 4 uvicorn workers need ~1.1 GiB, so 1 GiB OOMs at startup.
 # min-instances=1: a cold start takes ~30s, longer than the frontend waits for sign-in.
@@ -188,9 +260,13 @@ gc run deploy "$BACKEND_SERVICE" --image="$BACKEND_IMAGE" --region="$GCP_REGION"
   --allow-unauthenticated --port=8000 --memory=2Gi --cpu=2 --min-instances=1 --max-instances=10 \
   --set-env-vars="^|^GOOGLE_CLOUD_PROJECT=$GCP_PROJECT|GOOGLE_CLOUD_REGION=$GCP_REGION|ENVIRONMENT=production|POSTGRES_SERVER=/cloudsql/$DB_CONN|POSTGRES_USER=$DB_USER|POSTGRES_DB=$DB_NAME|ALLOWED_ORIGINS=$ORIGINS|FIREBASE_PROJECT_ID=$GCP_PROJECT|FIREBASE_API_KEY=$FIREBASE_API_KEY|GCS_BUCKET=$UPLOAD_BUCKET|VAPID_SUBJECT=mailto:${VAPID_CONTACT_EMAIL:-$ACCOUNT}" \
   --set-secrets="POSTGRES_PASSWORD=cropsense-db-password:latest,SECRET_KEY=cropsense-secret-key:latest,OPENWEATHER_API_KEY=cropsense-openweather-key:latest,VAPID_PUBLIC_KEY=cropsense-vapid-public-key:latest,VAPID_PRIVATE_KEY=cropsense-vapid-private-key:latest"
+else
+  step "7/9  Backend — unchanged, skipped"
+fi
 BACKEND_URL=$(gc run services describe "$BACKEND_SERVICE" --region="$GCP_REGION" --format='value(status.url)')
 
 # ── 8. Frontend: build & deploy ──────────────────────────────────────────────
+if $DO_FRONTEND; then
 step "8/9  Frontend (Vite build → nginx on Cloud Run)"
 cd "$ROOT/solidjs"
 [ -d node_modules ] || npm ci
@@ -198,11 +274,16 @@ VITE_API_URL="$BACKEND_URL" VITE_ENV=production \
   VITE_FIREBASE_API_KEY="$FIREBASE_API_KEY" VITE_FIREBASE_AUTH_DOMAIN="$FIREBASE_AUTH_DOMAIN" \
   VITE_FIREBASE_PROJECT_ID="$GCP_PROJECT" \
   VITE_VAPID_PUBLIC_KEY="$(gc secrets versions access latest --secret=cropsense-vapid-public-key)" npx vite build
-FRONTEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${GAR_REPO}/${FRONTEND_SERVICE}:${TAG}"
+FRONTEND_IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/${GAR_REPO}/${FRONTEND_SERVICE}:$(image_tag solidjs)"
 gc builds submit . --tag="$FRONTEND_IMAGE"
 gc run deploy "$FRONTEND_SERVICE" --image="$FRONTEND_IMAGE" --region="$GCP_REGION" \
   --allow-unauthenticated --port=8080 --memory=256Mi --cpu=1 --min-instances=0 --max-instances=5
 cd "$ROOT"
+else
+  step "8/9  Frontend — unchanged, skipped"
+fi
+
+if $DO_INFRA || $DO_FRONTEND; then
 
 # The service's second URL only exists after its first deploy; make sure CORS allows it.
 FRONTEND_URL_B=$(gc run services describe "$FRONTEND_SERVICE" --region="$GCP_REGION" --format='value(status.url)')
@@ -229,12 +310,14 @@ import sys, json
 print(json.dumps({'smsRegionConfig': {'allowlistOnly': {'allowedRegions': [r.strip() for r in sys.argv[1].split(',') if r.strip()]}}}))
 " "$SMS_REGIONS")
 fb_api PATCH "$IDT?updateMask=smsRegionConfig" "$SMS_BODY" >/dev/null && echo "SMS regions allowed: $SMS_REGIONS"
+fi  # DO_INFRA || DO_FRONTEND
 
 # ── 9. Smoke test ─────────────────────────────────────────────────────────────
 step "9/9  Health check"
 curl -fsS -m 60 "${BACKEND_URL}/health" >/dev/null || \
   die "Backend health check failed — logs: gcloud run services logs read $BACKEND_SERVICE --region=$GCP_REGION --project=$GCP_PROJECT"
 curl -fsS -m 60 -o /dev/null "${FRONTEND_URL_A}/" || die "Frontend did not respond"
+echo "Deployed: infra=$DO_INFRA backend=$DO_BACKEND frontend=$DO_FRONTEND"
 
 echo -e "\n${GREEN}═══════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  ✓ CropSense AI deployed${NC}"

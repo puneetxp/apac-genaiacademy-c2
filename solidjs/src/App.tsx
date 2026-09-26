@@ -1,5 +1,6 @@
 import { Component, onMount } from 'solid-js';
 import BottomNav from './components/ui/BottomNav';
+import DesktopServicesButton from './components/ui/DesktopServicesButton';
 import MainNav from './components/ui/MainNav';
 import InstallPrompt from './components/ui/InstallPrompt';
 import OfflineIndicator from './components/ui/OfflineIndicator';
@@ -25,6 +26,7 @@ const App: Component<{ children?: any }> = (props) => {
       <OfflineIndicator />
       <InstallPrompt />
       <BottomNav />
+      <DesktopServicesButton />
       {props.children}
     </div>
   );
