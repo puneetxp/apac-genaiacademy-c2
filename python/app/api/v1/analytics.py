@@ -155,7 +155,7 @@ async def get_profile_status(
                 if crop.get("expected_profit"):
                     try:
                         total_profit_potential += float(crop["expected_profit"])
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         pass
 
         # Get buyer interests

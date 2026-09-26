@@ -30,7 +30,7 @@ def _parse_previous_crops(value) -> List[Dict[str, Any]]:
         return []
     try:
         data = json.loads(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         data = [c.strip() for c in str(value).split(",") if c.strip()]
     if not isinstance(data, list):
         data = [data]

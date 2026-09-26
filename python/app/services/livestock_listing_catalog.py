@@ -70,7 +70,7 @@ class LivestockListingService:
         for k in ("photos", "videos"):
             try:
                 out[k] = json.loads(out[k]) if out.get(k) else []
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 out[k] = [out[k]]
         for k in ("price_negotiable", "breeding_certified", "featured"):
             if k in out:

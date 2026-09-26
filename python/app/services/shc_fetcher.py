@@ -216,7 +216,7 @@ class SHCFetcher:
                     continue
                 try:
                     val = float(raw)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     continue
                 if val == 0.0:
                     continue  # 0 = not collected
