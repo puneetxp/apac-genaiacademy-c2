@@ -1,11 +1,14 @@
 # Multi-stage build for Python FastAPI application
 FROM python:3.12-slim as builder
 
+# No terminal during docker build; stops debconf from probing for one
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libpq-dev \
@@ -22,14 +25,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Production stage
 FROM python:3.12-slim
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Set working directory
 WORKDIR /app
 
 # Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     postgresql-client \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder
