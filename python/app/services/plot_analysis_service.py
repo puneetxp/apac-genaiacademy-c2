@@ -7,48 +7,71 @@ Task 26.1: Comprehensive plot analysis with Bedrock AI integration
 
 import json
 import logging
-from typing import Dict, Any, Optional, List
-from decimal import Decimal
 from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from decimal import Decimal
+from typing import Any  # db kept for compatibility; queries use app.core.db.DB
+from typing import Any as AsyncSession
+from typing import Dict, List, Optional
 
-from app.orm.farm_plot import FarmPlot
-from app.orm.soil_test_result import SoilTestResult
-from app.orm.farm import Farm
+from app.services.farm_access import Row, fetch_one, plot_for_user
+
+# Rows are farm_access.Row (dict with attribute access); aliases keep the type hints readable.
+FarmPlot = Row
+SoilTestResult = Row
+from app.core.cache import TTL_BEDROCK_API, get_cache_manager
 from app.services.bedrock_service import bedrock_service
-from app.core.cache import get_cache_manager, TTL_BEDROCK_API
 
 logger = logging.getLogger(__name__)
 
 
+def _parse_previous_crops(value) -> List[Dict[str, Any]]:
+    """farm_plots.previous_crops is varchar: JSON list of {crop_name} or a comma-separated list."""
+    if not value:
+        return []
+    try:
+        data = json.loads(value)
+    except TypeError, ValueError:
+        data = [c.strip() for c in str(value).split(",") if c.strip()]
+    if not isinstance(data, list):
+        data = [data]
+    return [c if isinstance(c, dict) else {"crop_name": str(c)} for c in data]
+
+
 class PlotAnalysisService:
     """Service for comprehensive plot analysis with Bedrock AI"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.cache_manager = get_cache_manager()
-    
+
     async def analyze_plot(
         self,
         plot_id: int,
         season: str,
         budget_per_acre: Optional[float] = None,
-        preferences: Optional[Dict[str, str]] = None
+        preferences: Optional[Dict[str, str]] = None,
+        user=None,
     ) -> Dict[str, Any]:
         """
         Comprehensive plot analysis using Bedrock AI
-        
+
         Args:
             plot_id: Plot ID to analyze
             season: Target season (kharif/rabi/zaid)
             budget_per_acre: Farmer's investment capacity (optional)
             preferences: Risk tolerance, market focus, organic preference (optional)
-        
+
         Returns:
             Detailed analysis with ranked crop recommendations and profitability metrics
         """
-        
+
+        # Owner check before the cache, so a cached result is never served to another user.
+        if user is not None:
+            try:
+                plot_for_user(plot_id, user)
+            except LookupError as e:
+                raise ValueError(str(e))  # router maps ValueError -> 404
+
         # Check cache first
         if self.cache_manager and self.cache_manager.enabled:
             cache_key = self.cache_manager._generate_cache_key(
@@ -56,41 +79,39 @@ class PlotAnalysisService:
                 plot_id=plot_id,
                 season=season,
                 budget_per_acre=budget_per_acre or 0,
-                preferences=json.dumps(preferences or {})
+                preferences=json.dumps(preferences or {}),
             )
-            
+
             cached_result = self.cache_manager.get(cache_key)
             if cached_result:
                 logger.info(f"Cache hit for plot analysis: plot_id={plot_id}, season={season}")
                 return cached_result
-        
+
         # Get plot details
         plot = await self._get_plot_details(plot_id)
         if not plot:
             raise ValueError(f"Plot {plot_id} not found")
-        
+
         # Get latest soil test results
         soil_data = await self._get_latest_soil_test(plot_id)
-        
+
         # Build comprehensive plot profile
         plot_profile = self._build_plot_profile(plot, soil_data)
-        
+
         # Call Bedrock AI for analysis
         analysis = await self._analyze_with_bedrock(
             plot_profile=plot_profile,
             season=season,
             budget_per_acre=budget_per_acre or 20000,  # Default budget
-            preferences=preferences or {}
+            preferences=preferences or {},
         )
-        
+
         # Enhance with profitability calculations
-        for crop in analysis.get('recommended_crops', []):
-            crop['profitability'] = await self._calculate_profitability(
-                crop=crop,
-                area=float(plot.area),
-                budget_per_acre=budget_per_acre or 20000
+        for crop in analysis.get("recommended_crops", []):
+            crop["profitability"] = await self._calculate_profitability(
+                crop=crop, area=float(plot.area), budget_per_acre=budget_per_acre or 20000
             )
-        
+
         # Add plot metadata
         result = {
             "plot_id": plot_id,
@@ -98,76 +119,98 @@ class PlotAnalysisService:
             "analysis_date": datetime.now().isoformat(),
             "season": season,
             "plot_characteristics": plot_profile,
-            **analysis
+            **analysis,
         }
-        
+
         # Cache the result
         if self.cache_manager and self.cache_manager.enabled:
             self.cache_manager.set(cache_key, result, TTL_BEDROCK_API)
             logger.info(f"Cached plot analysis for plot_id={plot_id} (6-hour TTL)")
-        
+
         logger.info(f"Plot analysis completed for plot_id={plot_id}, season={season}")
         return result
-    
+
     async def _get_plot_details(self, plot_id: int) -> Optional[FarmPlot]:
         """Get plot details from database"""
-        result = await self.db.execute(
-            select(FarmPlot).where(FarmPlot.id == plot_id)
-        )
-        return result.scalar_one_or_none()
-    
+        return fetch_one("SELECT * FROM farm_plots WHERE id = ?", [plot_id])
+
     async def _get_latest_soil_test(self, plot_id: int) -> Optional[SoilTestResult]:
         """Get latest soil test results for plot"""
-        result = await self.db.execute(
-            select(SoilTestResult)
-            .where(SoilTestResult.plot_id == plot_id)
-            .order_by(desc(SoilTestResult.test_date))
-            .limit(1)
+        return fetch_one(
+            "SELECT * FROM soil_test_results WHERE plot_id = ? ORDER BY test_date DESC, id DESC LIMIT 1",
+            [plot_id],
         )
-        return result.scalar_one_or_none()
-    
+
     def _build_plot_profile(
-        self,
-        plot: FarmPlot,
-        soil_data: Optional[SoilTestResult]
+        self, plot: FarmPlot, soil_data: Optional[SoilTestResult]
     ) -> Dict[str, Any]:
         """Build comprehensive plot profile for Bedrock analysis"""
-        
+
         profile = {
-            "location": {
-                "state": plot.state,
-                "district": plot.district
-            },
+            "location": {"state": plot.state, "district": plot.district},
             "area_acres": float(plot.area),
             "soil_data": {
                 "type": plot.soil_type,
                 "ph": float(soil_data.ph_level) if soil_data and soil_data.ph_level else None,
-                "nitrogen": float(soil_data.nitrogen_kg_per_ha) if soil_data and soil_data.nitrogen_kg_per_ha else None,
-                "phosphorus": float(soil_data.phosphorus_kg_per_ha) if soil_data and soil_data.phosphorus_kg_per_ha else None,
-                "potassium": float(soil_data.potassium_kg_per_ha) if soil_data and soil_data.potassium_kg_per_ha else None,
-                "organic_matter": float(soil_data.organic_matter_percent) if soil_data and soil_data.organic_matter_percent else None,
-                "texture": "Medium" if not soil_data else "Fine" if plot.soil_type == "clay" else "Coarse" if plot.soil_type == "sandy" else "Medium",
-                "health_score": float(soil_data.soil_health_score) if soil_data and soil_data.soil_health_score else None
+                "nitrogen": (
+                    float(soil_data.nitrogen_kg_per_ha)
+                    if soil_data and soil_data.nitrogen_kg_per_ha
+                    else None
+                ),
+                "phosphorus": (
+                    float(soil_data.phosphorus_kg_per_ha)
+                    if soil_data and soil_data.phosphorus_kg_per_ha
+                    else None
+                ),
+                "potassium": (
+                    float(soil_data.potassium_kg_per_ha)
+                    if soil_data and soil_data.potassium_kg_per_ha
+                    else None
+                ),
+                "organic_matter": (
+                    float(soil_data.organic_matter_percent)
+                    if soil_data and soil_data.organic_matter_percent
+                    else None
+                ),
+                "texture": (
+                    "Medium"
+                    if not soil_data
+                    else (
+                        "Fine"
+                        if plot.soil_type == "clay"
+                        else "Coarse" if plot.soil_type == "sandy" else "Medium"
+                    )
+                ),
+                "health_score": (
+                    float(soil_data.soil_health_score)
+                    if soil_data and soil_data.soil_health_score
+                    else None
+                ),
             },
             "water_data": {
                 "source": plot.irrigation_type,
-                "availability": "year-round" if "canal" in plot.irrigation_type.lower() or "borewell" in plot.irrigation_type.lower() else "seasonal",
-                "quality": "good"  # Default, can be enhanced with water test data
+                "availability": (
+                    "year-round"
+                    if "canal" in (plot.irrigation_type or "").lower()
+                    or "borewell" in (plot.irrigation_type or "").lower()
+                    else "seasonal"
+                ),
+                "quality": "good",  # Default, can be enhanced with water test data
             },
-            "historical_crops": json.loads(plot.previous_crops) if plot.previous_crops else []
+            "historical_crops": _parse_previous_crops(plot.previous_crops),
         }
-        
+
         return profile
-    
+
     async def _analyze_with_bedrock(
         self,
         plot_profile: Dict[str, Any],
         season: str,
         budget_per_acre: float,
-        preferences: Dict[str, str]
+        preferences: Dict[str, str],
     ) -> Dict[str, Any]:
         """Call Bedrock AI for comprehensive plot analysis"""
-        
+
         # Build enhanced prompt with plot-specific details
         prompt = f"""Analyze this agricultural land plot and provide comprehensive crop recommendations:
 
@@ -335,11 +378,11 @@ Provide ONLY the JSON response, no additional text."""
 
         try:
             response_text = bedrock_service._invoke_claude(prompt, max_tokens=4000, temperature=0.1)
-            
+
             # Extract JSON from response
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
-            
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
             if json_start >= 0 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
                 analysis = json.loads(json_text)
@@ -347,48 +390,47 @@ Provide ONLY the JSON response, no additional text."""
             else:
                 logger.warning("Could not parse JSON from Bedrock response")
                 return self._create_fallback_analysis(plot_profile, season)
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error: {e}")
             return self._create_fallback_analysis(plot_profile, season)
         except Exception as e:
             logger.error(f"Plot analysis error: {e}")
             raise
-    
+
     async def _calculate_profitability(
-        self,
-        crop: Dict[str, Any],
-        area: float,
-        budget_per_acre: float
+        self, crop: Dict[str, Any], area: float, budget_per_acre: float
     ) -> Dict[str, Any]:
         """
         Calculate detailed profitability metrics
-        
+
         Returns comprehensive financial analysis including investment breakdown,
         revenue projections, profit calculations, and ROI metrics.
         """
-        
+
         # Parse yield range (e.g., "22-25 quintals" -> 23.5 average)
-        yield_str = crop.get('expected_yield_per_acre', '20 quintals')
+        yield_str = crop.get("expected_yield_per_acre", "20 quintals")
         avg_yield = self._parse_yield_range(yield_str)
-        
+
         # Get values from crop data
-        investment_per_acre = Decimal(str(crop.get('investment_per_acre', 15000)))
-        market_price = Decimal(str(crop.get('market_price_per_quintal', 2000)))
-        
+        investment_per_acre = Decimal(str(crop.get("investment_per_acre", 15000)))
+        market_price = Decimal(str(crop.get("market_price_per_quintal", 2000)))
+
         # Calculate per acre metrics
         revenue_per_acre = Decimal(str(avg_yield)) * market_price
         profit_per_acre = revenue_per_acre - investment_per_acre
-        roi_percentage = (profit_per_acre / investment_per_acre) * 100 if investment_per_acre > 0 else 0
+        roi_percentage = (
+            (profit_per_acre / investment_per_acre) * 100 if investment_per_acre > 0 else 0
+        )
         profit_margin = (profit_per_acre / revenue_per_acre) * 100 if revenue_per_acre > 0 else 0
         breakeven_yield = investment_per_acre / market_price if market_price > 0 else 0
-        
+
         # Calculate total metrics for entire plot
         total_investment = investment_per_acre * Decimal(str(area))
         total_yield = Decimal(str(avg_yield)) * Decimal(str(area))
         total_revenue = revenue_per_acre * Decimal(str(area))
         total_profit = profit_per_acre * Decimal(str(area))
-        
+
         return {
             "per_acre": {
                 "investment": float(investment_per_acre),
@@ -399,7 +441,7 @@ Provide ONLY the JSON response, no additional text."""
                 "profit": float(profit_per_acre),
                 "roi_percentage": float(roi_percentage),
                 "profit_margin": float(profit_margin),
-                "breakeven_yield": f"{float(breakeven_yield):.1f} quintals"
+                "breakeven_yield": f"{float(breakeven_yield):.1f} quintals",
             },
             "total_plot": {
                 "area_acres": area,
@@ -407,26 +449,26 @@ Provide ONLY the JSON response, no additional text."""
                 "total_yield": f"{float(total_yield):.1f} quintals",
                 "total_revenue": float(total_revenue),
                 "total_profit": float(total_profit),
-                "roi_percentage": float(roi_percentage)
+                "roi_percentage": float(roi_percentage),
             },
             "investment_breakdown": {
-                "seeds": float(investment_per_acre * Decimal('0.15')),
-                "fertilizer": float(investment_per_acre * Decimal('0.35')),
-                "labor": float(investment_per_acre * Decimal('0.30')),
-                "irrigation": float(investment_per_acre * Decimal('0.15')),
-                "other": float(investment_per_acre * Decimal('0.05'))
-            }
+                "seeds": float(investment_per_acre * Decimal("0.15")),
+                "fertilizer": float(investment_per_acre * Decimal("0.35")),
+                "labor": float(investment_per_acre * Decimal("0.30")),
+                "irrigation": float(investment_per_acre * Decimal("0.15")),
+                "other": float(investment_per_acre * Decimal("0.05")),
+            },
         }
-    
+
     def _parse_yield_range(self, yield_str: str) -> float:
         """Parse yield range string to average value"""
         try:
             # Remove "quintals" and other text
-            yield_str = yield_str.lower().replace('quintals', '').replace('quintal', '').strip()
-            
+            yield_str = yield_str.lower().replace("quintals", "").replace("quintal", "").strip()
+
             # Check for range (e.g., "22-25")
-            if '-' in yield_str:
-                parts = yield_str.split('-')
+            if "-" in yield_str:
+                parts = yield_str.split("-")
                 min_val = float(parts[0].strip())
                 max_val = float(parts[1].strip())
                 return (min_val + max_val) / 2
@@ -435,22 +477,20 @@ Provide ONLY the JSON response, no additional text."""
                 return float(yield_str)
         except:
             return 20.0  # Default fallback
-    
+
     def _create_fallback_analysis(
-        self,
-        plot_profile: Dict[str, Any],
-        season: str
+        self, plot_profile: Dict[str, Any], season: str
     ) -> Dict[str, Any]:
         """Create basic fallback analysis when Bedrock fails"""
-        
-        soil_type = plot_profile['soil_data']['type'].lower()
-        
+
+        soil_type = plot_profile["soil_data"]["type"].lower()
+
         # Simple crop selection based on soil type and season
-        if season.lower() == 'kharif':
+        if season.lower() == "kharif":
             crop = "Rice" if soil_type in ["clay", "loamy"] else "Cotton"
             yield_range = "20-25 quintals"
             investment = 18000
-        elif season.lower() == 'rabi':
+        elif season.lower() == "rabi":
             crop = "Wheat"
             yield_range = "18-22 quintals"
             investment = 15000
@@ -458,7 +498,7 @@ Provide ONLY the JSON response, no additional text."""
             crop = "Vegetables"
             yield_range = "15-20 quintals"
             investment = 12000
-        
+
         return {
             "recommended_crops": [
                 {
@@ -471,18 +511,18 @@ Provide ONLY the JSON response, no additional text."""
                     "market_price_per_quintal": 2000,
                     "quality_grade": "B",
                     "quality_confidence": 0.6,
-                    "confidence_score": 0.6
+                    "confidence_score": 0.6,
                 }
             ],
             "annual_strategy": {
                 "current_season_crop": crop,
-                "next_season_crop": "Wheat" if season.lower() == 'kharif' else "Rice",
+                "next_season_crop": "Wheat" if season.lower() == "kharif" else "Rice",
                 "total_annual_profit": 60000,
-                "annual_roi": 200
+                "annual_roi": 200,
             },
             "plot_health": {
                 "soil_health_score": 70,
                 "water_resource_score": 75,
-                "overall_suitability_score": 72
-            }
+                "overall_suitability_score": 72,
+            },
         }

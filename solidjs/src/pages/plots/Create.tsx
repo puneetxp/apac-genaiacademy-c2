@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { FarmService } from '../../services/farm.service';
-import type { Farm } from '../../shared/Interface/Model/Farm';
+import type { Farm } from '../../services/farm.service';
 import apiClient from '../../lib/api-client';
 
 /**

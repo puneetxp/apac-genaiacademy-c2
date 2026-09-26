@@ -18,8 +18,10 @@ const BottomNav: Component = () => {
   const navItems: NavItem[] = [
     { path: '/dashboard', icon: '🏠', label: 'Home' },
     { path: '/strategy/request', icon: '🌾', label: 'Strategy' },
+    { path: '/livestock', icon: '🐄', label: 'Pashu' },
     { path: '/marketplace', icon: '🛒', label: 'Market' },
     { path: '/farm/register', icon: '🚜', label: 'Farm' },
+    { path: '/menu', icon: '☰', label: 'Menu' },
   ];
 
   const isActive = (path: string) => {

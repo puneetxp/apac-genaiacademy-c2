@@ -6,11 +6,17 @@ Manages user queries and coordinates specialized subagents for agricultural supp
 import logging
 import uuid
 from typing import Optional
+
 from google.adk import Agent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from app.agents.agent_tools import get_farm_details, get_soil_info, get_weather_forecast, get_market_prices
+from app.agents.agent_tools import (
+    get_farm_details,
+    get_market_prices,
+    get_soil_info,
+    get_weather_forecast,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +31,7 @@ async def run_orchestrator_turn(query: str, farm_id: Optional[int] = None) -> st
         farm_info = get_farm_details(farm_id)
         context = f"Here is the context of the farmer's farm (Farm ID: {farm_id}):\n{farm_info}\n\n"
         logger.info(f"Loaded farm context for orchestrator: {farm_id}")
-    
+
     # Configure the Root Agent
     agent = Agent(
         name="orchestrator",
@@ -43,28 +49,28 @@ async def run_orchestrator_turn(query: str, farm_id: Optional[int] = None) -> st
         ),
         tools=[get_farm_details, get_soil_info, get_weather_forecast, get_market_prices],
     )
-    
+
     runner = InMemoryRunner(agent=agent)
     runner.auto_create_session = True
-    
+
     session_id = f"session_{uuid.uuid4()}"
     new_message = types.Content(parts=[types.Part.from_text(text=f"{context}Query: {query}")])
-    
+
     response_text = ""
     try:
         async for event in runner.run_async(
-            user_id="default_user",
-            session_id=session_id,
-            new_message=new_message
+            user_id="default_user", session_id=session_id, new_message=new_message
         ):
             if event.content and event.content.parts:
                 for part in event.content.parts:
                     if part.text:
                         response_text += part.text
-                        
+
         if not response_text:
-            response_text = "I processed your request, but did not generate a response. Please check inputs."
-            
+            response_text = (
+                "I processed your request, but did not generate a response. Please check inputs."
+            )
+
         return response_text
     except Exception as e:
         logger.error(f"Orchestrator invocation failed: {e}")

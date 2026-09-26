@@ -8,6 +8,5 @@ export interface Ai_usage_quota {
    gps_enhanced_requests: number,
    pincode_requests: number,
    last_reset: Date,
-   quota_limit: number,
-   active_role_id: number
+   quota_limit: number
 }

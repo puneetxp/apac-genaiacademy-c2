@@ -343,14 +343,16 @@ export class FarmService {
    */
   static async getFarms(): Promise<Farm[]> {
     const url = buildUrl("farms", "list");
-    const response = await apiClient.get<{ farms: Farm[]; total: number }>(
+    const response = await apiClient.get<Farm[] | { farms: Farm[]; total: number }>(
       url,
       {
         cache: true,
         cacheTTL: 60000, // 1 minute cache
       },
     );
-    return response.data.farms;
+    // GET /farms returns a plain list; older responses wrapped it as { farms, total }.
+    const data: any = response.data;
+    return Array.isArray(data) ? data : (data?.farms ?? []);
   }
 
   /**

@@ -1,7 +1,8 @@
 from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
+from datetime import date as _date, datetime as _datetime
 
 
 class LivestockHealthRecord(BaseModel):
@@ -11,10 +12,21 @@ class LivestockHealthRecord(BaseModel):
     enable: int
     livestock_id: int
     record_type: str
-    record_date: datetime
+    record_date: date
     description: str
     veterinarian_name: str | None = None
-    cost: int | None = None
-    next_due_date: datetime | None = None
+    cost: float | None = None
+    next_due_date: date | None = None
     notes: str | None = None
-    active_role_id: int
+
+
+class LivestockHealthRecordInput(BaseModel):
+    enable: int | None = None
+    livestock_id: int | None = None
+    record_type: str | None = None
+    record_date: _date | None = None
+    description: str | None = None
+    veterinarian_name: str | None = None
+    cost: float | None = None
+    next_due_date: _date | None = None
+    notes: str | None = None

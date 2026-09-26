@@ -66,11 +66,51 @@ class Farm(Model):
             'user': {
                 'name': 'user_id',
                 'key': 'id',
-                'callback': lambda: __import__('app.orm.users', fromlist=['Users']).Users
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
             },
             'owner': {
                 'name': 'owner_id',
                 'key': 'id',
-                'callback': lambda: __import__('app.orm.users', fromlist=['Users']).Users
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
+            },
+            'annual_strategy': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.annual_strategy', fromlist=['AnnualStrategy']).AnnualStrategy
+            },
+            'farm_plot': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.farm_plot', fromlist=['FarmPlot']).FarmPlot
+            },
+            'fertilizer_application': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.fertilizer_application', fromlist=['FertilizerApplication']).FertilizerApplication
+            },
+            'livestock': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.livestock', fromlist=['Livestock']).Livestock
+            },
+            'marketplace_listing': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.marketplace_listing', fromlist=['MarketplaceListing']).MarketplaceListing
+            },
+            'pest_disease_alert': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.pest_disease_alert', fromlist=['PestDiseaseAlert']).PestDiseaseAlert
+            },
+            'soil_test_result': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.soil_test_result', fromlist=['SoilTestResult']).SoilTestResult
+            },
+            'weather_alert': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.weather_alert', fromlist=['WeatherAlert']).WeatherAlert
             },
     }

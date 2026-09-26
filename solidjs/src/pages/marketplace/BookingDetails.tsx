@@ -33,7 +33,7 @@ export const BookingDetails: Component = () => {
     setError('');
 
     try {
-      const bookingId = parseInt(params.id);
+      const bookingId = parseInt(params.id ?? "");
       const response = await AdvanceBookingService.getBookingDetails(bookingId);
       
       setBooking(response.booking);
@@ -53,11 +53,20 @@ export const BookingDetails: Component = () => {
   };
 
   const handleDisputeSubmit = async (dispute: DisputeData) => {
-    // TODO: Implement dispute submission API
-    console.log('Dispute submitted:', dispute);
-    setShowDisputeForm(false);
-    // Show success message
-    alert('Dispute submitted successfully. Our team will review it within 24-48 hours.');
+    try {
+      await AdvanceBookingService.raiseDispute(parseInt(params.id ?? ""), {
+        dispute_reason: dispute.dispute_reason,
+        details: [dispute.evidence_description, dispute.requested_resolution && `Requested resolution: ${dispute.requested_resolution}`]
+          .filter(Boolean).join('\n'),
+        photos: dispute.evidence_photos,
+      });
+      setShowDisputeForm(false);
+      await loadBookingDetails();
+      alert('Dispute submitted successfully. Our team will review it within 24-48 hours.');
+    } catch (err: any) {
+      console.error('Failed to submit dispute:', err);
+      alert(err?.message || 'Failed to submit dispute. Please try again.');
+    }
   };
 
   const getStatusColor = (status: string) => {

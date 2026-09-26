@@ -26,15 +26,37 @@ class AdvanceBooking(Model):
         'status',
         'quality_standards',
         'contract_terms',
-        'active_role_id',
-        'active_role_id',
-        'active_role_id',
     ]
     
     relations = {
-            'active_role': {
-                'name': 'active_role_id',
+            'marketplace_listing': {
+                'name': 'listing_id',
                 'key': 'id',
-                'callback': lambda: __import__('app.orm.active_roles', fromlist=['ActiveRoles']).ActiveRoles
+                'callback': lambda: __import__('app.orm.marketplace_listing', fromlist=['MarketplaceListing']).MarketplaceListing
+            },
+            'buyer': {
+                'name': 'buyer_id',
+                'key': 'id',
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
+            },
+            'farmer': {
+                'name': 'farmer_id',
+                'key': 'id',
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
+            },
+            'market_price': {
+                'name': 'id',
+                'key': 'booking_id',
+                'callback': lambda: __import__('app.orm.market_price', fromlist=['MarketPrice']).MarketPrice
+            },
+            'payment_milestone': {
+                'name': 'id',
+                'key': 'booking_id',
+                'callback': lambda: __import__('app.orm.payment_milestone', fromlist=['PaymentMilestone']).PaymentMilestone
+            },
+            'quality_verification': {
+                'name': 'id',
+                'key': 'booking_id',
+                'callback': lambda: __import__('app.orm.quality_verification', fromlist=['QualityVerification']).QualityVerification
             },
     }

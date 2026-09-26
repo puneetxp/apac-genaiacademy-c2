@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.livestock_marketplace_listing import LivestockMarketplaceListing
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.livestock_marketplace_listing import LivestockMarketplaceListing, LivestockMarketplaceListingInput
 from app.services.livestock_marketplace_listing_service import get_service
+from app.core.auth import get_current_admin
 from typing import List, Dict
 
 
-router = APIRouter(prefix="/isuper/livestock_marketplace_listing", tags=["isuper-livestock_marketplace_listing"])
+router = APIRouter(prefix="/isuper/livestock_marketplace_listing", tags=["isuper-livestock_marketplace_listing"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[LivestockMarketplaceListing])
@@ -20,11 +22,11 @@ def show_isuper_livestock_marketplace_listing(item_id: int):
     return record
 
 @router.post("/", response_model=LivestockMarketplaceListing, status_code=201)
-def create_isuper_livestock_marketplace_listing(payload: LivestockMarketplaceListing):
+def create_isuper_livestock_marketplace_listing(payload: LivestockMarketplaceListingInput):
     return service.create(payload.dict(exclude_unset=True))
 
 @router.put("/{item_id}", response_model=LivestockMarketplaceListing)
-def update_isuper_livestock_marketplace_listing(item_id: int, payload: LivestockMarketplaceListing):
+def update_isuper_livestock_marketplace_listing(item_id: int, payload: LivestockMarketplaceListingInput):
     updated = service.update(item_id, payload.dict(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Livestock_marketplace_listing not found")

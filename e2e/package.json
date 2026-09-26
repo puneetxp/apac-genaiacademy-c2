@@ -14,7 +14,15 @@
     "test:ui": "playwright test --ui",
     "report": "playwright show-report",
     "codegen": "playwright codegen http://localhost:5173",
-    "install:browsers": "playwright install"
+    "install:browsers": "playwright install",
+    "sandbox": "playwright test -c sandbox.config.ts",
+    "sandbox:headed": "SLOWMO=300 playwright test -c sandbox.config.ts --headed",
+    "sandbox:watch": "SLOWMO=800 VIDEO=on playwright test -c sandbox.config.ts --headed",
+    "sandbox:ui": "playwright test -c sandbox.config.ts --ui",
+    "sandbox:debug": "playwright test -c sandbox.config.ts --debug",
+    "sandbox:reset": "./sandbox/reset-db.sh",
+    "sandbox:servers": "./sandbox/start-backend.sh & ./sandbox/start-frontend.sh",
+    "sandbox:report": "playwright show-report sandbox-report"
   },
   "keywords": [
     "e2e",

@@ -2,13 +2,14 @@
 Database configuration and session management
 """
 
-from sqlalchemy import create_engine, event, text
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
-from sqlalchemy.pool import QueuePool
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from typing import Generator, AsyncGenerator
-from contextlib import contextmanager, asynccontextmanager
 import logging
+from contextlib import asynccontextmanager, contextmanager
+from typing import AsyncGenerator, Generator
+
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.pool import QueuePool
 
 from app.core.config import settings
 
@@ -18,10 +19,10 @@ logger = logging.getLogger(__name__)
 if getattr(settings, "GOOGLE_CLOUD_SQL_INSTANCE", None):
     logger.info("Initializing database using Cloud SQL Python Connector (PostgreSQL)...")
     from google.cloud.sql.connector import Connector, IPTypes
-    
+
     # Initialize connector
     connector = Connector()
-    
+
     def getconn():
         return connector.connect(
             settings.GOOGLE_CLOUD_SQL_INSTANCE,
@@ -29,9 +30,9 @@ if getattr(settings, "GOOGLE_CLOUD_SQL_INSTANCE", None):
             user=settings.POSTGRES_USER,
             password=settings.POSTGRES_PASSWORD,
             db=settings.POSTGRES_DB,
-            ip_type=IPTypes.PUBLIC
+            ip_type=IPTypes.PUBLIC,
         )
-        
+
     async def getasyncconn():
         return await connector.connect_async(
             settings.GOOGLE_CLOUD_SQL_INSTANCE,
@@ -39,9 +40,9 @@ if getattr(settings, "GOOGLE_CLOUD_SQL_INSTANCE", None):
             user=settings.POSTGRES_USER,
             password=settings.POSTGRES_PASSWORD,
             db=settings.POSTGRES_DB,
-            ip_type=IPTypes.PUBLIC
+            ip_type=IPTypes.PUBLIC,
         )
-        
+
     engine = create_engine(
         "postgresql+psycopg://",
         creator=getconn,
@@ -49,7 +50,7 @@ if getattr(settings, "GOOGLE_CLOUD_SQL_INSTANCE", None):
         pool_recycle=3600,
         echo=settings.DEBUG,
     )
-    
+
     async_engine = create_async_engine(
         "postgresql+psycopg://",
         async_creator=getasyncconn,
@@ -118,7 +119,7 @@ def receive_close(dbapi_conn, connection_record):
 def get_db() -> Generator[Session, None, None]:
     """
     Dependency function that yields database sessions for FastAPI endpoints
-    
+
     Usage:
         @app.get("/items")
         def get_items(db: Session = Depends(get_db)):
@@ -140,7 +141,7 @@ def get_db() -> Generator[Session, None, None]:
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Async dependency function that yields database sessions for async FastAPI endpoints
-    
+
     Usage:
         @app.get("/items")
         async def get_items(db: AsyncSession = Depends(get_async_db)):
@@ -164,7 +165,7 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
 def get_db_context() -> Generator[Session, None, None]:
     """
     Context manager for manual database session management
-    
+
     Usage:
         with get_db_context() as db:
             user = db.query(User).first()
@@ -186,7 +187,7 @@ def get_db_context() -> Generator[Session, None, None]:
 async def get_async_db_context() -> AsyncGenerator[AsyncSession, None]:
     """
     Async context manager for manual database session management
-    
+
     Usage:
         async with get_async_db_context() as db:
             result = await db.execute(select(User))
@@ -211,6 +212,8 @@ def init_db() -> None:
     Note: In production, use Alembic migrations instead
     """
     try:
+        # NOTE (2026-09-26): don't use this to create tables. The schema is owned by database/Model/*.json
+        # + `php setup.php` (see skills/SKILL.md); SQLAlchemy here is only a connection pool / the users model.
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
     except Exception as e:
@@ -221,7 +224,7 @@ def init_db() -> None:
 def check_db_connection() -> bool:
     """
     Check if database connection is working
-    
+
     Returns:
         bool: True if connection is successful, False otherwise
     """
@@ -238,7 +241,7 @@ def check_db_connection() -> bool:
 async def check_async_db_connection() -> bool:
     """
     Check if async database connection is working
-    
+
     Returns:
         bool: True if connection is successful, False otherwise
     """

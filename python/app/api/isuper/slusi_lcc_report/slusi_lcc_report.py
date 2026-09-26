@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.slusi_lcc_report import SlusiLccReport
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.slusi_lcc_report import SlusiLccReport, SlusiLccReportInput
 from app.services.slusi_lcc_report_service import get_service
+from app.core.auth import get_current_admin
 from typing import List
 
 
-router = APIRouter(prefix="/isuper/slusi_lcc_report", tags=["isuper-slusi_lcc_report"])
+router = APIRouter(prefix="/isuper/slusi_lcc_report", tags=["isuper-slusi_lcc_report"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[SlusiLccReport])

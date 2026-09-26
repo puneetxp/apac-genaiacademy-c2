@@ -1,0 +1,108 @@
+{
+    "name": "veterinarian",
+    "table": "veterinarians",
+    "crud": {
+        "isuper": ["c", "r", "u", "a", "d"],
+        "islogin": ["c", "r", "a", "u", "d"],
+        "public": ["r", "a"]
+    },
+    "enable": 1,
+    "data": [
+        {
+            "name": "added_by_user_id",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "name",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "clinic_name",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "specialization",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'large_animal, poultry, small_ruminant, general, ...'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "species_supported",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'JSON array: cattle, buffalo, goat, poultry, ...'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "phone",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "whatsapp",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "email",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "location_state",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "location_district",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "address",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        },
+        {
+            "name": "available_now",
+            "datatype": "boolean",
+            "sql_attribute": "NOT NULL DEFAULT 1",
+            "mysql_data": "TINYINT(1)"
+        },
+        {
+            "name": "verified",
+            "datatype": "boolean",
+            "sql_attribute": "NOT NULL DEFAULT 0",
+            "mysql_data": "TINYINT(1)"
+        },
+        {
+            "name": "rating",
+            "datatype": "number",
+            "sql_attribute": "DEFAULT 0 COMMENT 'Average rating 0-5'",
+            "mysql_data": "DECIMAL(3,2)"
+        },
+        {
+            "name": "total_ratings",
+            "datatype": "number",
+            "sql_attribute": "DEFAULT 0",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "notes",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        }
+    ]
+}

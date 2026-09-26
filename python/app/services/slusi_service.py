@@ -1,16 +1,16 @@
 """SLUSI Service — orchestrates DSS/Microwatershed ingestion and serves cached soil data."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any
+from datetime import datetime, timedelta, timezone
+from typing import Any  # db kept for compatibility; queries use app.core.db.DB
+from typing import Any as Session
 
 import httpx
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from app.schemas.slusi import (
     FarmSoilProfile,
@@ -20,6 +20,7 @@ from app.schemas.slusi import (
     SLUSIStatus,
 )
 from app.services.dss_parser import DSSParser, SchemaMismatchError
+from app.services.farm_access import run_named
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,9 @@ _POOR_LCC_CLASSES = {"V", "VI", "VII", "VIII"}
 
 
 class SLUSIService:
-    def __init__(self, db: Session) -> None:
+    """Queries run as raw SQL through app.core.db.DB (run_named keeps the :name params); each statement autocommits."""
+
+    def __init__(self, db: Session = None) -> None:
         self.db = db
         self._parser = DSSParser()
 
@@ -49,9 +52,8 @@ class SLUSIService:
 
         upserted = 0
         for report in reports:
-            self.db.execute(
-                text(
-                    """
+            run_named(
+                ("""
                     INSERT INTO slusi_lcc_reports
                         (state, district, report_no, year, total_area_ha,
                          lcc_class_i, lcc_class_ii, lcc_class_iii, lcc_class_iv,
@@ -80,8 +82,7 @@ class SLUSIService:
                         spatial_available     = EXCLUDED.spatial_available,
                         non_spatial_available = EXCLUDED.non_spatial_available,
                         ingested_at           = EXCLUDED.ingested_at
-                    """
-                ),
+                    """),
                 {
                     "state": report.state,
                     "district": report.district,
@@ -105,7 +106,7 @@ class SLUSIService:
             )
             upserted += 1
 
-        self.db.commit()
+        # committed by DB.raw
         logger.info("ingest_lcc_data: upserted %d records", upserted)
         return upserted
 
@@ -140,8 +141,8 @@ class SLUSIService:
 
             for state_name, png_url in state_links:
                 # Check freshness
-                row = self.db.execute(
-                    text(
+                row = run_named(
+                    (
                         "SELECT ingested_at FROM slusi_microwatershed_maps "
                         "WHERE LOWER(state) = LOWER(:state)"
                     ),
@@ -153,7 +154,9 @@ class SLUSIService:
                     if ingested_at.tzinfo is None:
                         ingested_at = ingested_at.replace(tzinfo=timezone.utc)
                     if ingested_at >= cutoff:
-                        logger.debug("Skipping %s — map fresh (ingested %s)", state_name, ingested_at)
+                        logger.debug(
+                            "Skipping %s — map fresh (ingested %s)", state_name, ingested_at
+                        )
                         continue
 
                 # Download PNG
@@ -161,7 +164,9 @@ class SLUSIService:
                     png_resp = await client.get(png_url)
                     if png_resp.status_code != 200:
                         logger.warning(
-                            "Failed to download map for %s: HTTP %d", state_name, png_resp.status_code
+                            "Failed to download map for %s: HTTP %d",
+                            state_name,
+                            png_resp.status_code,
                         )
                         continue
                     map_data = png_resp.content
@@ -170,9 +175,8 @@ class SLUSIService:
                     continue
 
                 # Upsert
-                self.db.execute(
-                    text(
-                        """
+                run_named(
+                    ("""
                         INSERT INTO slusi_microwatershed_maps
                             (state, map_data, file_size_bytes, ingested_at)
                         VALUES
@@ -181,8 +185,7 @@ class SLUSIService:
                             map_data        = EXCLUDED.map_data,
                             file_size_bytes = EXCLUDED.file_size_bytes,
                             ingested_at     = EXCLUDED.ingested_at
-                        """
-                    ),
+                        """),
                     {
                         "state": state_name,
                         "map_data": map_data,
@@ -190,9 +193,11 @@ class SLUSIService:
                         "ingested_at": datetime.now(timezone.utc),
                     },
                 )
-                self.db.commit()
+                # committed by DB.raw
                 downloaded += 1
-                logger.info("Downloaded microwatershed map for %s (%d bytes)", state_name, len(map_data))
+                logger.info(
+                    "Downloaded microwatershed map for %s (%d bytes)", state_name, len(map_data)
+                )
 
         logger.info("ingest_microwatershed_maps: downloaded %d maps", downloaded)
         return downloaded
@@ -207,26 +212,24 @@ class SLUSIService:
         Raises HTTPException(409) if a run is already in progress.
         """
         # Check for running lock
-        running = self.db.execute(
-            text("SELECT id FROM slusi_ingestion_runs WHERE status = 'running' LIMIT 1")
+        running = run_named(
+            ("SELECT id FROM slusi_ingestion_runs WHERE status = 'running' LIMIT 1")
         ).fetchone()
         if running is not None:
             raise HTTPException(status_code=409, detail="An ingestion run is already in progress")
 
         started_at = datetime.now(timezone.utc)
-        result = self.db.execute(
-            text(
-                """
+        result = run_named(
+            ("""
                 INSERT INTO slusi_ingestion_runs (started_at, status, lcc_records_ingested, maps_ingested)
                 VALUES (:started_at, 'running', 0, 0)
                 RETURNING id
-                """
-            ),
+                """),
             {"started_at": started_at},
         )
         new_row = result.fetchone()
         run_id: int = new_row[0] if new_row is not None else 0
-        self.db.commit()
+        # committed by DB.raw
 
         lcc_count = 0
         maps_count = 0
@@ -242,9 +245,8 @@ class SLUSIService:
             status = "failed"
 
         completed_at = datetime.now(timezone.utc)
-        self.db.execute(
-            text(
-                """
+        run_named(
+            ("""
                 UPDATE slusi_ingestion_runs
                 SET status                = :status,
                     lcc_records_ingested  = :lcc_records_ingested,
@@ -252,8 +254,7 @@ class SLUSIService:
                     completed_at          = :completed_at,
                     error_message         = :error_message
                 WHERE id = :run_id
-                """
-            ),
+                """),
             {
                 "status": status,
                 "lcc_records_ingested": lcc_count,
@@ -263,7 +264,7 @@ class SLUSIService:
                 "run_id": run_id,
             },
         )
-        self.db.commit()
+        # committed by DB.raw
 
         return IngestionRunResult(
             run_id=run_id,
@@ -284,9 +285,8 @@ class SLUSIService:
     ) -> list[LCCReport]:
         """Return LCC reports for state/district, optionally filtered by year, sorted year DESC."""
         if year is not None:
-            rows = self.db.execute(
-                text(
-                    """
+            rows = run_named(
+                ("""
                     SELECT state, district, report_no, year, total_area_ha,
                            lcc_class_i, lcc_class_ii, lcc_class_iii, lcc_class_iv,
                            lcc_class_v, lcc_class_vi, lcc_class_vii, lcc_class_viii,
@@ -297,14 +297,12 @@ class SLUSIService:
                       AND LOWER(district) = LOWER(:district)
                       AND year = :year
                     ORDER BY year DESC NULLS LAST
-                    """
-                ),
+                    """),
                 {"state": state, "district": district, "year": year},
             ).fetchall()
         else:
-            rows = self.db.execute(
-                text(
-                    """
+            rows = run_named(
+                ("""
                     SELECT state, district, report_no, year, total_area_ha,
                            lcc_class_i, lcc_class_ii, lcc_class_iii, lcc_class_iv,
                            lcc_class_v, lcc_class_vi, lcc_class_vii, lcc_class_viii,
@@ -314,8 +312,7 @@ class SLUSIService:
                     WHERE LOWER(state) = LOWER(:state)
                       AND LOWER(district) = LOWER(:district)
                     ORDER BY year DESC NULLS LAST
-                    """
-                ),
+                    """),
                 {"state": state, "district": district},
             ).fetchall()
 
@@ -349,8 +346,8 @@ class SLUSIService:
 
     def get_microwatershed_map(self, state: str) -> bytes | None:
         """Return PNG bytes for the given state, or None if not found."""
-        row = self.db.execute(
-            text(
+        row = run_named(
+            (
                 "SELECT map_data FROM slusi_microwatershed_maps "
                 "WHERE LOWER(state) = LOWER(:state)"
             ),
@@ -360,21 +357,19 @@ class SLUSIService:
 
     def get_status(self) -> SLUSIStatus:
         """Return last successful ingestion timestamp, total LCC records, states with maps."""
-        last_run = self.db.execute(
-            text(
+        last_run = run_named(
+            (
                 "SELECT completed_at FROM slusi_ingestion_runs "
                 "WHERE status = 'success' "
                 "ORDER BY completed_at DESC NULLS LAST LIMIT 1"
             )
         ).fetchone()
 
-        total_lcc = self.db.execute(
-            text("SELECT COUNT(*) FROM slusi_lcc_reports")
-        ).scalar() or 0
+        total_lcc = run_named(("SELECT COUNT(*) FROM slusi_lcc_reports")).scalar() or 0
 
-        states_with_maps = self.db.execute(
-            text("SELECT COUNT(*) FROM slusi_microwatershed_maps")
-        ).scalar() or 0
+        states_with_maps = (
+            run_named(("SELECT COUNT(*) FROM slusi_microwatershed_maps")).scalar() or 0
+        )
 
         return SLUSIStatus(
             last_successful_ingestion=last_run[0] if last_run else None,
@@ -418,7 +413,9 @@ class SLUSIService:
             "VIII": report.lcc_class_viii,
         }
         valid_classes = {k: v for k, v in class_areas.items() if v is not None}
-        dominant_class: str | None = max(valid_classes, key=lambda k: valid_classes[k]) if valid_classes else None
+        dominant_class: str | None = (
+            max(valid_classes, key=lambda k: valid_classes[k]) if valid_classes else None
+        )
 
         lcc_summary = LCCSummary(
             dominant_class=dominant_class,
@@ -459,10 +456,15 @@ class SLUSIService:
                         return resp.text
                     logger.warning(
                         "Attempt %d/%d: HTTP %d for %s",
-                        attempt, _RETRY_COUNT, resp.status_code, url,
+                        attempt,
+                        _RETRY_COUNT,
+                        resp.status_code,
+                        url,
                     )
                 except Exception as exc:
-                    logger.warning("Attempt %d/%d: request error for %s: %s", attempt, _RETRY_COUNT, url, exc)
+                    logger.warning(
+                        "Attempt %d/%d: request error for %s: %s", attempt, _RETRY_COUNT, url, exc
+                    )
                     last_exc = exc
 
                 if attempt < _RETRY_COUNT:

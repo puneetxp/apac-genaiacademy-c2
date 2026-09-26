@@ -12,6 +12,7 @@
         "islogin": [
             "c",
             "r",
+            "a",
             "u",
             "d"
         ]
@@ -79,13 +80,13 @@
         },
         {
             "name": "buyer_message",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Initial inquiry message from buyer'",
             "mysql_data": "text"
         },
         {
             "name": "seller_response",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Response from seller'",
             "mysql_data": "text"
         },
@@ -109,7 +110,7 @@
         },
         {
             "name": "delivery_address",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL",
             "mysql_data": "text"
         },
@@ -151,13 +152,13 @@
         },
         {
             "name": "cancellation_reason",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL",
             "mysql_data": "text"
         },
         {
             "name": "notes",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Additional transaction notes'",
             "mysql_data": "text"
         }

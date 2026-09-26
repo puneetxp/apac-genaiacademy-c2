@@ -1,5 +1,6 @@
 import { Component, createSignal, For } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import apiClient from '../../lib/api-client';
 
 interface TransportProviderFormData {
   company_name: string;
@@ -59,22 +60,8 @@ const TransportProviderRegistration: Component = () => {
     setError(null);
 
     try {
-      const response = await fetch('/transport/providers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          ...formData,
-          user_id: parseInt(localStorage.getItem('user_id') || '0')
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to register provider');
-      }
+      // The provider is owned by the signed-in user (set server-side)
+      await apiClient.post('/transport/providers', { ...formData });
 
       setSuccess(true);
       setTimeout(() => {

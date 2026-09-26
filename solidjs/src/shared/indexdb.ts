@@ -10,6 +10,11 @@ export type UseStore = <T>(
 class IndexedDBService {
     dbVersion = 0;
     tables: string[] = tables;
+
+    /** Only generated models get an object store; hand-made services (e.g. 'severe_alert') just skip the cache. */
+    hasStore(table: string): boolean {
+        return this.tables.includes(table);
+    }
     private initPromise: Promise<IDBDatabase> | null = null;
 
     private async ensureDatabase(): Promise<IDBDatabase> {
@@ -65,6 +70,7 @@ class IndexedDBService {
     }
 
     async The_putSomeData<T>(table: string, data: T | T[]) {
+        if (!this.hasStore(table)) return;
         const payload = Array.isArray(data) ? data : [data];
         if (!payload.length) return;
 
@@ -85,6 +91,7 @@ class IndexedDBService {
     }
 
     async The_delSomeData(table: string, del: string | number) {
+        if (!this.hasStore(table)) return;
         try {
             const db = await this.ensureDatabase();
             const tx = db.transaction(table, 'readwrite');
@@ -98,6 +105,7 @@ class IndexedDBService {
     }
 
     async The_getAllData(table: string, callback: (value: any) => void) {
+        if (!this.hasStore(table)) { callback([]); return; }
         try {
             const db = await this.ensureDatabase();
             const tx = db.transaction(table, 'readonly');
@@ -147,16 +155,19 @@ class IndexedDBService {
     }
 
     async The_getall<T>(table: string): Promise<T> {
+        if (!this.hasStore(table)) return [] as unknown as T;
         const t = this.getTable(table);
         return t('readonly', (store) => this.promisifyRequest(store.getAll()));
     }
 
     async The_get(table: string, where: string | number) {
+        if (!this.hasStore(table)) return undefined;
         const t = this.getTable(table);
         return t('readonly', async (store) => this.promisifyRequest(store.get(where)));
     }
 
     async The_clearobject(table: string) {
+        if (!this.hasStore(table)) return;
         const db = await this.ensureDatabase();
         const tx = db.transaction(table, 'readwrite');
         const store = tx.objectStore(table);
@@ -177,6 +188,7 @@ class IndexedDBService {
     }
 
     async The_setData(table: string, data: any) {
+        if (!this.hasStore(table)) return;
         await this.The_clearobject(table);
         await this.The_putSomeData(table, data);
     }

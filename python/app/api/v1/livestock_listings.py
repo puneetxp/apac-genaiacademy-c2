@@ -7,43 +7,43 @@ search, filtering, analytics, and media upload management.
 Compatible with Python 3.14.3, FastAPI 0.115.6
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.auth import get_current_active_user
 from app.core.database import get_db
 from app.schemas.livestock_listing import (
-    LivestockListingCreate,
-    LivestockListingUpdate,
-    LivestockListingResponse,
-    LivestockListingSearchFilters,
-    LivestockListingAnalytics,
-    MediaUploadRequest,
-    MediaUploadResponse,
-    SpeciesEnum,
-    PurposeEnum,
     GenderEnum,
     HealthStatusEnum,
+    ListingStatusEnum,
+    LivestockListingAnalytics,
+    LivestockListingCreate,
+    LivestockListingResponse,
+    LivestockListingSearchFilters,
+    LivestockListingUpdate,
+    MediaUploadRequest,
+    MediaUploadResponse,
+    PurposeEnum,
+    SpeciesEnum,
     VaccinationStatusEnum,
-    ListingStatusEnum
 )
-from app.services.livestock_listing_service import LivestockListingService
+from app.services.livestock_listing_catalog import LivestockListingService
 
 router = APIRouter(prefix="/livestock-listings", tags=["livestock-listings"])
 
 
-# Dependency to get current user ID (simplified for MVP)
-async def get_current_user_id() -> int:
-    """Get current authenticated user ID"""
-    # TODO: Implement proper JWT authentication
-    return 1
+async def get_current_user_id(current_user=Depends(get_current_active_user)) -> int:
+    """The signed-in user's id (this used to be hard-coded to 1, letting everyone act as user 1)."""
+    return current_user.id
 
 
 @router.post("/", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 async def create_livestock_listing(
     listing: LivestockListingCreate,
     db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    user_id: int = Depends(get_current_user_id),
 ):
     """
     Create a new livestock listing.
@@ -68,7 +68,7 @@ async def create_livestock_listing(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create listing: {str(e)}"
+            detail=f"Failed to create listing: {str(e)}",
         )
 
 
@@ -76,7 +76,7 @@ async def create_livestock_listing(
 async def get_livestock_listing(
     listing_id: int,
     increment_views: bool = Query(False, description="Increment view count"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get a livestock listing by ID.
@@ -90,10 +90,7 @@ async def get_livestock_listing(
     listing = await service.get_listing(listing_id, increment_views)
 
     if not listing:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Listing not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
 
     return listing
 
@@ -103,7 +100,7 @@ async def update_livestock_listing(
     listing_id: int,
     listing: LivestockListingUpdate,
     db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    user_id: int = Depends(get_current_user_id),
 ):
     """
     Update a livestock listing.
@@ -117,10 +114,7 @@ async def update_livestock_listing(
         updated_listing = await service.update_listing(listing_id, listing, user_id)
 
         if not updated_listing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Listing not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
 
         return updated_listing
     except ValueError as e:
@@ -128,15 +122,13 @@ async def update_livestock_listing(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update listing: {str(e)}"
+            detail=f"Failed to update listing: {str(e)}",
         )
 
 
 @router.delete("/{listing_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_livestock_listing(
-    listing_id: int,
-    db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    listing_id: int, db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)
 ):
     """
     Delete (deactivate) a livestock listing.
@@ -149,10 +141,7 @@ async def delete_livestock_listing(
         deleted = await service.delete_listing(listing_id, user_id)
 
         if not deleted:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Listing not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
 
         return None
     except ValueError as e:
@@ -160,7 +149,7 @@ async def delete_livestock_listing(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete listing: {str(e)}"
+            detail=f"Failed to delete listing: {str(e)}",
         )
 
 
@@ -177,15 +166,23 @@ async def search_livestock_listings(
     location_state: str = Query(None, description="Filter by state"),
     location_district: str = Query(None, description="Filter by district"),
     health_status: HealthStatusEnum = Query(None, description="Filter by health status"),
-    vaccination_status: VaccinationStatusEnum = Query(None, description="Filter by vaccination status"),
+    vaccination_status: VaccinationStatusEnum = Query(
+        None, description="Filter by vaccination status"
+    ),
     breeding_certified: bool = Query(None, description="Filter by breeding certification"),
-    listing_status: ListingStatusEnum = Query(ListingStatusEnum.ACTIVE, description="Filter by listing status"),
+    listing_status: ListingStatusEnum = Query(
+        ListingStatusEnum.ACTIVE, description="Filter by listing status"
+    ),
     featured_only: bool = Query(False, description="Show only featured listings"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(20, ge=1, le=100, description="Number of records to return"),
-    sort_by: str = Query("created_at", regex="^(created_at|price|views_count|interest_count)$", description="Sort field"),
+    sort_by: str = Query(
+        "created_at",
+        regex="^(created_at|price|views_count|interest_count)$",
+        description="Sort field",
+    ),
     sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Search livestock listings with filters.
@@ -219,25 +216,18 @@ async def search_livestock_listings(
         skip=skip,
         limit=limit,
         sort_by=sort_by,
-        sort_order=sort_order
+        sort_order=sort_order,
     )
 
     service = LivestockListingService(db)
     listings, total_count = await service.search_listings(filters)
 
-    return {
-        "listings": listings,
-        "total": total_count,
-        "skip": skip,
-        "limit": limit
-    }
+    return {"listings": listings, "total": total_count, "skip": skip, "limit": limit}
 
 
 @router.get("/{listing_id}/analytics", response_model=LivestockListingAnalytics)
 async def get_listing_analytics(
-    listing_id: int,
-    db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    listing_id: int, db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)
 ):
     """
     Get analytics for a livestock listing.
@@ -255,10 +245,7 @@ async def get_listing_analytics(
         analytics = await service.get_listing_analytics(listing_id, user_id)
 
         if not analytics:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Listing not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
 
         return analytics
     except ValueError as e:
@@ -266,15 +253,12 @@ async def get_listing_analytics(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get analytics: {str(e)}"
+            detail=f"Failed to get analytics: {str(e)}",
         )
 
 
 @router.post("/{listing_id}/interest", status_code=status.HTTP_200_OK)
-async def register_interest(
-    listing_id: int,
-    db: AsyncSession = Depends(get_db)
-):
+async def register_interest(listing_id: int, db: AsyncSession = Depends(get_db)):
     """
     Register interest in a livestock listing.
 
@@ -285,18 +269,14 @@ async def register_interest(
 
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Listing not found or not active"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found or not active"
         )
 
     return {"message": "Interest registered successfully"}
 
 
 @router.post("/{listing_id}/inquiry", status_code=status.HTTP_200_OK)
-async def register_inquiry(
-    listing_id: int,
-    db: AsyncSession = Depends(get_db)
-):
+async def register_inquiry(listing_id: int, db: AsyncSession = Depends(get_db)):
     """
     Register an inquiry for a livestock listing.
 
@@ -307,8 +287,7 @@ async def register_inquiry(
 
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Listing not found or not active"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found or not active"
         )
 
     return {"message": "Inquiry registered successfully"}
@@ -318,7 +297,7 @@ async def register_inquiry(
 async def get_media_upload_url(
     request: MediaUploadRequest,
     user_id: int = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get a presigned S3 URL for uploading photos or videos.
@@ -333,9 +312,7 @@ async def get_media_upload_url(
     service = LivestockListingService(db)
     try:
         upload_data = service.generate_presigned_upload_url(
-            request.filename,
-            request.content_type,
-            user_id
+            request.filename, request.content_type, user_id
         )
         return MediaUploadResponse(**upload_data)
     except ValueError as e:
@@ -343,14 +320,13 @@ async def get_media_upload_url(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate upload URL: {str(e)}"
+            detail=f"Failed to generate upload URL: {str(e)}",
         )
 
 
 @router.get("/my-listings/dashboard", response_model=Dict[str, Any])
 async def get_seller_dashboard(
-    db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)
 ):
     """
     Get seller dashboard with listing management overview.
@@ -361,46 +337,24 @@ async def get_seller_dashboard(
     - Total views, interests, and inquiries
     - Recent listings
     """
-    from app.orm.livestock_listing import LivestockListing
-    from sqlalchemy import select, func
+    from app.core.db import DB
 
-    # Get listing counts
-    active_count_query = select(func.count()).select_from(LivestockListing).where(
-        LivestockListing.farmer_id == user_id,
-        LivestockListing.status == 'active'
-    )
-    result = await db.execute(active_count_query)
-    active_count = result.scalar()
-
-    total_count_query = select(func.count()).select_from(LivestockListing).where(
-        LivestockListing.farmer_id == user_id
-    )
-    result = await db.execute(total_count_query)
-    total_count = result.scalar()
-
-    # Get aggregate stats
-    stats_query = select(
-        func.sum(LivestockListing.views_count).label('total_views'),
-        func.sum(LivestockListing.interest_count).label('total_interests'),
-        func.sum(LivestockListing.inquiry_count).label('total_inquiries')
-    ).where(LivestockListing.farmer_id == user_id)
-    result = await db.execute(stats_query)
-    stats = result.one()
-
-    # Get recent listings
-    recent_query = select(LivestockListing).where(
-        LivestockListing.farmer_id == user_id
-    ).order_by(LivestockListing.created_at.desc()).limit(5)
-    result = await db.execute(recent_query)
-    recent_listings = result.scalars().all()
-
+    stats = DB.raw(
+        """SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status = 'active') AS active,
+                  COALESCE(SUM(views_count), 0) AS views, COALESCE(SUM(interest_count), 0) AS interests,
+                  COALESCE(SUM(inquiry_count), 0) AS inquiries
+           FROM livestock_listings WHERE farmer_id = ?""",
+        [user_id],
+    ).result[0]
     service = LivestockListingService(db)
+    recent_listings = service.recent_for(user_id)
+    total_count, active_count = stats["total"], stats["active"]
 
     return {
         "total_listings": total_count,
         "active_listings": active_count,
-        "total_views": int(stats.total_views or 0),
-        "total_interests": int(stats.total_interests or 0),
-        "total_inquiries": int(stats.total_inquiries or 0),
-        "recent_listings": [service._format_listing_response(listing) for listing in recent_listings]
+        "total_views": int(stats["views"]),
+        "total_interests": int(stats["interests"]),
+        "total_inquiries": int(stats["inquiries"]),
+        "recent_listings": recent_listings,
     }

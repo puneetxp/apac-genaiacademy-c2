@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pydantic import BaseModel
 from datetime import datetime
+from datetime import datetime as _datetime
 
 
 class ActiveRole(BaseModel):
@@ -10,4 +11,9 @@ class ActiveRole(BaseModel):
     enable: int
     user_id: int
     role_id: int
-    active_role_id: int
+
+
+class ActiveRoleInput(BaseModel):
+    enable: int | None = None
+    user_id: int | None = None
+    role_id: int | None = None

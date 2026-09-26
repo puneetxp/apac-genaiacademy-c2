@@ -24,16 +24,11 @@ export interface Fertilizer_application {
    soil_test_before_id: number | null,
    soil_test_after_id: number | null,
    effectiveness_score: number | null,
-   soil_response_notes: text | null,
+   soil_response_notes: string | null,
    weather_conditions: string | null,
    temperature_celsius: number | null,
    rainfall_mm_24h: number | null,
    recommended_by: string | null,
    recommendation_id: string | null,
-   notes: text | null,
-   active_role_id: number,
-   active_role_id: number,
-   active_role_id: number,
-   active_role_id: number,
-   active_role_id: number
+   notes: string | null
 }

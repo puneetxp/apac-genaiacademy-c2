@@ -1,7 +1,8 @@
 from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
+from datetime import date as _date, datetime as _datetime
 
 
 class Livestock(BaseModel):
@@ -14,17 +15,38 @@ class Livestock(BaseModel):
     species: str
     breed: str
     quantity: int
-    purchase_price: int
-    purchase_date: datetime
+    purchase_price: float
+    purchase_date: date
     purpose: str
-    expected_roi: int | None = None
-    break_even_date: datetime | None = None
+    expected_roi: float | None = None
+    break_even_date: date | None = None
     status: str | None = None
-    latitude: int | None = None
-    longitude: int | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     pincode: str | None = None
     state: str | None = None
     district: str | None = None
     village: str | None = None
     address_line: str | None = None
-    active_role_id: int
+
+
+class LivestockInput(BaseModel):
+    enable: int | None = None
+    farm_id: int | None = None
+    farmer_id: int | None = None
+    species: str | None = None
+    breed: str | None = None
+    quantity: int | None = None
+    purchase_price: float | None = None
+    purchase_date: _date | None = None
+    purpose: str | None = None
+    expected_roi: float | None = None
+    break_even_date: _date | None = None
+    status: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    pincode: str | None = None
+    state: str | None = None
+    district: str | None = None
+    village: str | None = None
+    address_line: str | None = None

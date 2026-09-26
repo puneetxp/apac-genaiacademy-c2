@@ -5,6 +5,8 @@
 
 import { createSignal, createEffect } from 'solid-js';
 import { AuthService, type User, type AuthTokens } from '../services/auth.service';
+import type { ConfirmationResult } from 'firebase/auth';
+import { googleSignInPopup, confirmPhoneOtp, firebaseSignOut, type FirebaseSession } from '../lib/firebase';
 
 // Global state
 const [user, setUser] = createSignal<User | null>(null);
@@ -87,6 +89,45 @@ export async function initializeAuth() {
 }
 
 /**
+ * Turn a Firebase session (Google or phone) into an app session backed by the Postgres user
+ */
+async function completeFirebaseSignIn(getSession: () => Promise<FirebaseSession>, failure: string): Promise<void> {
+  setIsLoading(true);
+  setError(null);
+
+  try {
+    const { idToken, refreshToken } = await getSession();
+    const tokens = await AuthService.firebaseSignIn(idToken, refreshToken);
+    // /auth/refresh looks the user up by this name, so it must be the app username.
+    AuthService.storeTokens(tokens, tokens.user?.username ?? 'firebase-user');
+
+    const userData = await AuthService.getUser(tokens.access_token);
+    setUser(userData);
+    setIsAuthenticated(true);
+    localStorage.setItem('user_data', JSON.stringify(userData));
+  } catch (err) {
+    setError(err instanceof Error ? err.message : failure);
+    throw err;
+  } finally {
+    setIsLoading(false);
+  }
+}
+
+/**
+ * Sign in with Google (Firebase popup) — no password or phone needed
+ */
+export function signInWithGoogle(): Promise<void> {
+  return completeFirebaseSignIn(googleSignInPopup, 'Google sign-in failed');
+}
+
+/**
+ * Finish phone sign-in with the SMS code from sendPhoneOtp()
+ */
+export function signInWithPhoneOtp(confirmation: ConfirmationResult, code: string): Promise<void> {
+  return completeFirebaseSignIn(() => confirmPhoneOtp(confirmation, code), 'Phone sign-in failed');
+}
+
+/**
  * Sign in user
  */
 export async function signIn(username: string, password: string): Promise<{ requiresMFA: boolean; session?: string }> {
@@ -159,6 +200,7 @@ export async function signOut(): Promise<void> {
     if (tokens) {
       await AuthService.signOut(tokens.access_token);
     }
+    await firebaseSignOut();
   } catch (err) {
     console.error('Sign out error:', err);
     // Continue with local sign out even if API call fails

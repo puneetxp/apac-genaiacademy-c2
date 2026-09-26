@@ -2,6 +2,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from datetime import datetime as _datetime
 
 
 class WeatherAlert(BaseModel):
@@ -19,4 +20,17 @@ class WeatherAlert(BaseModel):
     valid_from: datetime
     valid_until: datetime
     is_active: bool | None = None
-    active_role_id: int
+
+
+class WeatherAlertInput(BaseModel):
+    enable: int | None = None
+    farm_id: int | None = None
+    state: str | None = None
+    district: str | None = None
+    alert_type: str | None = None
+    severity: str | None = None
+    message: str | None = None
+    recommendation: str | None = None
+    valid_from: _datetime | None = None
+    valid_until: _datetime | None = None
+    is_active: bool | None = None

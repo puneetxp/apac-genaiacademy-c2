@@ -1,4 +1,5 @@
 import { Component, For, Show, createSignal, onMount } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 
 import {
     FiPlus,
@@ -7,11 +8,13 @@ import {
     FiShield,
     FiTrendingUp,
     FiCalendar,
-    FiAlertCircle
+    FiAlertCircle,
+    FiPhoneCall
 } from 'solid-icons/fi';
 import { LivestockService, Livestock_health_recordService } from '../../shared/Service/Services';
 
 const LivestockHub: Component = () => {
+    const navigate = useNavigate();
     const [selectedTab, setSelectedTab] = createSignal<'overview' | 'health' | 'production'>('overview');
 
     // Fetch livestock data
@@ -41,10 +44,19 @@ const LivestockHub: Component = () => {
                             <h1 class="text-3xl font-black text-slate-900 tracking-tight">Livestock Hub</h1>
                             <p class="text-slate-500 font-medium">Precision management for your animal assets</p>
                         </div>
-                        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 group">
-                            <FiPlus class="group-hover:rotate-90 transition-transform" />
-                            <span>Add Livestock</span>
-                        </button>
+                        <div class="flex gap-3">
+                            <button
+                                onClick={() => navigate('/livestock/doctors')}
+                                class="bg-white border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-600 px-6 py-3 rounded-2xl font-bold transition-all flex items-center gap-2"
+                            >
+                                <FiPhoneCall />
+                                <span>Call a Doctor</span>
+                            </button>
+                            <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 group">
+                                <FiPlus class="group-hover:rotate-90 transition-transform" />
+                                <span>Add Livestock</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Stats Grid */}

@@ -18,7 +18,5 @@ export interface Pest_disease_alert {
    notification_sent: boolean | null,
    notification_sent_at: Date | null,
    is_resolved: boolean | null,
-   resolved_at: Date | null,
-   active_role_id: number,
-   active_role_id: number
+   resolved_at: Date | null
 }

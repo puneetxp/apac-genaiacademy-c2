@@ -12,6 +12,7 @@
         "islogin": [
             "c",
             "r",
+            "a",
             "u",
             "d"
         ],
@@ -60,19 +61,19 @@
         },
         {
             "name": "service_areas",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NOT NULL COMMENT 'JSON array of states/districts served'",
             "mysql_data": "text"
         },
         {
             "name": "vehicle_types",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NOT NULL COMMENT 'JSON array: truck, tempo, mini_truck, specialized_livestock'",
             "mysql_data": "text"
         },
         {
             "name": "livestock_specialization",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'JSON array: cattle, goat, sheep, poultry, buffalo'",
             "mysql_data": "text"
         },
@@ -132,7 +133,7 @@
         },
         {
             "name": "verification_documents",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'JSON array of S3 document URLs'",
             "mysql_data": "text"
         },

@@ -82,6 +82,7 @@ pyowm>=3.3.0
 # SMS and Notifications
 twilio>=9.4.0
 firebase-admin>=6.6.0
+pywebpush>=2.0.0  # Browser web push (VAPID)
 msal>=1.37.0
 # Fix google-cloud-storage version conflict with firebase-admin
 google-cloud-storage>=1.32.0,<3.0.0

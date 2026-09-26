@@ -6,7 +6,7 @@ export interface Livestock_listing {
    livestock_id: number,
    farmer_id: number,
    title: string,
-   description: text | null,
+   description: string | null,
    species: string,
    breed: string,
    age_years: number | null,
@@ -23,9 +23,9 @@ export interface Livestock_listing {
    milk_production_liters: number | null,
    breeding_certified: boolean | null,
    breeding_certification_number: string | null,
-   genetic_lineage: text | null,
-   photos: text | null,
-   videos: text | null,
+   genetic_lineage: string | null,
+   photos: string | null,
+   videos: string | null,
    location_state: string,
    location_district: string,
    location_village: string | null,
@@ -40,7 +40,5 @@ export interface Livestock_listing {
    interest_count: number | null,
    inquiry_count: number | null,
    featured: boolean | null,
-   featured_until: Date | null,
-   active_role_id: number,
-   active_role_id: number
+   featured_until: Date | null
 }

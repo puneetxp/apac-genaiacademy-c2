@@ -25,7 +25,7 @@ const FarmDashboardPage: Component = () => {
   const [isLoading, setIsLoading] = createSignal(true);
 
   createEffect(async () => {
-    const farmId = parseInt(params.id);
+    const farmId = parseInt(params.id ?? "");
     if (farmId) {
       try {
         await loadFarm(farmId);
@@ -44,7 +44,7 @@ const FarmDashboardPage: Component = () => {
   };
 
   const handleDelete = async () => {
-    const farmId = parseInt(params.id);
+    const farmId = parseInt(params.id ?? "");
     try {
       await deleteFarm(farmId);
       navigate("/dashboard");
@@ -58,13 +58,13 @@ const FarmDashboardPage: Component = () => {
   };
 
   const handleGenerateStrategy = () => {
-    const farmId = parseInt(params.id);
+    const farmId = parseInt(params.id ?? "");
     navigate(`/strategy/request?farmId=${farmId}`);
   };
 
   const handleUpdateSuccess = async () => {
     setIsEditing(false);
-    const farmId = parseInt(params.id);
+    const farmId = parseInt(params.id ?? "");
     setIsLoading(true);
     try {
       await loadFarm(farmId);

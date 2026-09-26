@@ -1,6 +1,6 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
-from app.models.marketplace_listing import MarketplaceListing
+from app.models.marketplace_listing import MarketplaceListing, MarketplaceListingInput
 from app.services.marketplace_listing_service import get_service
 
 

@@ -11,23 +11,23 @@ Task 28.1: Implement AI-powered nutrition advisor
 
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from datetime import date, datetime
 from decimal import Decimal
-from datetime import datetime, date
+from typing import Any, Dict, List, Optional
 
+from app.core.cache import TTL_BEDROCK_API, get_cache_manager
 from app.services.bedrock_service import bedrock_service
-from app.core.cache import get_cache_manager, TTL_BEDROCK_API
 
 logger = logging.getLogger(__name__)
 
 
 class LivestockNutritionService:
     """Service for AI-powered livestock nutrition recommendations"""
-    
+
     def __init__(self):
         """Initialize nutrition service with Bedrock integration"""
         self.bedrock = bedrock_service
-    
+
     def get_feeding_recommendations(
         self,
         species: str,
@@ -37,11 +37,11 @@ class LivestockNutritionService:
         purpose: str,
         lactation_status: Optional[str] = None,
         milk_production_liters: Optional[float] = None,
-        location_state: Optional[str] = None
+        location_state: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Generate personalized feeding recommendations using Bedrock AI
-        
+
         Args:
             species: Livestock species (cattle, buffalo, goat, poultry)
             breed: Breed name
@@ -51,11 +51,11 @@ class LivestockNutritionService:
             lactation_status: For dairy animals (dry, early_lactation, peak_lactation, late_lactation)
             milk_production_liters: Current milk production per day (for dairy)
             location_state: State for regional feed availability
-        
+
         Returns:
             Comprehensive feeding recommendations with nutritional requirements
         """
-        
+
         # Check cache first
         cache_manager = get_cache_manager()
         if cache_manager and cache_manager.enabled:
@@ -67,17 +67,17 @@ class LivestockNutritionService:
                 weight_kg=weight_kg,
                 purpose=purpose,
                 lactation_status=lactation_status or "",
-                milk_production_liters=milk_production_liters or 0
+                milk_production_liters=milk_production_liters or 0,
             )
-            
+
             cached_result = cache_manager.get(cache_key)
             if cached_result:
                 logger.info(f"Cache hit for feeding recommendations: {species}, {breed}")
                 return cached_result
-        
+
         # Determine growth stage
         growth_stage = self._determine_growth_stage(species, age_months, lactation_status)
-        
+
         prompt = f"""You are an expert livestock nutritionist. Provide comprehensive feeding recommendations for:
 
 Livestock Details:
@@ -190,33 +190,35 @@ Provide ONLY the JSON response, no additional text."""
 
         try:
             response_text = self.bedrock._invoke_claude(prompt, max_tokens=3000, temperature=0.1)
-            
+
             # Extract JSON from response
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
-            
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
             if json_start >= 0 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
                 recommendations = json.loads(json_text)
-                
+
                 # Cache the result with 6-hour TTL
                 if cache_manager and cache_manager.enabled:
                     cache_manager.set(cache_key, recommendations, TTL_BEDROCK_API)
-                    logger.info(f"Cached feeding recommendations for {species}, {breed} (6-hour TTL)")
-                
+                    logger.info(
+                        f"Cached feeding recommendations for {species}, {breed} (6-hour TTL)"
+                    )
+
                 logger.info(f"Generated feeding recommendations for {species}, {breed}")
                 return recommendations
             else:
                 logger.warning("Could not parse JSON from Bedrock response")
                 return self._create_fallback_recommendations(species, weight_kg, purpose)
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error: {e}")
             return self._create_fallback_recommendations(species, weight_kg, purpose)
         except Exception as e:
             logger.error(f"Feeding recommendations error: {e}")
             raise
-    
+
     def optimize_feed_cost(
         self,
         species: str,
@@ -224,11 +226,11 @@ Provide ONLY the JSON response, no additional text."""
         purpose: str,
         nutritional_requirements: Dict[str, Any],
         available_feeds: List[Dict[str, Any]],
-        location_state: Optional[str] = None
+        location_state: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Optimize feed composition to meet nutritional requirements at minimum cost
-        
+
         Args:
             species: Livestock species
             weight_kg: Current weight in kg
@@ -236,11 +238,11 @@ Provide ONLY the JSON response, no additional text."""
             nutritional_requirements: Required nutrients (from get_feeding_recommendations)
             available_feeds: List of available feed ingredients with prices
             location_state: State for regional feed availability
-        
+
         Returns:
             Optimized feed plan with minimum cost meeting all requirements
         """
-        
+
         # Check cache first
         cache_manager = get_cache_manager()
         if cache_manager and cache_manager.enabled:
@@ -250,14 +252,14 @@ Provide ONLY the JSON response, no additional text."""
                 weight_kg=weight_kg,
                 purpose=purpose,
                 requirements_hash=hash(json.dumps(nutritional_requirements, sort_keys=True)),
-                feeds_hash=hash(json.dumps(available_feeds, sort_keys=True))
+                feeds_hash=hash(json.dumps(available_feeds, sort_keys=True)),
             )
-            
+
             cached_result = cache_manager.get(cache_key)
             if cached_result:
                 logger.info(f"Cache hit for feed optimization: {species}")
                 return cached_result
-        
+
         prompt = f"""You are an expert livestock nutritionist specializing in feed cost optimization. 
 
 Livestock Details:
@@ -342,33 +344,33 @@ Provide ONLY the JSON response."""
 
         try:
             response_text = self.bedrock._invoke_claude(prompt, max_tokens=2500, temperature=0.1)
-            
+
             # Extract JSON from response
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
-            
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
             if json_start >= 0 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
                 optimization = json.loads(json_text)
-                
+
                 # Cache the result with 6-hour TTL
                 if cache_manager and cache_manager.enabled:
                     cache_manager.set(cache_key, optimization, TTL_BEDROCK_API)
                     logger.info(f"Cached feed optimization for {species} (6-hour TTL)")
-                
+
                 logger.info(f"Generated feed cost optimization for {species}")
                 return optimization
             else:
                 logger.warning("Could not parse JSON from Bedrock response")
                 return {}
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error: {e}")
             return {}
         except Exception as e:
             logger.error(f"Feed optimization error: {e}")
             raise
-    
+
     def get_growth_stage_nutrition_plan(
         self,
         species: str,
@@ -376,11 +378,11 @@ Provide ONLY the JSON response."""
         purpose: str,
         current_age_months: int,
         current_weight_kg: float,
-        target_weight_kg: Optional[float] = None
+        target_weight_kg: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Generate nutritional planning for different growth stages
-        
+
         Args:
             species: Livestock species
             breed: Breed name
@@ -388,11 +390,11 @@ Provide ONLY the JSON response."""
             current_age_months: Current age in months
             current_weight_kg: Current weight in kg
             target_weight_kg: Target weight (for meat animals)
-        
+
         Returns:
             Comprehensive nutrition plan across all growth stages
         """
-        
+
         # Check cache first
         cache_manager = get_cache_manager()
         if cache_manager and cache_manager.enabled:
@@ -403,14 +405,14 @@ Provide ONLY the JSON response."""
                 purpose=purpose,
                 current_age_months=current_age_months,
                 current_weight_kg=current_weight_kg,
-                target_weight_kg=target_weight_kg or 0
+                target_weight_kg=target_weight_kg or 0,
             )
-            
+
             cached_result = cache_manager.get(cache_key)
             if cached_result:
                 logger.info(f"Cache hit for growth stage plan: {species}, {breed}")
                 return cached_result
-        
+
         prompt = f"""You are an expert livestock nutritionist. Create a comprehensive growth stage nutrition plan for:
 
 Livestock Details:
@@ -496,33 +498,33 @@ Provide ONLY the JSON response."""
 
         try:
             response_text = self.bedrock._invoke_claude(prompt, max_tokens=3500, temperature=0.1)
-            
+
             # Extract JSON from response
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
-            
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
             if json_start >= 0 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
                 plan = json.loads(json_text)
-                
+
                 # Cache the result with 6-hour TTL
                 if cache_manager and cache_manager.enabled:
                     cache_manager.set(cache_key, plan, TTL_BEDROCK_API)
                     logger.info(f"Cached growth stage plan for {species}, {breed} (6-hour TTL)")
-                
+
                 logger.info(f"Generated growth stage nutrition plan for {species}, {breed}")
                 return plan
             else:
                 logger.warning("Could not parse JSON from Bedrock response")
                 return {}
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error: {e}")
             return {}
         except Exception as e:
             logger.error(f"Growth stage plan error: {e}")
             raise
-    
+
     def generate_feed_efficiency_report(
         self,
         livestock_id: int,
@@ -532,11 +534,11 @@ Provide ONLY the JSON response."""
         current_weight_kg: float,
         days_elapsed: int,
         total_feed_cost_inr: float,
-        milk_production_liters: Optional[float] = None
+        milk_production_liters: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Generate feed efficiency report with cost per kg gain
-        
+
         Args:
             livestock_id: Livestock ID
             species: Livestock species
@@ -546,16 +548,16 @@ Provide ONLY the JSON response."""
             days_elapsed: Days since start
             total_feed_cost_inr: Total feed cost in INR
             milk_production_liters: Average daily milk production (for dairy)
-        
+
         Returns:
             Comprehensive feed efficiency report with recommendations
         """
-        
+
         # Calculate basic metrics
         weight_gain_kg = current_weight_kg - start_weight_kg
         avg_daily_gain_kg = weight_gain_kg / days_elapsed if days_elapsed > 0 else 0
         cost_per_kg_gain = total_feed_cost_inr / weight_gain_kg if weight_gain_kg > 0 else 0
-        
+
         prompt = f"""You are an expert livestock nutritionist. Analyze feed efficiency and provide recommendations:
 
 Livestock Performance Data:
@@ -639,73 +641,67 @@ Provide ONLY the JSON response."""
 
         try:
             response_text = self.bedrock._invoke_claude(prompt, max_tokens=2500, temperature=0.1)
-            
+
             # Extract JSON from response
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
-            
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
             if json_start >= 0 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
                 report = json.loads(json_text)
-                
+
                 logger.info(f"Generated feed efficiency report for livestock {livestock_id}")
                 return report
             else:
                 logger.warning("Could not parse JSON from Bedrock response")
                 return {}
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error: {e}")
             return {}
         except Exception as e:
             logger.error(f"Feed efficiency report error: {e}")
             raise
-    
+
     def _determine_growth_stage(
-        self,
-        species: str,
-        age_months: int,
-        lactation_status: Optional[str] = None
+        self, species: str, age_months: int, lactation_status: Optional[str] = None
     ) -> str:
         """Determine growth stage based on species and age"""
-        
+
         if lactation_status:
             return f"lactating_{lactation_status}"
-        
-        if species in ['cattle', 'buffalo']:
+
+        if species in ["cattle", "buffalo"]:
             if age_months < 6:
-                return 'calf'
+                return "calf"
             elif age_months < 18:
-                return 'growing'
+                return "growing"
             else:
-                return 'adult'
-        elif species == 'goat':
+                return "adult"
+        elif species == "goat":
             if age_months < 4:
-                return 'kid'
+                return "kid"
             elif age_months < 12:
-                return 'growing'
+                return "growing"
             else:
-                return 'adult'
-        elif species == 'poultry':
+                return "adult"
+        elif species == "poultry":
             if age_months < 2:
-                return 'chick'
+                return "chick"
             elif age_months < 5:
-                return 'growing'
+                return "growing"
             else:
-                return 'adult'
+                return "adult"
         else:
-            return 'unknown'
-    
+            return "unknown"
+
     def _create_fallback_recommendations(
-        self,
-        species: str,
-        weight_kg: float,
-        purpose: str
+        self, species: str, weight_kg: float, purpose: str
     ) -> Dict[str, Any]:
         """Create basic fallback recommendations when Bedrock fails"""
-        
+
         # Simple fallback based on species
-        if species in ['cattle', 'buffalo']:
+        if species in ["cattle", "buffalo"]:
             return {
                 "daily_requirements": {
                     "dry_matter_intake_kg": weight_kg * 0.025,
@@ -714,7 +710,7 @@ Provide ONLY the JSON response."""
                     "metabolizable_energy_mj": weight_kg * 0.5,
                     "calcium_grams": 50,
                     "phosphorus_grams": 30,
-                    "vitamins_minerals": ["Vitamin A", "Vitamin D", "Vitamin E"]
+                    "vitamins_minerals": ["Vitamin A", "Vitamin D", "Vitamin E"],
                 },
                 "feed_composition": {
                     "green_fodder_kg": 20.0,
@@ -722,21 +718,18 @@ Provide ONLY the JSON response."""
                     "concentrate_kg": 3.0,
                     "mineral_mixture_grams": 50,
                     "salt_grams": 30,
-                    "water_liters": 40
+                    "water_liters": 40,
                 },
                 "feed_ingredients": [],
-                "feeding_schedule": {
-                    "meals_per_day": 3,
-                    "schedule": []
-                },
+                "feeding_schedule": {"meals_per_day": 3, "schedule": []},
                 "special_considerations": ["Consult veterinarian for specific recommendations"],
                 "cost_estimation": {
                     "daily_cost_inr": 150,
                     "monthly_cost_inr": 4500,
-                    "cost_breakdown": {}
+                    "cost_breakdown": {},
                 },
                 "growth_stage": "adult",
-                "confidence_score": 0.5
+                "confidence_score": 0.5,
             }
         else:
             return {
@@ -745,9 +738,13 @@ Provide ONLY the JSON response."""
                 "feed_ingredients": [],
                 "feeding_schedule": {"meals_per_day": 2, "schedule": []},
                 "special_considerations": ["Consult veterinarian for specific recommendations"],
-                "cost_estimation": {"daily_cost_inr": 50, "monthly_cost_inr": 1500, "cost_breakdown": {}},
+                "cost_estimation": {
+                    "daily_cost_inr": 50,
+                    "monthly_cost_inr": 1500,
+                    "cost_breakdown": {},
+                },
                 "growth_stage": "adult",
-                "confidence_score": 0.5
+                "confidence_score": 0.5,
             }
 
 

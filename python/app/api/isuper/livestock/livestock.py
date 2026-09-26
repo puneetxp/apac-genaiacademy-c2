@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.livestock import Livestock
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.livestock import Livestock, LivestockInput
 from app.services.livestock_service import get_service
+from app.core.auth import get_current_admin
 from typing import List, Dict
 
 
-router = APIRouter(prefix="/isuper/livestock", tags=["isuper-livestock"])
+router = APIRouter(prefix="/isuper/livestock", tags=["isuper-livestock"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[Livestock])
@@ -20,11 +22,11 @@ def show_isuper_livestock(item_id: int):
     return record
 
 @router.post("/", response_model=Livestock, status_code=201)
-def create_isuper_livestock(payload: Livestock):
+def create_isuper_livestock(payload: LivestockInput):
     return service.create(payload.dict(exclude_unset=True))
 
 @router.put("/{item_id}", response_model=Livestock)
-def update_isuper_livestock(item_id: int, payload: Livestock):
+def update_isuper_livestock(item_id: int, payload: LivestockInput):
     updated = service.update(item_id, payload.dict(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Livestock not found")

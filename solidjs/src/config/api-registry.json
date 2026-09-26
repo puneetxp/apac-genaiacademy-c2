@@ -68,7 +68,8 @@
       "cancel": "/marketplace/advance-bookings/{id}/cancel",
       "confirm": "/marketplace/advance-bookings/{id}/confirm",
       "complete": "/marketplace/advance-bookings/{id}/complete",
-      "qualityVerify": "/marketplace/advance-bookings/{id}/quality-verify"
+      "qualityVerify": "/marketplace/advance-bookings/{id}/quality-verify",
+    "dispute": "/marketplace/advance-bookings/{id}/dispute"
     },
     "marketData": {
       "prices": "/market-data/prices",
@@ -95,7 +96,9 @@
     "notifications": {
       "subscribe": "/notifications/subscribe",
       "unsubscribe": "/notifications/unsubscribe",
-      "send": "/notifications/send"
+      "send": "/notifications/send",
+      "test": "/notifications/test",
+      "vapidPublicKey": "/notifications/vapid-public-key"
     },
     "weather": {
       "current": "/weather/current",

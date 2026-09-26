@@ -10,7 +10,8 @@
             "d"
         ],
         "islogin": [
-            "r"
+            "r",
+            "a"
         ],
         "public": [
             "r"
@@ -117,7 +118,7 @@
         },
         {
             "name": "factors",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'JSON of factors influencing prediction'",
             "mysql_data": "text"
         }

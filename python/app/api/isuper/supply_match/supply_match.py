@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.supply_match import SupplyMatch
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.supply_match import SupplyMatch, SupplyMatchInput
 from app.services.supply_match_service import get_service
+from app.core.auth import get_current_admin
 from typing import List, Dict
 
 
-router = APIRouter(prefix="/isuper/supply_match", tags=["isuper-supply_match"])
+router = APIRouter(prefix="/isuper/supply_match", tags=["isuper-supply_match"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[SupplyMatch])
@@ -20,11 +22,11 @@ def show_isuper_supply_match(item_id: int):
     return record
 
 @router.post("/", response_model=SupplyMatch, status_code=201)
-def create_isuper_supply_match(payload: SupplyMatch):
+def create_isuper_supply_match(payload: SupplyMatchInput):
     return service.create(payload.dict(exclude_unset=True))
 
 @router.put("/{item_id}", response_model=SupplyMatch)
-def update_isuper_supply_match(item_id: int, payload: SupplyMatch):
+def update_isuper_supply_match(item_id: int, payload: SupplyMatchInput):
     updated = service.update(item_id, payload.dict(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Supply_match not found")

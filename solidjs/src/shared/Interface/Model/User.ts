@@ -3,8 +3,8 @@ export interface User {
    created_at: Date,
    updated_at: Date,
    enable: number,
-   cognito_user_id: string, // Database compatibility field name; maps to Firebase / Identity Platform UID under the hood
-   firebase_id: string, // GCP / Firebase UID
+   cognito_user_id: string,
+   firebase_id: string,
    username: string,
    name: string,
    email: string,

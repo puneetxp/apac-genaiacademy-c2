@@ -327,7 +327,7 @@ export const VerifierManagement: Component<VerifierManagementProps> = (props) =>
                     </div>
                     <div>
                       <p class="text-xs text-gray-500">Rating</p>
-                      <p class="text-sm font-medium">⭐ {verifier.rating.toFixed(1)}</p>
+                      <p class="text-sm font-medium">⭐ {Number(verifier.rating ?? 0).toFixed(1)}</p>
                     </div>
                     <div>
                       <p class="text-xs text-gray-500">Verifications</p>

@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.farm import Farm
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.farm import Farm, FarmInput
 from app.services.farm_service import get_service
+from app.core.auth import get_current_admin
 from typing import List, Dict
 
 
-router = APIRouter(prefix="/isuper/farm", tags=["isuper-farm"])
+router = APIRouter(prefix="/isuper/farm", tags=["isuper-farm"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[Farm])
@@ -20,11 +22,11 @@ def show_isuper_farm(item_id: int):
     return record
 
 @router.post("/", response_model=Farm, status_code=201)
-def create_isuper_farm(payload: Farm):
+def create_isuper_farm(payload: FarmInput):
     return service.create(payload.dict(exclude_unset=True))
 
 @router.put("/{item_id}", response_model=Farm)
-def update_isuper_farm(item_id: int, payload: Farm):
+def update_isuper_farm(item_id: int, payload: FarmInput):
     updated = service.update(item_id, payload.dict(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Farm not found")

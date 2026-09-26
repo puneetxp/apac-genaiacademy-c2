@@ -1,0 +1,215 @@
+{
+    "name": "soil_amendment",
+    "table": "soil_amendments",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "a",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "follow_up_soil_test": {
+            "name": "follow_up_soil_test_id",
+            "key": "id",
+            "table": "soil_tests"
+        },
+        "plot": {
+            "name": "plot_id",
+            "key": "id",
+            "table": "farm_plots"
+        }
+    },
+    "data": [
+        {
+            "name": "plot_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "amendment_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "amendment_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "amendment_name",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(200)"
+        },
+        {
+            "name": "primary_purpose",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "target_improvement",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "quantity",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "unit",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "quantity_per_acre",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "application_method",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "incorporation_depth",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "cost",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "cost_per_acre",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "organic_matter_content",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "nutrient_content",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "carbon_nitrogen_ratio",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(5,2)"
+        },
+        {
+            "name": "current_ph",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,1)"
+        },
+        {
+            "name": "target_ph",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,1)"
+        },
+        {
+            "name": "expected_ph_change",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(3,1)"
+        },
+        {
+            "name": "days_before_planting",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "soil_moisture_at_application",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "weather_conditions",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "expected_benefits",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "expected_duration_months",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "actual_benefits",
+            "datatype": "json",
+            "sql_attribute": "NULL",
+            "mysql_data": "jsonb"
+        },
+        {
+            "name": "effectiveness_rating",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "follow_up_soil_test_id",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "recommendation_source",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "recommended_by",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "notes",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        }
+    ]
+}

@@ -11,8 +11,7 @@ export interface Crop_milestone {
    actual_end_date: Date | null,
    status: string | null,
    progress_percentage: number | null,
-   recommendations: text | null,
-   notes: text | null,
-   alert_sent: boolean | null,
-   active_role_id: number
+   recommendations: string | null,
+   notes: string | null,
+   alert_sent: boolean | null
 }

@@ -1,7 +1,8 @@
 from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
+from datetime import date as _date, datetime as _datetime
 
 
 class CropExpense(BaseModel):
@@ -11,7 +12,15 @@ class CropExpense(BaseModel):
     enable: int
     crop_id: int
     category: str
-    amount: int
+    amount: float
     description: str | None = None
-    expense_date: datetime
-    active_role_id: int
+    expense_date: date
+
+
+class CropExpenseInput(BaseModel):
+    enable: int | None = None
+    crop_id: int | None = None
+    category: str | None = None
+    amount: float | None = None
+    description: str | None = None
+    expense_date: _date | None = None

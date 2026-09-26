@@ -2,7 +2,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-from decimal import Decimal
+from datetime import datetime as _datetime
 
 
 class MspRate(BaseModel):
@@ -13,12 +13,22 @@ class MspRate(BaseModel):
     crop_name: str
     year: int
     season: str
-    msp_per_quintal: Decimal
-    msp_per_kg: Optional[Decimal] = None
-    increase_over_previous: Optional[Decimal] = None
-    cost_of_production: Optional[Decimal] = None
-    return_over_cost_percent: Optional[Decimal] = None
-    source: Optional[str] = None
+    msp_per_quintal: float
+    msp_per_kg: float | None = None
+    increase_over_previous: float | None = None
+    cost_of_production: float | None = None
+    return_over_cost_percent: float | None = None
+    source: str | None = None
 
-    class Config:
-        from_attributes = True
+
+class MspRateInput(BaseModel):
+    enable: int | None = None
+    crop_name: str | None = None
+    year: int | None = None
+    season: str | None = None
+    msp_per_quintal: float | None = None
+    msp_per_kg: float | None = None
+    increase_over_previous: float | None = None
+    cost_of_production: float | None = None
+    return_over_cost_percent: float | None = None
+    source: str | None = None

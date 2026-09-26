@@ -76,6 +76,23 @@ export interface ListingsResponse {
   };
 }
 
+/** A listing with flat variety/state/district, as the browse pages display it. */
+export type BrowseListing = MarketplaceListing & { variety?: string; state?: string; district?: string };
+
+export interface ListingSearch extends ListingFilters {
+  page?: number;
+  page_size?: number;
+  sort_by?: string;
+  sort_order?: string;
+}
+
+const toBrowse = (l: MarketplaceListing): BrowseListing => ({
+  ...l,
+  variety: (l as any).variety ?? l.crop_variety,
+  state: (l as any).state ?? l.location?.state,
+  district: (l as any).district ?? l.location?.district,
+});
+
 export interface BuyerInterestRequest {
   listing_id: string;
   interest_type?: string;
@@ -137,6 +154,27 @@ export class MarketplaceService {
   /**
    * Get listing detail
    */
+  /** Page-at-a-time search for infinite scroll (GET /marketplace/listings). */
+  static async searchListings(search: ListingSearch = {}): Promise<{ items: BrowseListing[]; total: number; has_more: boolean }> {
+    const { page = 1, page_size = 20, sort_by = 'harvest_date', sort_order = 'asc', ...filters } = search;
+    const res = await MarketplaceService.getListings(filters, sort_by, sort_order, page, page_size);
+    return {
+      items: (res?.listings || []).map(toBrowse),
+      total: res?.pagination?.total_items ?? 0,
+      has_more: !!res?.pagination?.has_next,
+    };
+  }
+
+  /** Other active listings of the same crop, for "related" suggestions. */
+  static async getRelatedListings(listingId: string | number, limit: number = 6): Promise<BrowseListing[]> {
+    const detail = await MarketplaceService.getListingDetail(String(listingId));
+    const listing = detail?.listing ?? detail?.data ?? detail;
+    const crop = listing?.crop_type;
+    if (!crop) return [];
+    const res = await MarketplaceService.getListings({ crop_type: crop }, 'harvest_date', 'asc', 1, limit + 1);
+    return (res?.listings || []).filter((l) => String(l.id) !== String(listingId)).slice(0, limit).map(toBrowse);
+  }
+
   static async getListingDetail(listingId: string): Promise<any> {
     const url = buildUrl('marketplace', 'getListing', { id: listingId });
     const response = await apiClient.get(

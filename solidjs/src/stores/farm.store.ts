@@ -161,12 +161,12 @@ export async function createPlot(data: any): Promise<FarmPlot> {
 /**
  * Delete a plot
  */
-export async function deletePlot(id: number): Promise<void> {
+export async function deletePlot(farmId: number, id: number): Promise<void> {
   setIsLoading(true);
   setError(null);
 
   try {
-    await FarmService.deletePlot(id);
+    await FarmService.deletePlot(farmId, id);
     setFarmPlots(farmPlots().filter(p => p.id !== id));
   } catch (err) {
     setError(err instanceof Error ? err.message : 'Failed to delete plot');

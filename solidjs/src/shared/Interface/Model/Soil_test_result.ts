@@ -23,9 +23,7 @@ export interface Soil_test_result {
    boron_ppm: number | null,
    soil_health_score: number | null,
    test_method: string | null,
-   raw_data_json: text | null,
-   recommendations: text | null,
-   notes: text | null,
-   active_role_id: number,
-   active_role_id: number
+   raw_data_json: string | null,
+   recommendations: string | null,
+   notes: string | null
 }

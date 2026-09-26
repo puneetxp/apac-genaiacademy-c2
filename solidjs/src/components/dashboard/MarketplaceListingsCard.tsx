@@ -43,7 +43,7 @@ const MarketplaceListingsCard: Component<MarketplaceListingsCardProps> = (props)
   };
 
   const handleViewListing = (listingId: string) => {
-    navigate(`/marketplace/detail/${listingId}`);
+    navigate(`/marketplace/${listingId}`);
   };
 
   return (

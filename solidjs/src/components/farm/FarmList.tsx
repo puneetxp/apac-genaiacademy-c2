@@ -90,7 +90,7 @@ const FarmList: Component<FarmListProps> = (props) => {
                     <span class="font-medium">Area:</span> {farm.total_area_acres} acres
                   </p>
                   <p>
-                    <span class="font-medium">Soil:</span> {farm.soil_type}
+                    <span class="font-medium">Soil:</span> {farm.primary_soil_type}
                   </p>
                   <p>
                     <span class="font-medium">Irrigation:</span> {farm.irrigation_type}

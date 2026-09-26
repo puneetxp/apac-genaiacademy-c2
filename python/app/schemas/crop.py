@@ -2,23 +2,28 @@
 Crop recommendation and prediction schemas
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
 from datetime import date
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class AnnualStrategyRequest(BaseModel):
     """Request for annual crop strategy"""
+
     farm_id: int = Field(..., description="Farm ID")
     previous_crops: Optional[str] = Field(None, description="Previous crops grown")
     budget_per_acre: Optional[float] = Field(None, gt=0, description="Budget per acre in INR")
     use_gps: bool = Field(False, description="Use GPS-enhanced recommendations (subject to quota)")
     latitude: Optional[float] = Field(None, ge=-90, le=90, description="GPS latitude (optional)")
-    longitude: Optional[float] = Field(None, ge=-180, le=180, description="GPS longitude (optional)")
+    longitude: Optional[float] = Field(
+        None, ge=-180, le=180, description="GPS longitude (optional)"
+    )
 
 
 class SeasonalRecommendation(BaseModel):
     """Seasonal crop recommendation"""
+
     recommended_crop: str
     variety: str
     expected_yield_per_acre: str
@@ -32,6 +37,7 @@ class SeasonalRecommendation(BaseModel):
 
 class AnnualSummary(BaseModel):
     """Annual strategy summary"""
+
     total_expected_profit_per_acre: float
     total_investment_per_acre: float
     roi_percentage: float
@@ -41,6 +47,7 @@ class AnnualSummary(BaseModel):
 
 class AlternativeOption(BaseModel):
     """Alternative crop option"""
+
     season: str
     crop: str
     profit_difference: float
@@ -49,13 +56,17 @@ class AlternativeOption(BaseModel):
 
 class MonthlyAction(BaseModel):
     """Monthly action item"""
+
     month: str
     actions: List[str]
 
 
 class QuotaStatus(BaseModel):
     """AI quota status information"""
-    remaining_quota: Optional[int] = Field(None, description="Remaining GPS-enhanced requests today")
+
+    remaining_quota: Optional[int] = Field(
+        None, description="Remaining GPS-enhanced requests today"
+    )
     gps_enhanced: bool = Field(False, description="Whether GPS-enhanced recommendation was used")
     quota_exceeded: bool = Field(False, description="Whether quota was exceeded")
     fallback_message: Optional[str] = Field(None, description="Message if fallback occurred")
@@ -63,6 +74,7 @@ class QuotaStatus(BaseModel):
 
 class AnnualStrategyResponse(BaseModel):
     """Complete annual crop strategy response"""
+
     farm_id: int
     farm_name: str
     location: str
@@ -78,15 +90,19 @@ class AnnualStrategyResponse(BaseModel):
 
 class CropRecommendationRequest(BaseModel):
     """Request for crop recommendations"""
+
     farm_id: int = Field(..., description="Farm ID")
     season: str = Field(..., description="Season: kharif, rabi, zaid")
     use_gps: bool = Field(False, description="Use GPS-enhanced recommendations (subject to quota)")
     latitude: Optional[float] = Field(None, ge=-90, le=90, description="GPS latitude (optional)")
-    longitude: Optional[float] = Field(None, ge=-180, le=180, description="GPS longitude (optional)")
+    longitude: Optional[float] = Field(
+        None, ge=-180, le=180, description="GPS longitude (optional)"
+    )
 
 
 class CropRecommendation(BaseModel):
     """Single crop recommendation"""
+
     rank: int
     crop_name: str
     variety: str
@@ -102,6 +118,7 @@ class CropRecommendation(BaseModel):
 
 class CropRecommendationsResponse(BaseModel):
     """Crop recommendations response"""
+
     farm_id: int
     season: str
     recommendations: List[CropRecommendation]
@@ -111,6 +128,7 @@ class CropRecommendationsResponse(BaseModel):
 
 class YieldPredictionRequest(BaseModel):
     """Request for yield prediction"""
+
     crop_name: str = Field(..., description="Crop name")
     variety: str = Field(..., description="Crop variety")
     farm_id: int = Field(..., description="Farm ID")
@@ -121,6 +139,7 @@ class YieldPredictionRequest(BaseModel):
 
 class YieldPredictionResponse(BaseModel):
     """Yield prediction response"""
+
     crop_name: str
     variety: str
     harvest_date: str
@@ -135,9 +154,9 @@ class YieldPredictionResponse(BaseModel):
     generated_at: str
 
 
-
 class SaveStrategyRequest(BaseModel):
     """Request to save an annual strategy"""
+
     farm_id: int
     strategy_year: int = Field(..., description="Year for the strategy")
     strategy_data: Dict[str, Any] = Field(..., description="Complete strategy data")
@@ -148,6 +167,7 @@ class SaveStrategyRequest(BaseModel):
 
 class SaveStrategyResponse(BaseModel):
     """Response after saving strategy"""
+
     strategy_id: str
     farm_id: int
     strategy_year: int
@@ -157,12 +177,14 @@ class SaveStrategyResponse(BaseModel):
 
 class GetStrategyRequest(BaseModel):
     """Request to retrieve a strategy"""
+
     farm_id: int
     strategy_year: Optional[int] = None  # If None, get latest
 
 
 class StrategyListItem(BaseModel):
     """Strategy list item for farmer's strategies"""
+
     strategy_id: str
     farm_id: int
     farm_name: str
@@ -177,6 +199,7 @@ class StrategyListItem(BaseModel):
 
 class UpdateStrategyStatusRequest(BaseModel):
     """Request to update strategy implementation status"""
+
     strategy_id: str
     season: str = Field(..., description="kharif, rabi, or zaid")
     implemented: bool
@@ -185,13 +208,16 @@ class UpdateStrategyStatusRequest(BaseModel):
 
 class StrategyFeedbackRequest(BaseModel):
     """Request to provide feedback on strategy"""
+
     strategy_id: str
     rating: int = Field(..., ge=1, le=5, description="Rating from 1-5")
     feedback: Optional[str] = None
     actual_results: Optional[Dict[str, Any]] = None
 
+
 class QuickPlantRequest(BaseModel):
     """Request to quickly plant a crop"""
+
     farm_id: int = Field(..., description="Farm ID")
     plot_id: Optional[int] = Field(None, description="Plot ID (if None, plant in all active plots)")
     crop_name: str = Field(..., description="Crop name")
@@ -201,18 +227,23 @@ class QuickPlantRequest(BaseModel):
     planting_date: date = Field(..., description="Planned planting date")
     expected_harvest_date: date = Field(..., description="Planned harvest date")
     expected_yield: Optional[float] = Field(None, description="Expected yield in quintals")
-    market_price: Optional[float] = Field(None, description="Expected market price per quintal in INR")
+    market_price: Optional[float] = Field(
+        None, description="Expected market price per quintal in INR"
+    )
 
 
 class QuickPlantResponse(BaseModel):
     """Response after quick planting"""
+
     success: bool
     message: str
     crop_ids: List[int]
     total_area_planted: float
 
+
 class CropExpenseRequest(BaseModel):
     """Request to add a crop expense"""
+
     category: str = Field(..., description="Seeds, Labor, Fertilizer, Pesticide, Equipment, Other")
     amount: float = Field(..., gt=0, description="Expense amount in INR")
     description: Optional[str] = Field(None, description="Detailed description")
@@ -221,6 +252,7 @@ class CropExpenseRequest(BaseModel):
 
 class CropExpenseResponse(BaseModel):
     """Response after adding an expense"""
+
     id: int
     crop_id: int
     category: str

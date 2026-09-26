@@ -8,9 +8,9 @@ export interface Transport_provider {
    contact_person: string,
    contact_phone: string,
    contact_email: string | null,
-   service_areas: text,
-   vehicle_types: text,
-   livestock_specialization: text | null,
+   service_areas: string,
+   vehicle_types: string,
+   livestock_specialization: string | null,
    base_rate_per_km: number,
    minimum_charge: number,
    insurance_available: boolean | null,
@@ -20,8 +20,7 @@ export interface Transport_provider {
    total_ratings: number | null,
    completed_transports: number | null,
    verified: boolean | null,
-   verification_documents: text | null,
+   verification_documents: string | null,
    license_number: string | null,
-   status: string | null,
-   active_role_id: number
+   status: string | null
 }

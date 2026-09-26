@@ -9,7 +9,7 @@ import { createInfiniteScroll, createIntersectionObserver } from '../../utils/in
 import { prefetchOnHover, prefetchRelatedListings } from '../../utils/prefetch';
 import { SkeletonLoader, ListingCardSkeleton } from '../../components/ui/SkeletonLoader';
 import { MarketplaceService } from '../../services/marketplace.service';
-import type { MarketplaceListing } from '../../shared/Interface/Model/Marketplace_listing';
+import type { BrowseListing as MarketplaceListing } from '../../services/marketplace.service';
 
 // Lazy load marketplace components
 const SearchFilters = lazy(() => import('../../components/marketplace/SearchFilters'));
@@ -121,8 +121,8 @@ const MarketplaceBrowseInfinitePage: Component = () => {
             {(listing) => (
               <div
                 class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => handleListingClick(listing.id)}
-                onMouseEnter={() => handleListingHover(listing.id)}
+                onClick={() => handleListingClick(Number(listing.id))}
+                onMouseEnter={() => handleListingHover(Number(listing.id))}
               >
                 <h3 class="text-lg font-semibold text-gray-900 mb-2">
                   {listing.crop_type}
@@ -156,7 +156,7 @@ const MarketplaceBrowseInfinitePage: Component = () => {
                     class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleListingClick(listing.id);
+                      handleListingClick(Number(listing.id));
                     }}
                   >
                     View Details

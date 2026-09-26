@@ -3,9 +3,10 @@ RAG-Based Crop Recommendation API
 Validates AC4: RAG system suggests top 3 profitable crops with opportunity cost analysis and 2-crop rotation
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from app.core.database import get_db
 from app.services.crop_recommendation_service import get_crop_recommendation_service
@@ -130,36 +131,38 @@ router = APIRouter(prefix="/crop-recommendations", tags=["Crop Recommendations"]
     - Yield success rates
     - Seasonal trends
     - Amazon Bedrock AI insights
-    """
+    """,
 )
 def get_crop_recommendations(
     state: str = Query(..., description="State name (required)"),
     district: Optional[str] = Query(None, description="District name for specific recommendations"),
     season: Optional[str] = Query(None, description="Season: kharif, rabi, or zaid"),
     soil_type: Optional[str] = Query(None, description="Soil type: clay, sandy, loamy, etc."),
-    irrigation_type: Optional[str] = Query(None, description="Irrigation: rain-fed, canal, borewell"),
+    irrigation_type: Optional[str] = Query(
+        None, description="Irrigation: rain-fed, canal, borewell"
+    ),
     area_acres: Optional[float] = Query(None, description="Farm area in acres", gt=0),
     top_n: int = Query(3, description="Number of top crops to recommend", ge=1, le=10),
     include_rotation: bool = Query(True, description="Include crop rotation recommendations"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get RAG-based crop recommendations with opportunity cost analysis.
-    
-    **Validates AC4**: RAG system suggests top 3 profitable crops with opportunity cost 
+
+    **Validates AC4**: RAG system suggests top 3 profitable crops with opportunity cost
     analysis and 2-crop rotation recommendations.
     """
     try:
         # Validate season if provided
-        if season and season.lower() not in ['kharif', 'rabi', 'zaid']:
+        if season and season.lower() not in ["kharif", "rabi", "zaid"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Season must be one of: kharif, rabi, zaid"
+                detail="Season must be one of: kharif, rabi, zaid",
             )
-        
+
         # Get recommendation service
         service = get_crop_recommendation_service(db)
-        
+
         # Generate recommendations
         recommendations = service.get_rag_crop_recommendations(
             state=state,
@@ -169,17 +172,17 @@ def get_crop_recommendations(
             irrigation_type=irrigation_type,
             area_acres=area_acres,
             top_n=top_n,
-            include_rotation=include_rotation
+            include_rotation=include_rotation,
         )
-        
+
         return recommendations
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate crop recommendations: {str(e)}"
+            detail=f"Failed to generate crop recommendations: {str(e)}",
         )
 
 
@@ -196,28 +199,28 @@ def get_crop_recommendations(
     - Reduced AI enhancement
     
     Use this endpoint when you need fast recommendations without detailed analysis.
-    """
+    """,
 )
 def get_quick_crop_recommendations(
     state: str = Query(..., description="State name (required)"),
     district: Optional[str] = Query(None, description="District name"),
     season: Optional[str] = Query(None, description="Season: kharif, rabi, or zaid"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get quick crop recommendations without rotation analysis.
     """
     try:
         # Validate season if provided
-        if season and season.lower() not in ['kharif', 'rabi', 'zaid']:
+        if season and season.lower() not in ["kharif", "rabi", "zaid"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Season must be one of: kharif, rabi, zaid"
+                detail="Season must be one of: kharif, rabi, zaid",
             )
-        
+
         # Get recommendation service
         service = get_crop_recommendation_service(db)
-        
+
         # Generate quick recommendations (no rotation)
         recommendations = service.get_rag_crop_recommendations(
             state=state,
@@ -227,17 +230,17 @@ def get_quick_crop_recommendations(
             irrigation_type=None,
             area_acres=None,
             top_n=3,
-            include_rotation=False  # Skip rotation for speed
+            include_rotation=False,  # Skip rotation for speed
         )
-        
+
         return recommendations
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate quick recommendations: {str(e)}"
+            detail=f"Failed to generate quick recommendations: {str(e)}",
         )
 
 
@@ -257,7 +260,7 @@ def get_quick_crop_recommendations(
     - Seasonal market trends
     - Weather-appropriate recommendations
     - Season-specific opportunity costs
-    """
+    """,
 )
 def get_season_specific_recommendations(
     season: str,
@@ -265,22 +268,22 @@ def get_season_specific_recommendations(
     district: Optional[str] = Query(None, description="District name"),
     soil_type: Optional[str] = Query(None, description="Soil type"),
     top_n: int = Query(3, description="Number of recommendations", ge=1, le=10),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get season-specific crop recommendations.
     """
     try:
         # Validate season
-        if season.lower() not in ['kharif', 'rabi', 'zaid']:
+        if season.lower() not in ["kharif", "rabi", "zaid"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Season must be one of: kharif, rabi, zaid"
+                detail="Season must be one of: kharif, rabi, zaid",
             )
-        
+
         # Get recommendation service
         service = get_crop_recommendation_service(db)
-        
+
         # Generate season-specific recommendations
         recommendations = service.get_rag_crop_recommendations(
             state=state,
@@ -290,38 +293,36 @@ def get_season_specific_recommendations(
             irrigation_type=None,
             area_acres=None,
             top_n=top_n,
-            include_rotation=True
+            include_rotation=True,
         )
-        
+
         return recommendations
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate season-specific recommendations: {str(e)}"
+            detail=f"Failed to generate season-specific recommendations: {str(e)}",
         )
 
 
-@router.get(
-    "/health",
-    summary="Health check for crop recommendation service"
-)
+@router.get("/health", summary="Health check for crop recommendation service")
 def health_check(db: Session = Depends(get_db)):
     """
     Health check endpoint for crop recommendation service.
-    
+
     Returns service status and connectivity information.
     """
     try:
         # Test database connectivity
         service = get_crop_recommendation_service(db)
-        
+
         # Test basic query
-        from app.orm.crop_profitability import CropProfitability
-        test_query = db.query(CropProfitability).limit(1).first()
-        
+        from app.core.db import DB as RawDB  # raw SQL (app/orm classes are not SQLAlchemy models)
+
+        test_query = RawDB.raw("SELECT id FROM crop_profitability LIMIT 1").result
+
         return {
             "status": "healthy",
             "service": "crop_recommendation",
@@ -332,12 +333,10 @@ def health_check(db: Session = Depends(get_db)):
                 "top_crop_recommendations": True,
                 "opportunity_cost_analysis": True,
                 "crop_rotation_recommendations": True,
-                "ai_insights": True
-            }
+                "ai_insights": True,
+            },
         }
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Service unhealthy: {str(e)}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Service unhealthy: {str(e)}"
         )
-

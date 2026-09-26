@@ -35,6 +35,7 @@ const SignUpPage: Component = () => {
       <Show when={step() === 'signup'}>
         <SignUpForm
           onSuccess={handleSignUpSuccess}
+          onQuickSuccess={() => navigate('/dashboard')}
           onSignInClick={handleSignInClick}
         />
       </Show>

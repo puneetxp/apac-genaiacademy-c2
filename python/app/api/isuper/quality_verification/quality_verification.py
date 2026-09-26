@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.quality_verification import QualityVerification
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.quality_verification import QualityVerification, QualityVerificationInput
 from app.services.quality_verification_service import get_service
+from app.core.auth import get_current_admin
 from typing import List, Dict
 
 
-router = APIRouter(prefix="/isuper/quality_verification", tags=["isuper-quality_verification"])
+router = APIRouter(prefix="/isuper/quality_verification", tags=["isuper-quality_verification"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[QualityVerification])
@@ -20,11 +22,11 @@ def show_isuper_quality_verification(item_id: int):
     return record
 
 @router.post("/", response_model=QualityVerification, status_code=201)
-def create_isuper_quality_verification(payload: QualityVerification):
+def create_isuper_quality_verification(payload: QualityVerificationInput):
     return service.create(payload.dict(exclude_unset=True))
 
 @router.put("/{item_id}", response_model=QualityVerification)
-def update_isuper_quality_verification(item_id: int, payload: QualityVerification):
+def update_isuper_quality_verification(item_id: int, payload: QualityVerificationInput):
     updated = service.update(item_id, payload.dict(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Quality_verification not found")

@@ -1,4 +1,5 @@
 """SLUSI Ingestion Scheduled Job — runs every N days (configurable)."""
+
 from __future__ import annotations
 
 import logging
@@ -15,9 +16,10 @@ async def run_slusi_ingestion_job() -> None:
     """Scheduled job: run SLUSI DSS + microwatershed ingestion."""
     logger.info("Starting scheduled SLUSI ingestion job")
     try:
+        from fastapi import HTTPException
+
         from app.core.database import get_db_context
         from app.services.slusi_service import SLUSIService
-        from fastapi import HTTPException
 
         with get_db_context() as db:
             service = SLUSIService(db)

@@ -104,6 +104,16 @@ export class AdvanceBookingService {
   /**
    * Get booking details
    */
+  /** Raise a quality/delivery dispute; the booking moves to "disputed". */
+  static async raiseDispute(
+    bookingId: number,
+    dispute: { dispute_reason: string; details?: string; photos?: string[] }
+  ): Promise<{ success: boolean; message: string; booking: AdvanceBooking }> {
+    const url = buildUrl('advanceBooking', 'dispute', { id: bookingId });
+    const response = await apiClient.post(url, dispute);
+    return response.data;
+  }
+
   static async getBookingDetails(bookingId: number): Promise<{
     booking: AdvanceBooking;
     listing: any;
@@ -186,11 +196,8 @@ export class AdvanceBookingService {
     // TODO: Implement actual photo upload to S3 or local storage
     // For now, return a placeholder URL
     const url = buildUrl('upload', 'image');
-    const response = await apiClient.post(url, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // No manual Content-Type: the browser must set multipart/form-data with its boundary.
+    const response = await apiClient.post(url, formData);
     
     return response.data.url;
   }

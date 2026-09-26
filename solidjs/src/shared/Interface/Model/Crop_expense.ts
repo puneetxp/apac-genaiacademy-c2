@@ -7,6 +7,5 @@ export interface Crop_expense {
    category: string,
    amount: number,
    description: string | null,
-   expense_date: Date,
-   active_role_id: number
+   expense_date: Date
 }

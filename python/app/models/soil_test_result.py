@@ -2,6 +2,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from datetime import datetime as _datetime
 
 
 class SoilTestResult(BaseModel):
@@ -14,23 +15,48 @@ class SoilTestResult(BaseModel):
     test_date: datetime
     lab_name: str | None = None
     lab_reference_number: str | None = None
-    nitrogen_kg_per_ha: int | None = None
-    phosphorus_kg_per_ha: int | None = None
-    potassium_kg_per_ha: int | None = None
-    ph_level: int | None = None
-    organic_carbon_percent: int | None = None
-    organic_matter_percent: int | None = None
-    electrical_conductivity: int | None = None
-    sulfur_ppm: int | None = None
-    zinc_ppm: int | None = None
-    iron_ppm: int | None = None
-    manganese_ppm: int | None = None
-    copper_ppm: int | None = None
-    boron_ppm: int | None = None
-    soil_health_score: int | None = None
+    nitrogen_kg_per_ha: float | None = None
+    phosphorus_kg_per_ha: float | None = None
+    potassium_kg_per_ha: float | None = None
+    ph_level: float | None = None
+    organic_carbon_percent: float | None = None
+    organic_matter_percent: float | None = None
+    electrical_conductivity: float | None = None
+    sulfur_ppm: float | None = None
+    zinc_ppm: float | None = None
+    iron_ppm: float | None = None
+    manganese_ppm: float | None = None
+    copper_ppm: float | None = None
+    boron_ppm: float | None = None
+    soil_health_score: float | None = None
     test_method: str | None = None
     raw_data_json: str | None = None
     recommendations: str | None = None
     notes: str | None = None
-    active_role_id: int
-    active_role_id: int
+
+
+class SoilTestResultInput(BaseModel):
+    enable: int | None = None
+    farm_id: int | None = None
+    plot_id: int | None = None
+    test_date: _datetime | None = None
+    lab_name: str | None = None
+    lab_reference_number: str | None = None
+    nitrogen_kg_per_ha: float | None = None
+    phosphorus_kg_per_ha: float | None = None
+    potassium_kg_per_ha: float | None = None
+    ph_level: float | None = None
+    organic_carbon_percent: float | None = None
+    organic_matter_percent: float | None = None
+    electrical_conductivity: float | None = None
+    sulfur_ppm: float | None = None
+    zinc_ppm: float | None = None
+    iron_ppm: float | None = None
+    manganese_ppm: float | None = None
+    copper_ppm: float | None = None
+    boron_ppm: float | None = None
+    soil_health_score: float | None = None
+    test_method: str | None = None
+    raw_data_json: str | None = None
+    recommendations: str | None = None
+    notes: str | None = None

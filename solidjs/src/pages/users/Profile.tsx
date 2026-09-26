@@ -10,6 +10,7 @@ import { UserService } from '../../services/user.service';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorDisplay } from '../../components/ui/ErrorDisplay';
 import { showToast } from '../../components/ui/Toast';
+import ServicesMenu from '../../components/ui/ServicesMenu';
 
 const Profile: Component = () => {
     const [isEditing, setIsEditing] = createSignal(false);
@@ -205,6 +206,12 @@ const Profile: Component = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* All services */}
+                        <div class="mt-8 bg-slate-100 rounded-2xl p-4 sm:p-6 border border-slate-200">
+                            <h2 class="text-xl font-bold text-slate-900 mb-4">सभी सेवाएं <span class="text-sm font-medium text-slate-500">· All services</span></h2>
+                            <ServicesMenu variant="grid" />
                         </div>
                     </Show>
                 </Show>

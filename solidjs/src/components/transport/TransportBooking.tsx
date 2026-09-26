@@ -1,5 +1,6 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import apiClient from '../../lib/api-client';
 
 interface TransportProvider {
   id: number;
@@ -54,19 +55,10 @@ const TransportBooking: Component<TransportBookingProps> = (props) => {
   // Load providers on mount
   createEffect(async () => {
     try {
-      const response = await fetch(
-        `/transport/providers?livestock_type=${props.livestockType}&min_capacity=${props.livestockCount}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
+      const response = await apiClient.get(
+        `/transport/providers?livestock_type=${props.livestockType}&min_capacity=${props.livestockCount}`
       );
-
-      if (response.ok) {
-        const data = await response.json();
-        setProviders(data);
-      }
+      setProviders(response.data || []);
     } catch (err) {
       console.error('Failed to load providers:', err);
     }
@@ -79,13 +71,7 @@ const TransportBooking: Component<TransportBookingProps> = (props) => {
 
     setLoading(true);
     try {
-      const response = await fetch('/transport/cost-estimate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
+      const response = await apiClient.post('/transport/cost-estimate', {
           provider_id: provider.id,
           pickup_latitude: props.pickupLatitude,
           pickup_longitude: props.pickupLongitude,
@@ -95,13 +81,8 @@ const TransportBooking: Component<TransportBookingProps> = (props) => {
           livestock_count: props.livestockCount,
           animal_value: props.animalValue,
           insurance_opted: bookingData.insurance_opted
-        })
       });
-
-      if (response.ok) {
-        const estimate = await response.json();
-        setCostEstimate(estimate);
-      }
+      setCostEstimate(response.data);
     } catch (err) {
       console.error('Failed to get cost estimate:', err);
     } finally {
@@ -120,16 +101,9 @@ const TransportBooking: Component<TransportBookingProps> = (props) => {
     setError(null);
 
     try {
-      const response = await fetch('/transport/bookings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
+      await apiClient.post('/transport/bookings', {
           transaction_id: props.transactionId,
           provider_id: provider.id,
-          requester_id: parseInt(localStorage.getItem('user_id') || '0'),
           pickup_address: props.pickupAddress,
           pickup_latitude: props.pickupLatitude,
           pickup_longitude: props.pickupLongitude,
@@ -142,13 +116,7 @@ const TransportBooking: Component<TransportBookingProps> = (props) => {
           scheduled_pickup_date: new Date(bookingData.scheduled_pickup_date).toISOString(),
           insurance_opted: bookingData.insurance_opted,
           special_instructions: bookingData.special_instructions
-        })
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to create booking');
-      }
 
       setSuccess(true);
     } catch (err: any) {
@@ -221,7 +189,7 @@ const TransportBooking: Component<TransportBookingProps> = (props) => {
                   <div class="text-right">
                     <div class="flex items-center space-x-1">
                       <span class="text-yellow-500">★</span>
-                      <span class="font-medium">{provider.rating.toFixed(1)}</span>
+                      <span class="font-medium">{Number(provider.rating ?? 0).toFixed(1)}</span>
                       <span class="text-sm text-gray-500">({provider.total_ratings})</span>
                     </div>
                     <p class="text-sm text-gray-600">{provider.completed_transports} trips</p>

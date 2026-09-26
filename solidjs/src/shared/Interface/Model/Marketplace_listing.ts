@@ -23,7 +23,5 @@ export interface Marketplace_listing {
    delivery_address_line: string | null,
    embedding: string | null,
    embedding_cache_key: string | null,
-   price_per_unit: number | null,
-   active_role_id: number,
-   active_role_id: number
+   price_per_unit: number | null
 }

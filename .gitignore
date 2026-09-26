@@ -90,3 +90,13 @@ venv/
 
 # Secrets in scripts
 scripts/test_clean_boto.py
+
+# Service-account keys must never be committed
+gcp-sa-key.json
+*-sa-key.json
+
+# setup.php snapshots and machine-local tooling (kept on disk, never committed)
+backups/
+.agents/
+.claude/skills/
+skills-lock.json

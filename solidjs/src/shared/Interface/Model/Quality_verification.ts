@@ -7,9 +7,8 @@ export interface Quality_verification {
    verification_date: Date,
    verifier_type: string,
    quality_grade: string,
-   quality_metrics: text | null,
-   photos: text | null,
+   quality_metrics: string | null,
+   photos: string | null,
    passed: boolean,
-   notes: text | null,
-   active_role_id: number
+   notes: string | null
 }

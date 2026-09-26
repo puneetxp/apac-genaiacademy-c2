@@ -1,6 +1,6 @@
 import { indexdb } from "../indexdb";
 import { Where } from "../Interface/TheType";
-import { JFetch, JGetFetch } from "../thelib";
+import apiClient from "../../lib/api-client";
 import { Stores } from "./Store";
 
 export class ModelService<model extends { id: number, updated_at: Date }> extends Stores<model> {
@@ -43,99 +43,101 @@ export class ModelService<model extends { id: number, updated_at: Date }> extend
         return this;
     }
 
+    /**
+     * REST base for this table. Generated services used to pass "api/<table>" (a relative URL on the
+     * frontend host, with no token). Those now map to the signed-in, owner-scoped backend routes
+     * /api/v1/islogin/<table>/ (apiClient adds /api/v1 and the Bearer token).
+     */
+    get base(): string {
+        const u = this.url || this.model;
+        if (u.startsWith("http") || u.startsWith("/")) return u.endsWith("/") ? u : u + "/";
+        const rest = u.replace(/^api\//, "").replace(/\/+$/, "");
+        // "api/<table>" -> generated CRUD; "api/soil/health"-style custom paths -> /api/v1/soil/health/
+        return /^[a-z_]+$/.test(rest) ? `/islogin/${rest}/` : `/${rest}/`;
+    }
+
+    /** Same contract as the old JFetch: resolves to the JSON body, or undefined on failure (logged). */
+    private async send<T>(method: "GET" | "POST" | "PUT" | "DELETE", path: string, body?: any): Promise<T | undefined> {
+        try {
+            const r = method === "GET" ? await apiClient.get<T>(path, { cache: false })
+                : method === "POST" ? await apiClient.post<T>(path, body)
+                : method === "PUT" ? await apiClient.put<T>(path, body)
+                : await apiClient.delete<T>(path);
+            return r.data;
+        } catch (error) {
+            console.error(`${method} ${path} failed for '${this.model}':`, error);
+            return undefined;
+        }
+    }
+
     async all() {
         if (!this.run) {
             await this.checkinit();
-            await this.all();
-        } else {
-            const r = this.allstate();
-            if (r.length === 0) {
-                const req: model[] = await JFetch(this.url);
-                if (req && Array.isArray(req)) {
-                    this.upsertstate(req);
-                }
-            } else {
-                const sort = [...r].sort((x, y) =>
-                    new Date(x.updated_at) < new Date(y.updated_at) ? 1 : -1
-                );
-                const latest = new Date((sort[0] as any).updated_at);
-                if (isNaN(latest.getTime())) {
-                    const req: model[] = await JFetch(this.url);
-                    if (req && Array.isArray(req)) {
-                        this.upsertstate(req);
-                    }
-                } else {
-                    // sv-SE gives YYYY-MM-DD HH:mm:ss which is usually good for backends
-                    const req: model[] = await JGetFetch(this.url, { 'latest': latest.toLocaleString("sv-SE") });
-                    if (req && Array.isArray(req)) {
-                        this.upsertstate(req);
-                    }
-                }
-            }
         }
-    }
-
-    async create(body: any) {
-        const req: model = await JFetch(this.url, {
-            method: 'POST',
-            body: JSON.stringify(body),
-        });
-        if (req && req.id) {
-            this.upsertstate([req]);
-        }
-        return req;
-    }
-
-    async upsert(body: any) {
-        const req: model[] = await JFetch(this.url, {
-            method: 'PUT',
-            body: JSON.stringify(body),
-        });
+        // The backend has no "changed since" filter, so fetch the (owner-scoped) list each time.
+        const req = await this.send<model[]>("GET", this.base);
         if (req && Array.isArray(req)) {
             this.upsertstate(req);
         }
     }
 
+    async create(body: any) {
+        const req = await this.send<model>("POST", this.base, body);
+        if (req && req.id) {
+            this.upsertstate([req]);
+        }
+        return req as model;
+    }
+
+    /** Create or update several rows (rows with an id are updated). */
+    async upsert(body: any) {
+        const rows: any[] = Array.isArray(body) ? body : [body];
+        const saved: model[] = [];
+        for (const row of rows) {
+            const req = row?.id ? await this.send<model>("PUT", this.base + row.id, row)
+                : await this.send<model>("POST", this.base, row);
+            if (req && req.id) saved.push(req);
+        }
+        if (saved.length) {
+            this.upsertstate(saved);
+        }
+    }
+
     async get(id: number) {
-        const req: model = await JFetch(this.url + id);
+        const req = await this.send<model>("GET", this.base + id);
         if (req && req.id) {
             this.upsertstate([req]);
         }
     }
 
     async update(i: number, body: any) {
-        const req: model = await JFetch(this.url, {
-            method: 'PUT',
-            body: JSON.stringify(body),
-        });
+        const req = await this.send<model>("PUT", this.base + (i ?? body?.id), body);
         if (req && req.id) {
             this.updatestate(req);
         }
+        return req;
     }
 
+    /** Filter the list: a value matches when equal, or when it is in an array of allowed values. */
     async where(body: Where) {
-        const req: model[] = await JFetch(this.url, {
-            method: 'WHERE',
-            body: JSON.stringify(body),
-        });
+        const req = await this.send<model[]>("GET", this.base);
         if (req && Array.isArray(req)) {
-            this.upsertstate(req);
+            const rows = req.filter((row: any) => Object.entries(body).every(([k, v]) =>
+                Array.isArray(v) ? (v as any[]).map(String).includes(String(row[k])) : String(row[k]) === String(v)));
+            this.upsertstate(rows);
+            return rows;
         }
+        return [] as model[];
     }
 
     async del(id: number) {
-        const req = await JFetch(this.url + id, {
-            method: 'DELETE'
-        });
+        const req = await this.send("DELETE", this.base + id);
         if (req) {
             this.delstate(id);
         }
     }
 
     async bulkImport(body: any) {
-        return await JFetch(this.url + "/bulk_ai_import", {
-            method: 'POST',
-            body: JSON.stringify(body),
-        });
+        return await this.send("POST", this.base + "bulk_ai_import", body);
     }
 }

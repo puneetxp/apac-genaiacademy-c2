@@ -1,0 +1,118 @@
+{
+    "name": "breeding_record",
+    "table": "breeding_records",
+    "crud": {
+        "isuper": [
+            "c",
+            "r",
+            "u",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "c",
+            "r",
+            "a",
+            "u",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "livestock": {
+            "name": "livestock_id",
+            "key": "id",
+            "table": "livestock"
+        },
+        "farmer": {
+            "name": "farmer_id",
+            "key": "id",
+            "table": "users"
+        },
+        "mate": {
+            "name": "mate_id",
+            "key": "id",
+            "table": "livestock"
+        }
+    },
+    "data": [
+        {
+            "name": "livestock_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Parent livestock'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "farmer_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL COMMENT 'Farmer/owner'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "breeding_type",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL COMMENT 'natural, artificial_insemination'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "breeding_date",
+            "datatype": "Date",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "mate_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Mate livestock if known'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "mate_breed",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Mate breed if external'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "expected_delivery_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "actual_delivery_date",
+            "datatype": "Date",
+            "sql_attribute": "NULL",
+            "mysql_data": "date"
+        },
+        {
+            "name": "pregnancy_status",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL DEFAULT 'pending' COMMENT 'pending, confirmed, delivered, failed'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "number_of_offspring",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "int"
+        },
+        {
+            "name": "breeding_cost",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Cost in INR'",
+            "mysql_data": "DECIMAL(10,2)"
+        },
+        {
+            "name": "veterinarian_name",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "notes",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "text"
+        }
+    ]
+}

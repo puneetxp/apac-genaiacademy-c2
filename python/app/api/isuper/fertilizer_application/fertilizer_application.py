@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.fertilizer_application import FertilizerApplication
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.fertilizer_application import FertilizerApplication, FertilizerApplicationInput
 from app.services.fertilizer_application_service import get_service
+from app.core.auth import get_current_admin
 from typing import List, Dict
 
 
-router = APIRouter(prefix="/isuper/fertilizer_application", tags=["isuper-fertilizer_application"])
+router = APIRouter(prefix="/isuper/fertilizer_application", tags=["isuper-fertilizer_application"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[FertilizerApplication])
@@ -20,11 +22,11 @@ def show_isuper_fertilizer_application(item_id: int):
     return record
 
 @router.post("/", response_model=FertilizerApplication, status_code=201)
-def create_isuper_fertilizer_application(payload: FertilizerApplication):
+def create_isuper_fertilizer_application(payload: FertilizerApplicationInput):
     return service.create(payload.dict(exclude_unset=True))
 
 @router.put("/{item_id}", response_model=FertilizerApplication)
-def update_isuper_fertilizer_application(item_id: int, payload: FertilizerApplication):
+def update_isuper_fertilizer_application(item_id: int, payload: FertilizerApplicationInput):
     updated = service.update(item_id, payload.dict(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Fertilizer_application not found")

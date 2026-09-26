@@ -1,4 +1,5 @@
 """DSS HTML parser and PrettyPrinter for SLUSI LCC data."""
+
 from __future__ import annotations
 
 import json
@@ -13,10 +14,21 @@ logger = logging.getLogger(__name__)
 
 # Expected DSS table column headers (case-insensitive substring match)
 _EXPECTED_COLS = [
-    "state", "district", "report", "year", "area",
-    "class i", "class ii", "class iii", "class iv",
-    "class v", "class vi", "class vii", "class viii",
-    "forest", "misc",
+    "state",
+    "district",
+    "report",
+    "year",
+    "area",
+    "class i",
+    "class ii",
+    "class iii",
+    "class iv",
+    "class v",
+    "class vi",
+    "class vii",
+    "class viii",
+    "forest",
+    "misc",
 ]
 
 # Column index mapping after header detection
@@ -104,7 +116,11 @@ class DSSParser:
                     state=cells[_COL_MAP["state"]],
                     district=cells[_COL_MAP["district"]],
                     report_no=cells[_COL_MAP["report_no"]],
-                    year=int(cells[_COL_MAP["year"]]) if cells[_COL_MAP["year"]].strip().isdigit() else None,
+                    year=(
+                        int(cells[_COL_MAP["year"]])
+                        if cells[_COL_MAP["year"]].strip().isdigit()
+                        else None
+                    ),
                     total_area_ha=_parse_cell(cells[_COL_MAP["total_area_ha"]]),
                     lcc_class_i=_parse_cell(cells[_COL_MAP["lcc_class_i"]]),
                     lcc_class_ii=_parse_cell(cells[_COL_MAP["lcc_class_ii"]]),
@@ -116,8 +132,16 @@ class DSSParser:
                     lcc_class_viii=_parse_cell(cells[_COL_MAP["lcc_class_viii"]]),
                     forest_area=_parse_cell(cells[_COL_MAP["forest_area"]]),
                     miscellaneous_area=_parse_cell(cells[_COL_MAP["miscellaneous_area"]]),
-                    spatial_available=_parse_bool(cells[_COL_MAP["spatial_available"]]) if len(cells) > 15 else False,
-                    non_spatial_available=_parse_bool(cells[_COL_MAP["non_spatial_available"]]) if len(cells) > 16 else False,
+                    spatial_available=(
+                        _parse_bool(cells[_COL_MAP["spatial_available"]])
+                        if len(cells) > 15
+                        else False
+                    ),
+                    non_spatial_available=(
+                        _parse_bool(cells[_COL_MAP["non_spatial_available"]])
+                        if len(cells) > 16
+                        else False
+                    ),
                     ingested_at=datetime.now(timezone.utc),
                 )
                 reports.append(report)
@@ -159,7 +183,11 @@ class DSSParser:
             miscellaneous_area=_f(14),
             spatial_available=_b(15),
             non_spatial_available=_b(16),
-            ingested_at=datetime.fromisoformat(parts[17].strip()) if len(parts) > 17 else datetime.now(timezone.utc),
+            ingested_at=(
+                datetime.fromisoformat(parts[17].strip())
+                if len(parts) > 17
+                else datetime.now(timezone.utc)
+            ),
         )
 
 
@@ -171,6 +199,7 @@ class PrettyPrinter:
         Serialise an LCCReport to a tab-separated string.
         Parseable back to an equivalent LCCReport via DSSParser.parse_single_row.
         """
+
         def _v(val: float | None) -> str:
             return str(val) if val is not None else "-"
 

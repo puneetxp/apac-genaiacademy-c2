@@ -12,6 +12,7 @@
         "islogin": [
             "c",
             "r",
+            "a",
             "u",
             "d"
         ]
@@ -152,19 +153,19 @@
         },
         {
             "name": "raw_data_json",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Raw test data in JSON format'",
             "mysql_data": "text"
         },
         {
             "name": "recommendations",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Lab recommendations'",
             "mysql_data": "text"
         },
         {
             "name": "notes",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'Additional notes'",
             "mysql_data": "text"
         }

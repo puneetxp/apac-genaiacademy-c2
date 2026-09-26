@@ -11,22 +11,33 @@ Demonstrates:
 - Conversational Analytics / Natural Language Interfaces — Hackathon criterion
 """
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import Optional, Dict, Any
-import logging
 import json
+import logging
 import re
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/voice", tags=["Voice AI"])
+from fastapi import Depends
 
+from app.core.auth import get_current_active_user
+
+router = APIRouter(
+    prefix="/voice", tags=["Voice AI"], dependencies=[Depends(get_current_active_user)]
+)
 SUPPORTED_AUDIO_TYPES = {
-    "audio/wav", "audio/wave", "audio/x-wav",
-    "audio/mpeg", "audio/mp3",
-    "audio/ogg", "audio/webm",
-    "audio/flac", "audio/aac",
+    "audio/wav",
+    "audio/wave",
+    "audio/x-wav",
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/ogg",
+    "audio/webm",
+    "audio/flac",
+    "audio/aac",
     "audio/mp4",
 }
 
@@ -50,8 +61,11 @@ Return your response as JSON with EXACTLY this structure (no markdown, no extra 
 
 @router.post("/query", response_model=Dict[str, Any])
 async def voice_query(
-    audio: UploadFile = File(..., description="Audio recording of the farmer's question (WAV/MP3/OGG/WebM)"),
+    audio: UploadFile = File(
+        ..., description="Audio recording of the farmer's question (WAV/MP3/OGG/WebM)"
+    ),
     farm_id: Optional[int] = Form(None, description="Optional farm ID for contextual answers"),
+    current_user=Depends(get_current_active_user),
 ):
     """
     Send a voice recording and receive an AI-powered agricultural response
@@ -67,7 +81,7 @@ async def voice_query(
     if content_type not in SUPPORTED_AUDIO_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported audio format '{content_type}'. Accepted: WAV, MP3, OGG, WebM, FLAC, AAC."
+            detail=f"Unsupported audio format '{content_type}'. Accepted: WAV, MP3, OGG, WebM, FLAC, AAC.",
         )
 
     audio_bytes = await audio.read()
@@ -78,13 +92,17 @@ async def voice_query(
     if len(audio_bytes) < 500:
         raise HTTPException(status_code=400, detail="Audio file appears too small or corrupted.")
 
-    logger.info(f"Voice query: format={content_type}, size={len(audio_bytes)} bytes, farm_id={farm_id}")
+    logger.info(
+        f"Voice query: format={content_type}, size={len(audio_bytes)} bytes, farm_id={farm_id}"
+    )
 
     # Build context from farm if provided
     farm_context = ""
     if farm_id:
         try:
-            from app.agents.agent_tools import get_farm_details
+            from app.agents.agent_tools import get_farm_details, set_agent_user
+
+            set_agent_user(current_user)  # farm context only for the signed-in user's own farm
             farm_context = f"\n\nFarmer's farm context:\n{get_farm_details(farm_id)}"
         except Exception as e:
             logger.debug(f"Could not load farm context: {e}")
@@ -92,12 +110,9 @@ async def voice_query(
     # Call Gemini multimodal with audio
     try:
         import vertexai
-        from vertexai.generative_models import GenerativeModel, Part, GenerationConfig
+        from vertexai.generative_models import GenerationConfig, GenerativeModel, Part
 
-        vertexai.init(
-            project=settings.GOOGLE_CLOUD_PROJECT,
-            location=settings.GOOGLE_CLOUD_REGION
-        )
+        vertexai.init(project=settings.GOOGLE_CLOUD_PROJECT, location=settings.GOOGLE_CLOUD_REGION)
 
         model = GenerativeModel(settings.GEMINI_MODEL)
         audio_part = Part.from_data(data=audio_bytes, mime_type=content_type)
@@ -111,15 +126,12 @@ async def voice_query(
             temperature=0.3,
         )
 
-        response = model.generate_content(
-            [audio_part, prompt],
-            generation_config=generation_config
-        )
+        response = model.generate_content([audio_part, prompt], generation_config=generation_config)
 
         text = response.text.strip()
 
         # Parse JSON response
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
         if json_match:
             result = json.loads(json_match.group())
         else:
@@ -127,7 +139,7 @@ async def voice_query(
                 "transcription": text,
                 "language_detected": "Unknown",
                 "response_text": text,
-                "topic": "general"
+                "topic": "general",
             }
 
         result["model_used"] = settings.GEMINI_MODEL
@@ -136,10 +148,7 @@ async def voice_query(
         # Log to BigQuery
         _log_voice_event(result)
 
-        return {
-            "success": True,
-            "data": result
-        }
+        return {"success": True, "data": result}
 
     except Exception as e:
         logger.error(f"Voice query processing failed: {e}")
@@ -153,8 +162,8 @@ async def voice_query(
                 "response_text": "Voice processing is currently running in fallback mode. Please use text chat.",
                 "topic": "general",
                 "model_used": "mock-fallback",
-                "multimodal": "audio"
-            }
+                "multimodal": "audio",
+            },
         }
 
 
@@ -162,10 +171,14 @@ def _log_voice_event(result: Dict[str, Any]):
     """Stream voice query event to BigQuery."""
     try:
         from app.services.bigquery_service import bigquery_service
-        bigquery_service.log_event("voice_queries", {
-            "language": result.get("language_detected", "Unknown"),
-            "topic": result.get("topic", "general"),
-            "model_used": result.get("model_used", ""),
-        })
+
+        bigquery_service.log_event(
+            "voice_queries",
+            {
+                "language": result.get("language_detected", "Unknown"),
+                "topic": result.get("topic", "general"),
+                "model_used": result.get("model_used", ""),
+            },
+        )
     except Exception as e:
         logger.debug(f"BigQuery voice logging skipped: {e}")

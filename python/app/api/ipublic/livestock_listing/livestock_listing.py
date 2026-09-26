@@ -1,6 +1,6 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
-from app.models.livestock_listing import LivestockListing
+from app.models.livestock_listing import LivestockListing, LivestockListingInput
 from app.services.livestock_listing_service import get_service
 
 

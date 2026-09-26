@@ -12,6 +12,7 @@
         "islogin": [
             "c",
             "r",
+            "a",
             "u",
             "d"
         ]
@@ -75,13 +76,13 @@
         },
         {
             "name": "recommendations",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL COMMENT 'JSON array of stage-specific recommendations'",
             "mysql_data": "text"
         },
         {
             "name": "notes",
-            "datatype": "text",
+            "datatype": "string",
             "sql_attribute": "NULL",
             "mysql_data": "text"
         },

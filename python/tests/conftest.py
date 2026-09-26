@@ -2,33 +2,45 @@
 Pytest configuration and fixtures for backend tests
 """
 
-import pytest
 import os
 import sys
-from pathlib import Path
-from datetime import datetime
 import uuid
+from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 # Add the backend directory to the Python path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 # Set test environment variables before importing app modules
-os.environ.setdefault('SECRET_KEY', 'test-secret-key-for-testing-only')
-os.environ.setdefault('POSTGRES_SERVER', 'localhost')
-os.environ.setdefault('POSTGRES_USER', 'test')
-os.environ.setdefault('POSTGRES_PASSWORD', 'test')
-os.environ.setdefault('POSTGRES_DB', 'test')
-os.environ.setdefault('COGNITO_USER_POOL_ID', 'test-pool-id')
-os.environ.setdefault('COGNITO_CLIENT_ID', 'test-client-id')
-os.environ.setdefault('COGNITO_CLIENT_SECRET', 'test-client-secret')
-os.environ.setdefault('S3_BUCKET_NAME', 'test-bucket')
-os.environ.setdefault('OPENWEATHER_API_KEY', 'test-api-key')
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
+os.environ.setdefault("POSTGRES_SERVER", "localhost")
+os.environ.setdefault("POSTGRES_USER", "test")
+os.environ.setdefault("POSTGRES_PASSWORD", "test")
+os.environ.setdefault("POSTGRES_DB", "test")
+os.environ.setdefault("COGNITO_USER_POOL_ID", "test-pool-id")
+os.environ.setdefault("COGNITO_CLIENT_ID", "test-client-id")
+os.environ.setdefault("COGNITO_CLIENT_SECRET", "test-client-secret")
+os.environ.setdefault("S3_BUCKET_NAME", "test-bucket")
+os.environ.setdefault("OPENWEATHER_API_KEY", "test-api-key")
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, Date, DateTime, Boolean, Text, DECIMAL
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import (
+    DECIMAL,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Create test-specific Base for SQLAlchemy models
 TestBase = declarative_base()
@@ -36,8 +48,8 @@ TestBase = declarative_base()
 
 # Define SQLAlchemy ORM models for testing
 class User(TestBase):
-    __tablename__ = 'users'
-    
+    __tablename__ = "users"
+
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False)
     phone_number = Column(String)
@@ -48,8 +60,8 @@ class User(TestBase):
 
 
 class Farm(TestBase):
-    __tablename__ = 'farms'
-    
+    __tablename__ = "farms"
+
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     farmer_id = Column(PG_UUID(as_uuid=True), nullable=False)
     name = Column(String, nullable=False)
@@ -62,8 +74,8 @@ class Farm(TestBase):
 
 
 class FarmPlot(TestBase):
-    __tablename__ = 'farm_plots'
-    
+    __tablename__ = "farm_plots"
+
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     farm_id = Column(PG_UUID(as_uuid=True), nullable=False)
     plot_number = Column(String)
@@ -75,8 +87,8 @@ class FarmPlot(TestBase):
 
 
 class Crop(TestBase):
-    __tablename__ = 'crops'
-    
+    __tablename__ = "crops"
+
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     plot_id = Column(PG_UUID(as_uuid=True), nullable=False)
     crop_variety_id = Column(PG_UUID(as_uuid=True))
@@ -89,8 +101,8 @@ class Crop(TestBase):
 
 
 class MarketplaceListing(TestBase):
-    __tablename__ = 'marketplace_listings'
-    
+    __tablename__ = "marketplace_listings"
+
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     crop_id = Column(PG_UUID(as_uuid=True), nullable=False)
     farmer_id = Column(PG_UUID(as_uuid=True), nullable=False)
@@ -111,7 +123,7 @@ class MarketplaceListing(TestBase):
     harvest_window_end = Column(Date)
     asking_price_per_unit = Column(DECIMAL)
     price_negotiable = Column(Boolean, default=True)
-    currency = Column(String, default='INR')
+    currency = Column(String, default="INR")
     location_state = Column(String)
     location_district = Column(String)
     location_block = Column(String)
@@ -122,8 +134,8 @@ class MarketplaceListing(TestBase):
     market_demand_score = Column(DECIMAL)
     price_trend = Column(String)
     yoy_price_growth = Column(DECIMAL)
-    status = Column(String, default='active')
-    visibility = Column(String, default='public')
+    status = Column(String, default="active")
+    visibility = Column(String, default="public")
     advance_booking_allowed = Column(Boolean, default=True)
     advance_payment_required = Column(Boolean, default=False)
     view_count = Column(Integer, default=0)
@@ -138,8 +150,8 @@ class MarketplaceListing(TestBase):
 
 
 class BuyerInterest(TestBase):
-    __tablename__ = 'buyer_interests'
-    
+    __tablename__ = "buyer_interests"
+
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     listing_id = Column(PG_UUID(as_uuid=True), nullable=False)
     buyer_id = Column(PG_UUID(as_uuid=True), nullable=False)
@@ -157,14 +169,14 @@ class BuyerInterest(TestBase):
     contact_request_date = Column(DateTime)
     contact_approved = Column(Boolean, default=False)
     contact_approved_date = Column(DateTime)
-    status = Column(String, default='pending')
+    status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
 class CropMarketData(TestBase):
-    __tablename__ = 'crop_market_data'
-    
+    __tablename__ = "crop_market_data"
+
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     crop_type = Column(String)
     state = Column(String)
@@ -191,14 +203,14 @@ def db_session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    
+
     # Create all tables
     TestBase.metadata.create_all(bind=engine)
-    
+
     # Create session
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = TestingSessionLocal()
-    
+
     try:
         yield session
     finally:
@@ -216,9 +228,9 @@ def db_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    
+
     TestBase.metadata.create_all(bind=engine)
-    
+
     try:
         yield engine
     finally:

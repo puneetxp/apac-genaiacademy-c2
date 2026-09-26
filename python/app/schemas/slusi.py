@@ -1,7 +1,9 @@
 """Pydantic schemas for SLUSI soil data integration."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
 from pydantic import BaseModel, Field
 
 
@@ -13,8 +15,10 @@ def _utcnow() -> datetime:
 # SHC WMS schemas
 # ---------------------------------------------------------------------------
 
+
 class SHCSoilProfile(BaseModel):
     """Soil profile collected from SHC WMS GetFeatureInfo calls."""
+
     # Nutrient values (decimal, kg/ha or ppm)
     nitrogen: float | None = None
     phosphorus: float | None = None
@@ -48,8 +52,10 @@ class SHCSoilProfile(BaseModel):
 # SLUSI LCC schemas
 # ---------------------------------------------------------------------------
 
+
 class LCCReport(BaseModel):
     """One row from the SLUSI DSS LCC table."""
+
     state: str
     district: str
     report_no: str
@@ -72,6 +78,7 @@ class LCCReport(BaseModel):
 
 class LCCSummary(BaseModel):
     """Aggregated LCC summary for a district (used in farm enrichment)."""
+
     dominant_class: str | None = None
     total_area_ha: float | None = None
     data_source: str = "SLUSI DSS"
@@ -84,8 +91,10 @@ class LCCSummary(BaseModel):
 # Combined lookup response
 # ---------------------------------------------------------------------------
 
+
 class SoilLookupResponse(BaseModel):
     """Response from GET /farms/soil-lookup."""
+
     shc_profile: SHCSoilProfile
     lcc_summary: LCCSummary | None = None
     lcc_data_available: bool = False
@@ -96,8 +105,10 @@ class SoilLookupResponse(BaseModel):
 # Farm enrichment
 # ---------------------------------------------------------------------------
 
+
 class FarmSoilProfile(BaseModel):
     """Enriched soil profile attached to a farm response."""
+
     farm_id: int
     shc_profile: SHCSoilProfile | None = None
     lcc_summary: LCCSummary | None = None
@@ -109,8 +120,10 @@ class FarmSoilProfile(BaseModel):
 # Ingestion status / admin schemas
 # ---------------------------------------------------------------------------
 
+
 class SLUSIStatus(BaseModel):
     """Response from GET /slusi/status."""
+
     last_successful_ingestion: datetime | None = None
     total_lcc_records: int = 0
     states_with_maps: int = 0
@@ -118,6 +131,7 @@ class SLUSIStatus(BaseModel):
 
 class IngestionRunResult(BaseModel):
     """Result returned after an ingestion run completes."""
+
     run_id: int
     status: str  # 'success' | 'failed'
     lcc_records_ingested: int = 0

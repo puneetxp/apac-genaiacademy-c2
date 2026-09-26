@@ -4,7 +4,7 @@
  */
 
 import { Component, createResource, createSignal, For, Show, Suspense } from 'solid-js';
-import { WeatherForecastService, SevereAlertService } from '../../shared/Service/Services';
+import apiClient from '../../lib/api-client';
 import { onMount } from 'solid-js';
 
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
@@ -18,17 +18,58 @@ import {
 import { ErrorDisplay } from '../../components/ui/ErrorDisplay';
 
 const ClimateHub: Component = () => {
-    // Default to a central location if GPS not available
-    const [lat, setLat] = createSignal(19.0760);
-    const [lon, setLon] = createSignal(72.8777);
+    // The signed-in farmer's first farm decides the location (no more hard-coded Mumbai).
+    const [place, setPlace] = createSignal('Your farm');
+    const [forecast, setForecast] = createSignal<any[]>([]);
+    const [alerts, setAlerts] = createSignal<any[]>([]);
+    const [weatherError, setWeatherError] = createSignal<string | null>(null);
 
-    onMount(() => {
-        WeatherForecastService.all();
-        SevereAlertService.all();
+    const iconFor = (text: string = '') => {
+        const t = text.toLowerCase();
+        if (t.includes('thunder')) return '⛈️';
+        if (t.includes('rain') || t.includes('drizzle') || t.includes('shower')) return '🌧️';
+        if (t.includes('cloud') || t.includes('overcast')) return '☁️';
+        return '☀️';
+    };
+
+    onMount(async () => {
+        let farm: any;
+        try {
+            const res = await apiClient.get('/farms', { cache: false });
+            const farms = Array.isArray(res.data) ? res.data : (res.data?.farms || res.data?.data || []);
+            farm = farms.find((f: any) => f.latitude != null && f.longitude != null) || farms[0];
+        } catch (e) {
+            console.warn('Could not load farms for the climate hub:', e);
+        }
+        if (!farm || farm.latitude == null || farm.longitude == null) {
+            setWeatherError('Add your farm location to see its forecast.');
+            return;
+        }
+        setPlace([farm.village || farm.name, farm.district || farm.location_district, farm.state || farm.location_state]
+            .filter(Boolean).join(', '));
+
+        try {
+            const res = await apiClient.get(`/weather/forecast?latitude=${farm.latitude}&longitude=${farm.longitude}&days=7`, { cache: false });
+            setForecast((res.data?.forecasts || []).map((d: any) => ({
+                ...d,
+                condition: d.description,
+                icon: iconFor(d.description),
+                rainfall_mm: Math.round((d.rainfall ?? 0) * 10) / 10,
+                // bar width: 20 mm or more of rain fills the bar
+                rainfall_pct: Math.min(100, Math.round(((d.rainfall ?? 0) / 20) * 100)),
+            })));
+        } catch (e) {
+            console.warn('Weather forecast unavailable:', e);
+            setWeatherError('The weather forecast is unavailable right now. Please try again later.');
+        }
+
+        try {
+            const res = await apiClient.get(`/severe-weather/alerts/active?farm_id=${farm.id}`, { cache: false });
+            setAlerts(Array.isArray(res.data) ? res.data : []);
+        } catch (e) {
+            console.warn('Severe weather alerts unavailable:', e);
+        }
     });
-
-    const forecast = () => WeatherForecastService.allstate();
-    const alerts = () => SevereAlertService.allstate();
 
 
     return (
@@ -48,7 +89,7 @@ const ClimateHub: Component = () => {
                         <h1 class="text-4xl font-black tracking-tighter mb-2">Climate Hub</h1>
                         <p class="text-sky-100 font-medium">Hyper-local weather intelligence for your farm</p>
                         <div class="flex items-center gap-2 mt-4 bg-white/10 backdrop-blur-md rounded-full px-4 py-1 self-start inline-flex">
-                            <span class="text-xs">📍 Mumbai, Maharashtra</span>
+                            <span class="text-xs">📍 {place()}</span>
                         </div>
                     </div>
 
@@ -59,7 +100,7 @@ const ClimateHub: Component = () => {
                                 <p class="text-white/70 text-sm font-bold uppercase tracking-widest">{forecast()![0].condition}</p>
                                 <h2 class="text-5xl font-black text-white">{Math.round(forecast()![0].temp_max)}°<span class="text-2xl opacity-60">c</span></h2>
                                 <div class="flex gap-4 mt-2">
-                                    <span class="text-xs text-blue-200 font-bold">💧 {forecast()![0].rainfall_prob}% Rain</span>
+                                    <span class="text-xs text-blue-200 font-bold">💧 {forecast()![0].rainfall_mm} mm rain</span>
                                     <span class="text-xs text-orange-200 font-bold">🌡️ {Math.round(forecast()![0].temp_min)}° Min</span>
                                 </div>
                             </div>
@@ -82,7 +123,7 @@ const ClimateHub: Component = () => {
                                     <div class="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm flex gap-4">
                                         <div class="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-2xl shrink-0">🚩</div>
                                         <div>
-                                            <p class="text-rose-800 font-bold">{alert.alert_type.toUpperCase()} - {alert.severity.toUpperCase()}</p>
+                                            <p class="text-rose-800 font-bold">{String(alert.alert_type || 'alert').toUpperCase()} - {String(alert.severity || '').toUpperCase()}</p>
                                             <p class="text-slate-600 text-sm mt-1">{alert.message}</p>
                                             <div class="mt-3 p-3 bg-rose-50 rounded-xl border border-rose-100">
                                                 <p class="text-xs font-black text-rose-700">ACT NOW: {alert.recommendation}</p>
@@ -102,6 +143,9 @@ const ClimateHub: Component = () => {
                         <div class="bg-white rounded-3xl shadow-xl p-8 border border-slate-100 overflow-hidden relative">
                             <div class="absolute top-0 right-0 p-4 opacity-5 text-8xl pointer-events-none select-none">📅</div>
                             <h3 class="text-xl font-black text-slate-800 mb-8 pb-4 border-b">7-Day Forecast</h3>
+                            <Show when={weatherError()}>
+                                <p class="text-sm text-slate-500 mb-4">{weatherError()}</p>
+                            </Show>
 
                             <Suspense fallback={<LoadingSpinner />}>
                                 <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4">
@@ -113,9 +157,9 @@ const ClimateHub: Component = () => {
                                                 <p class="text-lg font-black text-slate-800">{Math.round(day.temp_max)}°</p>
                                                 <p class="text-[10px] font-bold text-slate-400">{Math.round(day.temp_min)}°</p>
                                                 <div class="mt-3 w-full bg-blue-100 rounded-full h-1">
-                                                    <div class="bg-blue-500 h-full rounded-full" style={`width: ${day.rainfall_prob}%`}></div>
+                                                    <div class="bg-blue-500 h-full rounded-full" style={`width: ${day.rainfall_pct}%`}></div>
                                                 </div>
-                                                <p class="text-[8px] font-black text-blue-500 mt-1">{day.rainfall_prob}%</p>
+                                                <p class="text-[8px] font-black text-blue-500 mt-1">{day.rainfall_mm} mm</p>
                                             </div>
                                         )}
                                     </For>

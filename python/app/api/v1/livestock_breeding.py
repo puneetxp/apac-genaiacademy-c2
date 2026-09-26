@@ -3,30 +3,35 @@ Livestock Breeding API Endpoints
 Handles breeding optimization, cycle tracking, offspring management, and reports
 """
 
-from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional
 from datetime import date
+from typing import List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.core.auth import get_current_active_user
 from app.schemas.breeding import (
-    BreedingRecordCreate,
-    BreedingRecordUpdate,
-    BreedingRecordResponse,
-    OffspringCreate,
-    OffspringUpdate,
-    OffspringResponse,
+    BreedingProgramReportRequest,
+    BreedingProgramReportResponse,
     BreedingRecommendationRequest,
     BreedingRecommendationResponse,
-    BreedingProgramReportRequest,
-    BreedingProgramReportResponse
+    BreedingRecordCreate,
+    BreedingRecordResponse,
+    BreedingRecordUpdate,
+    OffspringCreate,
+    OffspringResponse,
+    OffspringUpdate,
 )
 from app.services.livestock_breeding_service import get_breeding_service
 
-router = APIRouter(prefix="/livestock-breeding", tags=["livestock-breeding"])
-
-
+router = APIRouter(
+    prefix="/livestock-breeding",
+    tags=["livestock-breeding"],
+    dependencies=[Depends(get_current_active_user)],
+)
 # ============================================================================
 # Breeding Record Endpoints
 # ============================================================================
+
 
 @router.get("")
 async def breeding_root_alias(farmer_id: Optional[int] = Query(None)):
@@ -38,7 +43,7 @@ async def breeding_root_alias(farmer_id: Optional[int] = Query(None)):
 async def create_breeding_record(record: BreedingRecordCreate):
     """
     Create a new breeding record
-    
+
     - **livestock_id**: Parent livestock ID
     - **breeding_type**: natural or artificial_insemination
     - **breeding_date**: Date of breeding
@@ -74,7 +79,7 @@ async def get_breeding_record(record_id: int):
 async def update_breeding_record(record_id: int, record: BreedingRecordUpdate):
     """
     Update breeding record
-    
+
     Use this endpoint to update pregnancy status, delivery dates, and other details
     """
     try:
@@ -109,11 +114,11 @@ async def list_breeding_records(
     farmer_id: Optional[int] = Query(None, description="Filter by farmer ID"),
     pregnancy_status: Optional[str] = Query(None, description="Filter by pregnancy status"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return")
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
 ):
     """
     List breeding records with optional filters
-    
+
     - **livestock_id**: Filter by specific livestock
     - **farmer_id**: Filter by farmer
     - **pregnancy_status**: Filter by status (pending, confirmed, delivered, failed)
@@ -125,7 +130,7 @@ async def list_breeding_records(
             farmer_id=farmer_id,
             pregnancy_status=pregnancy_status,
             skip=skip,
-            limit=limit
+            limit=limit,
         )
         return results
     except Exception as e:
@@ -136,11 +141,12 @@ async def list_breeding_records(
 # Offspring Endpoints
 # ============================================================================
 
+
 @router.post("/offspring", response_model=OffspringResponse, status_code=201)
 async def create_offspring(offspring: OffspringCreate):
     """
     Create offspring record
-    
+
     - **breeding_record_id**: Parent breeding record ID
     - **birth_date**: Date of birth
     - **gender**: male or female (optional)
@@ -175,7 +181,7 @@ async def get_offspring(offspring_id: int):
 async def update_offspring(offspring_id: int, offspring: OffspringUpdate):
     """
     Update offspring record
-    
+
     Use this endpoint to track growth, weight updates, weaning, and sales
     """
     try:
@@ -196,11 +202,11 @@ async def list_offspring(
     farmer_id: Optional[int] = Query(None, description="Filter by farmer ID"),
     health_status: Optional[str] = Query(None, description="Filter by health status"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return")
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
 ):
     """
     List offspring with optional filters
-    
+
     - **breeding_record_id**: Filter by specific breeding record
     - **farmer_id**: Filter by farmer
     - **health_status**: Filter by status (healthy, weak, deceased)
@@ -212,7 +218,7 @@ async def list_offspring(
             farmer_id=farmer_id,
             health_status=health_status,
             skip=skip,
-            limit=limit
+            limit=limit,
         )
         return results
     except Exception as e:
@@ -223,17 +229,18 @@ async def list_offspring(
 # Breeding Recommendations Endpoint
 # ============================================================================
 
+
 @router.post("/recommendations", response_model=BreedingRecommendationResponse)
 async def get_breeding_recommendations(request: BreedingRecommendationRequest):
     """
     Get AI-powered breeding recommendations for livestock
-    
+
     Returns:
     - Recommended mate breeds with compatibility scores
     - Expected offspring traits
     - Optimal breeding season
     - Breeding tips and best practices
-    
+
     This endpoint uses Amazon Bedrock AI to analyze genetics and performance history
     """
     try:
@@ -243,33 +250,36 @@ async def get_breeding_recommendations(request: BreedingRecommendationRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating breeding recommendations: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error generating breeding recommendations: {str(e)}"
+        )
 
 
 # ============================================================================
 # Breeding Program Report Endpoint
 # ============================================================================
 
+
 @router.post("/program-report", response_model=BreedingProgramReportResponse)
 async def generate_breeding_program_report(request: BreedingProgramReportRequest):
     """
     Generate comprehensive breeding program report
-    
+
     Returns:
     - Breeding metrics (success rate, ROI, offspring count)
     - Offspring performance summary
     - Genetic improvement trends
     - Recommendations for program optimization
-    
+
     Default period: Last 12 months if dates not specified
     """
     try:
         service = get_breeding_service()
         result = service.generate_breeding_program_report(
-            farmer_id=request.farmer_id,
-            start_date=request.start_date,
-            end_date=request.end_date
+            farmer_id=request.farmer_id, start_date=request.start_date, end_date=request.end_date
         )
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating breeding program report: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error generating breeding program report: {str(e)}"
+        )

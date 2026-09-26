@@ -10,6 +10,5 @@ export interface Payment_milestone {
    paid_date: Date | null,
    status: string,
    payment_method: string | null,
-   transaction_id: string | null,
-   active_role_id: number
+   transaction_id: string | null
 }

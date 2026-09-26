@@ -239,6 +239,15 @@ class NotificationService {
   }
 
   /**
+   * Ask the backend to push a test notification to this user's subscribed browsers
+   */
+  async sendServerTestNotification(): Promise<{ sent: number; removed: number; failed: number }> {
+    const url = buildUrl('notifications', 'test');
+    const response = await apiClient.post(url, {});
+    return response.data;
+  }
+
+  /**
    * Show local notification (for testing or immediate feedback)
    */
   async showLocalNotification(payload: NotificationPayload): Promise<void> {
@@ -316,6 +325,10 @@ class NotificationService {
    * Requests permission, subscribes to push, and sends to backend
    */
   async setupNotifications(vapidPublicKey: string): Promise<boolean> {
+    if (!vapidPublicKey) {
+      throw new Error('Push notifications are not configured (VITE_VAPID_PUBLIC_KEY is missing)');
+    }
+
     try {
       // Request permission
       const permission = await this.requestPermission();
@@ -335,7 +348,7 @@ class NotificationService {
       return true;
     } catch (error) {
       console.error('[Notification Service] Setup failed:', error);
-      return false;
+      throw error;
     }
   }
 

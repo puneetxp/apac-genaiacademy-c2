@@ -199,3 +199,9 @@
     opacity: 0;
   }
 }
+
+/* Profile drawer: slide in from the right */
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}

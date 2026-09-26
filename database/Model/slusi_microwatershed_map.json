@@ -3,7 +3,7 @@
     "table": "slusi_microwatershed_maps",
     "crud": {
         "isuper": ["r", "a"],
-        "islogin": ["r"]
+        "islogin": ["r", "a"]
     },
     "enable": 0,
     "data": [

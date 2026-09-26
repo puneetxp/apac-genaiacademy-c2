@@ -1,14 +1,15 @@
 """SLUSI soil data integration endpoints."""
+
 from __future__ import annotations
 
 import logging
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import CurrentUser, CurrentAdmin, DB
+from app.core.dependencies import DB, CurrentAdmin, CurrentUser
 from app.schemas.slusi import (
     IngestionRunResult,
     LCCReport,
@@ -46,6 +47,8 @@ async def soil_lookup(
     db: DB,
     lat: float = Query(..., ge=-90, le=90, description="Farm latitude"),
     lon: float = Query(..., ge=-180, le=180, description="Farm longitude"),
+    state: Optional[str] = Query(None, description="State name (optional; same as /v2 when given)"),
+    district: Optional[str] = Query(None, description="District name"),
 ) -> SoilLookupResponse:
     """
     Real-time SHC WMS lookup + LCC cache query for a GPS coordinate.
@@ -59,6 +62,8 @@ async def soil_lookup(
     # the frontend should pass state/district as query params in a real call,
     # but for now we attempt to resolve from the coordinate via the DB.
     # For MVP: require state + district query params.
+    if state and district:
+        return await soil_lookup_v2(current_user, db, lat, lon, state, district)
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Please provide state and district query parameters for soil lookup",
@@ -85,7 +90,8 @@ async def soil_lookup_v2(
     codes = await mapper.resolve(state, district, db)
     if codes is None:
         logger.warning("soil_lookup: no WMS codes for state=%s district=%s", state, district)
-        from app.schemas.slusi import SHCSoilProfile, LCCSummary
+        from app.schemas.slusi import LCCSummary, SHCSoilProfile
+
         shc_profile = SHCSoilProfile(wms_available=False, partial_data=True)
         lcc_reports = service.get_lcc_reports(state, district)
         lcc_summary = None
@@ -93,29 +99,41 @@ async def soil_lookup_v2(
         if lcc_reports:
             report = lcc_reports[0]
             class_areas = {
-                "I": report.lcc_class_i, "II": report.lcc_class_ii,
-                "III": report.lcc_class_iii, "IV": report.lcc_class_iv,
-                "V": report.lcc_class_v, "VI": report.lcc_class_vi,
-                "VII": report.lcc_class_vii, "VIII": report.lcc_class_viii,
+                "I": report.lcc_class_i,
+                "II": report.lcc_class_ii,
+                "III": report.lcc_class_iii,
+                "IV": report.lcc_class_iv,
+                "V": report.lcc_class_v,
+                "VI": report.lcc_class_vi,
+                "VII": report.lcc_class_vii,
+                "VIII": report.lcc_class_viii,
             }
             valid = {k: v for k, v in class_areas.items() if v is not None}
             dominant = max(valid, key=lambda k: valid[k]) if valid else None
             lcc_summary = LCCSummary(
-                dominant_class=dominant, total_area_ha=report.total_area_ha,
-                report_no=report.report_no, year=report.year, ingested_at=report.ingested_at,
+                dominant_class=dominant,
+                total_area_ha=report.total_area_ha,
+                report_no=report.report_no,
+                year=report.year,
+                ingested_at=report.ingested_at,
             )
             lcc_available = True
         return SoilLookupResponse(
-            shc_profile=shc_profile, lcc_summary=lcc_summary,
+            shc_profile=shc_profile,
+            lcc_summary=lcc_summary,
             lcc_data_available=lcc_available,
         )
 
     state_code, district_code = codes
     shc_profile = await fetcher.fetch_soil_profile(lat, lon, state_code, district_code)
 
-    farm_profile = service.enrich_farm_profile({
-        "id": 0, "location_state": state, "location_district": district,
-    })
+    farm_profile = service.enrich_farm_profile(
+        {
+            "id": 0,
+            "location_state": state,
+            "location_district": district,
+        }
+    )
 
     return SoilLookupResponse(
         shc_profile=shc_profile,
@@ -156,7 +174,7 @@ def get_microwatershed_map(state: str, db: DB) -> Response:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Microwatershed map for '{state}' is not yet available. "
-                   "Run ingestion to download maps from SLUSI.",
+            "Run ingestion to download maps from SLUSI.",
         )
     return Response(content=data, media_type="image/png")
 
@@ -197,6 +215,7 @@ def get_status(db: DB) -> SLUSIStatus:
 def get_config(current_admin: CurrentAdmin) -> dict[str, str]:
     """Return masked WMS config for diagnostics."""
     from app.core.config import settings
+
     wms_path = settings.SHC_WMS_PATH
     masked = ("*" * (len(wms_path) - 4) + wms_path[-4:]) if len(wms_path) >= 4 else "****"
     return {
