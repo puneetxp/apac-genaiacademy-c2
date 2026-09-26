@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 def init_db() -> None:
     """Initialize database with tables"""
     logger.info("Creating database tables...")
+    # NOTE (2026-09-26): don't use this to create tables. The schema is owned by database/Model/*.json
+    # + `php setup.php` (see skills/SKILL.md); SQLAlchemy here is only a connection pool / the users model.
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully")
 

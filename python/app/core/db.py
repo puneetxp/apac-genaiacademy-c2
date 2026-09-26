@@ -3,8 +3,10 @@ Lightweight PostgreSQL Query Builder
 Similar to compile-php DB.php - builds SQL queries dynamically
 """
 
+import os
 import psycopg
 from psycopg.rows import dict_row
+from sqlalchemy import create_engine
 from typing import Any, Dict, List, Optional, Tuple
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,6 +33,41 @@ def get_db_settings() -> DatabaseSettings:
         _db_settings = DatabaseSettings()
     return _db_settings
 
+
+
+# ── Connection pool ──────────────────────────────────────────────────────────
+# SQLAlchemy is used ONLY as a connection pool under this DB/Model API: no SQLAlchemy models,
+# no create_all, no Alembic. The schema comes from database/Model/*.json via `php setup.php`.
+# Before this, every DB() opened a fresh psycopg connection (slow, and it can exhaust
+# Cloud SQL's small connection limit). Size per worker process with DB_POOL_SIZE / DB_MAX_OVERFLOW.
+_pool_engine = None
+
+
+def _pool():
+    global _pool_engine
+    if _pool_engine is None:
+        settings = get_db_settings()
+
+        def _connect():
+            # Same parameters as the old per-query connect (host may be a /cloudsql/... socket dir)
+            return psycopg.connect(
+                host=settings.postgres_server,
+                dbname=settings.postgres_db,
+                user=settings.postgres_user,
+                password=settings.postgres_password,
+                port=settings.postgres_port,
+            )
+
+        _pool_engine = create_engine(
+            "postgresql+psycopg://",
+            creator=_connect,
+            pool_size=int(os.getenv("DB_POOL_SIZE", "2")),
+            max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "2")),
+            pool_timeout=30,        # wait for a free connection instead of opening more
+            pool_pre_ping=True,     # drop dead connections (Cloud SQL restarts, idle timeouts)
+            pool_recycle=1800,
+        )
+    return _pool_engine
 
 class DB:
     """
@@ -106,8 +143,9 @@ class DB:
         """Execute query with prepared statements"""
         self.bind()
         
-        conn = self._get_connection()
-        cursor = conn.cursor()
+        # Borrow a pooled connection for this one statement; close() hands it back to the pool.
+        conn = _pool().raw_connection()
+        cursor = conn.cursor(row_factory=dict_row)
         
         try:
             # psycopg3 uses %s placeholders, not $1, $2, ...
@@ -130,6 +168,7 @@ class DB:
             raise e
         finally:
             cursor.close()
+            conn.close()
         
         return self
     
