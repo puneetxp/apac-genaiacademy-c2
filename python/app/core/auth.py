@@ -34,18 +34,24 @@ class FirebaseTokenValidator:
     def _init_firebase(self):
         import firebase_admin
         from firebase_admin import credentials
+        if settings.E2E_ACTIVE:
+            logger.warning("E2E mode: Firebase disabled, using mock auth against the e2e database")
+            return
         try:
             if not firebase_admin._apps:
+                # An explicit projectId lets ID-token verification work even without Google
+                # credentials (local dev); only admin calls such as create_user need them.
+                options = {'projectId': settings.FIREBASE_PROJECT_ID}
                 if settings.GOOGLE_APPLICATION_CREDENTIALS:
                     cred = credentials.Certificate(settings.GOOGLE_APPLICATION_CREDENTIALS)
-                    firebase_admin.initialize_app(cred)
+                    firebase_admin.initialize_app(cred, options)
                 else:
                     try:
                         cred = credentials.ApplicationDefault()
-                        firebase_admin.initialize_app(cred)
+                        firebase_admin.initialize_app(cred, options)
                     except Exception:
                         # Fallback for local development without default credentials
-                        firebase_admin.initialize_app()
+                        firebase_admin.initialize_app(options=options)
             self._initialized = True
             logger.info("Firebase Admin SDK initialized successfully")
         except Exception as e:
@@ -56,8 +62,9 @@ class FirebaseTokenValidator:
         """
         Verify and decode JWT token from Firebase
         """
-        # Bypasses for tests or when firebase is not fully initialized
-        if not self._initialized or token.startswith("mock-") or token == "test-token" or settings.ENVIRONMENT == "development":
+        # Mock/test tokens let anyone impersonate any user, so they must never work outside dev/test.
+        non_production = settings.ENVIRONMENT in ("development", "test", "testing")
+        if non_production and (not self._initialized or token.startswith("mock-") or token == "test-token" or settings.ENVIRONMENT == "development"):
             logger.info("Bypassing token verification (using mock/test token)")
             # Extract standard test UID or use default
             username_or_email = "puneetxp"
@@ -107,6 +114,13 @@ class FirebaseTokenValidator:
                     "token_use": token_use
                 }
             
+        if not self._initialized:
+            logger.error("Firebase Admin SDK is not initialized; rejecting token")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service unavailable"
+            )
+
         try:
             from firebase_admin import auth
             # Firebase ID tokens correspond to Cognito ID/access tokens

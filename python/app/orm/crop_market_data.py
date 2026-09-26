@@ -21,5 +21,4 @@ class CropMarketData(Model):
         'season',
         'yoy_growth',
         'demand_level',
-        'rag_embedding',
     ]

@@ -34,15 +34,27 @@ class LivestockTransaction(Model):
         'cancelled_at',
         'cancellation_reason',
         'notes',
-        'active_role_id',
-        'active_role_id',
-        'active_role_id',
     ]
     
     relations = {
-            'active_role': {
-                'name': 'active_role_id',
+            'livestock_listing': {
+                'name': 'listing_id',
                 'key': 'id',
-                'callback': lambda: __import__('app.orm.active_roles', fromlist=['ActiveRoles']).ActiveRoles
+                'callback': lambda: __import__('app.orm.livestock_listing', fromlist=['LivestockListing']).LivestockListing
+            },
+            'seller': {
+                'name': 'seller_id',
+                'key': 'id',
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
+            },
+            'buyer': {
+                'name': 'buyer_id',
+                'key': 'id',
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
+            },
+            'market_price': {
+                'name': 'id',
+                'key': 'transaction_id',
+                'callback': lambda: __import__('app.orm.market_price', fromlist=['MarketPrice']).MarketPrice
             },
     }

@@ -15,3 +15,11 @@ class Role(Model):
         'enable',
         'name',
     ]
+    
+    relations = {
+            'active_role': {
+                'name': 'id',
+                'key': 'role_id',
+                'callback': lambda: __import__('app.orm.active_role', fromlist=['ActiveRole']).ActiveRole
+            },
+    }

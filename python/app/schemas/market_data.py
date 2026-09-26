@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from decimal import Decimal
+from app.schemas.types import JsonDecimal
 
 
 class CropMarketDataCreate(BaseModel):
@@ -94,18 +95,18 @@ class CropMarketDataResponse(BaseModel):
     year: int
     month: Optional[int]
     season: Optional[str]
-    avg_price_per_quintal: Decimal
-    min_price: Optional[Decimal]
-    max_price: Optional[Decimal]
-    modal_price: Optional[Decimal]
-    market_demand_score: Optional[Decimal]
-    supply_volume: Optional[Decimal]
-    price_volatility: Optional[Decimal]
+    avg_price_per_quintal: JsonDecimal
+    min_price: Optional[JsonDecimal]
+    max_price: Optional[JsonDecimal]
+    modal_price: Optional[JsonDecimal]
+    market_demand_score: Optional[JsonDecimal]
+    supply_volume: Optional[JsonDecimal]
+    price_volatility: Optional[JsonDecimal]
     price_trend: Optional[str]
-    yoy_price_change: Optional[Decimal]
-    mom_price_change: Optional[Decimal]
+    yoy_price_change: Optional[JsonDecimal]
+    mom_price_change: Optional[JsonDecimal]
     data_source: Optional[str]
-    data_quality_score: Optional[Decimal]
+    data_quality_score: Optional[JsonDecimal]
     created_at: datetime
     updated_at: datetime
     

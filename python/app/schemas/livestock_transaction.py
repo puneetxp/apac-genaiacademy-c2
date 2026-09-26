@@ -46,8 +46,9 @@ class LivestockTransactionBase(BaseModel):
 
 class LivestockTransactionCreate(LivestockTransactionBase):
     """Schema for creating a livestock transaction (buyer initiates)"""
-    buyer_id: int = Field(..., description="ID of the buyer")
-    seller_id: int = Field(..., description="ID of the seller")
+    # Ignored by the API: the buyer is the signed-in user and the seller comes from the listing.
+    buyer_id: Optional[int] = Field(None, description="Ignored; the signed-in user is the buyer")
+    seller_id: Optional[int] = Field(None, description="Ignored; taken from the listing")
 
     @field_validator('buyer_message')
     @classmethod

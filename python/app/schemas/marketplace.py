@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import date, datetime
 from typing import Optional
 from decimal import Decimal
+from app.schemas.types import JsonDecimal
 
 
 class MarketplaceListingBase(BaseModel):
@@ -25,8 +26,8 @@ class MarketplaceListingBase(BaseModel):
     status: str = Field(default="active", description="Status: active, booked, harvested, cancelled")
     
     # Delivery address fields
-    delivery_latitude: Optional[Decimal] = Field(None, description="Delivery GPS latitude (optional)")
-    delivery_longitude: Optional[Decimal] = Field(None, description="Delivery GPS longitude (optional)")
+    delivery_latitude: Optional[JsonDecimal] = Field(None, description="Delivery GPS latitude (optional)")
+    delivery_longitude: Optional[JsonDecimal] = Field(None, description="Delivery GPS longitude (optional)")
     delivery_pincode: Optional[str] = Field(None, max_length=10, description="Delivery postal code")
     delivery_village: Optional[str] = Field(None, max_length=100, description="Delivery village/VPO")
     delivery_address_line: Optional[str] = Field(None, max_length=255, description="Delivery address line")
@@ -72,8 +73,8 @@ class MarketplaceListingUpdate(BaseModel):
     status: Optional[str] = None
     
     # Delivery address fields
-    delivery_latitude: Optional[Decimal] = None
-    delivery_longitude: Optional[Decimal] = None
+    delivery_latitude: Optional[JsonDecimal] = None
+    delivery_longitude: Optional[JsonDecimal] = None
     delivery_pincode: Optional[str] = Field(None, max_length=10)
     delivery_village: Optional[str] = Field(None, max_length=100)
     delivery_address_line: Optional[str] = Field(None, max_length=255)
@@ -124,8 +125,8 @@ class BuyerInterestBase(BaseModel):
     status: str = Field(default="pending", description="Status: pending, contacted, agreed, cancelled")
     
     # Buyer delivery address fields
-    delivery_latitude: Optional[Decimal] = Field(None, description="Buyer delivery GPS latitude (optional)")
-    delivery_longitude: Optional[Decimal] = Field(None, description="Buyer delivery GPS longitude (optional)")
+    delivery_latitude: Optional[JsonDecimal] = Field(None, description="Buyer delivery GPS latitude (optional)")
+    delivery_longitude: Optional[JsonDecimal] = Field(None, description="Buyer delivery GPS longitude (optional)")
     delivery_pincode: Optional[str] = Field(None, max_length=10, description="Buyer delivery postal code")
     delivery_state: Optional[str] = Field(None, max_length=100, description="Buyer delivery state")
     delivery_district: Optional[str] = Field(None, max_length=100, description="Buyer delivery district")
@@ -167,8 +168,8 @@ class BuyerInterestUpdate(BaseModel):
     status: Optional[str] = None
     
     # Buyer delivery address fields
-    delivery_latitude: Optional[Decimal] = None
-    delivery_longitude: Optional[Decimal] = None
+    delivery_latitude: Optional[JsonDecimal] = None
+    delivery_longitude: Optional[JsonDecimal] = None
     delivery_pincode: Optional[str] = Field(None, max_length=10)
     delivery_state: Optional[str] = Field(None, max_length=100)
     delivery_district: Optional[str] = Field(None, max_length=100)

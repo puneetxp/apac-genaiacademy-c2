@@ -1,6 +1,6 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
-from app.models.market_price import MarketPrice
+from app.models.market_price import MarketPrice, MarketPriceInput
 from app.services.market_price_service import get_service
 
 

@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.shc_state_district_code import ShcStateDistrictCode
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.shc_state_district_code import ShcStateDistrictCode, ShcStateDistrictCodeInput
 from app.services.shc_state_district_code_service import get_service
+from app.core.auth import get_current_admin
 from typing import List
 
 
-router = APIRouter(prefix="/isuper/shc_state_district_code", tags=["isuper-shc_state_district_code"])
+router = APIRouter(prefix="/isuper/shc_state_district_code", tags=["isuper-shc_state_district_code"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[ShcStateDistrictCode])

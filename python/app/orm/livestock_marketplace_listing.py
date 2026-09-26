@@ -36,14 +36,17 @@ class LivestockMarketplaceListing(Model):
         'listing_status',
         'views_count',
         'bedrock_analysis',
-        'active_role_id',
-        'active_role_id',
     ]
     
     relations = {
-            'active_role': {
-                'name': 'active_role_id',
+            'livestock': {
+                'name': 'livestock_id',
                 'key': 'id',
-                'callback': lambda: __import__('app.orm.active_roles', fromlist=['ActiveRoles']).ActiveRoles
+                'callback': lambda: __import__('app.orm.livestock', fromlist=['Livestock']).Livestock
+            },
+            'farmer': {
+                'name': 'farmer_id',
+                'key': 'id',
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
             },
     }

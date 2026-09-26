@@ -12,9 +12,6 @@ class User(Model):
     table = 'users'
     
     fillable = [
-        'id',
-        'created_at',
-        'updated_at',
         'enable',
         'cognito_user_id',
         'firebase_id',
@@ -40,9 +37,54 @@ class User(Model):
     ]
     
     relations = {
+            'active_role': {
+                'name': 'id',
+                'key': 'user_id',
+                'callback': lambda: __import__('app.orm.active_role', fromlist=['ActiveRole']).ActiveRole
+            },
+            'ai_usage_quota': {
+                'name': 'id',
+                'key': 'user_id',
+                'callback': lambda: __import__('app.orm.ai_usage_quota', fromlist=['AiUsageQuota']).AiUsageQuota
+            },
+            'annual_strategy': {
+                'name': 'id',
+                'key': 'farmer_id',
+                'callback': lambda: __import__('app.orm.annual_strategy', fromlist=['AnnualStrategy']).AnnualStrategy
+            },
             'farm': {
                 'name': 'id',
                 'key': 'user_id',
-                'callback': lambda: __import__('app.orm.farms', fromlist=['Farms']).Farms
+                'callback': lambda: __import__('app.orm.farm', fromlist=['Farm']).Farm
+            },
+            'livestock': {
+                'name': 'id',
+                'key': 'farmer_id',
+                'callback': lambda: __import__('app.orm.livestock', fromlist=['Livestock']).Livestock
+            },
+            'livestock_listing': {
+                'name': 'id',
+                'key': 'farmer_id',
+                'callback': lambda: __import__('app.orm.livestock_listing', fromlist=['LivestockListing']).LivestockListing
+            },
+            'livestock_roi_prediction': {
+                'name': 'id',
+                'key': 'user_id',
+                'callback': lambda: __import__('app.orm.livestock_roi_prediction', fromlist=['LivestockRoiPrediction']).LivestockRoiPrediction
+            },
+            'marketplace_listing': {
+                'name': 'id',
+                'key': 'farmer_id',
+                'callback': lambda: __import__('app.orm.marketplace_listing', fromlist=['MarketplaceListing']).MarketplaceListing
+            },
+            'transport_provider': {
+                'name': 'id',
+                'key': 'user_id',
+                'callback': lambda: __import__('app.orm.transport_provider', fromlist=['TransportProvider']).TransportProvider
+            },
+            'user_notification': {
+                'name': 'id',
+                'key': 'user_id',
+                'callback': lambda: __import__('app.orm.user_notification', fromlist=['UserNotification']).UserNotification
             },
     }

@@ -2,6 +2,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from datetime import datetime as _datetime
 
 
 class PaymentMilestone(BaseModel):
@@ -11,10 +12,21 @@ class PaymentMilestone(BaseModel):
     enable: int
     booking_id: int
     milestone_type: str
-    amount: int
+    amount: float
     due_date: datetime
     paid_date: datetime | None = None
     status: str
     payment_method: str | None = None
     transaction_id: str | None = None
-    active_role_id: int
+
+
+class PaymentMilestoneInput(BaseModel):
+    enable: int | None = None
+    booking_id: int | None = None
+    milestone_type: str | None = None
+    amount: float | None = None
+    due_date: _datetime | None = None
+    paid_date: _datetime | None = None
+    status: str | None = None
+    payment_method: str | None = None
+    transaction_id: str | None = None

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
-from app.models.price_prediction import PricePrediction
+from app.models.price_prediction import PricePrediction, PricePredictionInput
 from app.services.price_prediction_service import get_service
 
 

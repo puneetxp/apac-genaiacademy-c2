@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.slusi_microwatershed_map import SlusiMicrowatershedMap
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.slusi_microwatershed_map import SlusiMicrowatershedMap, SlusiMicrowatershedMapInput
 from app.services.slusi_microwatershed_map_service import get_service
+from app.core.auth import get_current_admin
 from typing import List
 
 
-router = APIRouter(prefix="/isuper/slusi_microwatershed_map", tags=["isuper-slusi_microwatershed_map"])
+router = APIRouter(prefix="/isuper/slusi_microwatershed_map", tags=["isuper-slusi_microwatershed_map"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[SlusiMicrowatershedMap])

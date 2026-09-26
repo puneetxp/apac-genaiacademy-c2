@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import date, datetime
 from typing import Optional, List
 from decimal import Decimal
+from app.schemas.types import JsonDecimal
 
 
 # ============================================================================
@@ -22,7 +23,7 @@ class BreedingRecordBase(BaseModel):
     mate_breed: Optional[str] = Field(None, description="Mate breed if external")
     expected_delivery_date: Optional[date] = Field(None, description="Expected calving/kidding date")
     pregnancy_status: str = Field(default="pending", description="Status: pending, confirmed, delivered, failed")
-    breeding_cost: Optional[Decimal] = Field(None, ge=0, description="Cost of breeding service in INR")
+    breeding_cost: Optional[JsonDecimal] = Field(None, ge=0, description="Cost of breeding service in INR")
     veterinarian_name: Optional[str] = Field(None, description="Veterinarian name")
     notes: Optional[str] = Field(None, description="Additional notes")
     
@@ -60,7 +61,7 @@ class BreedingRecordUpdate(BaseModel):
     actual_delivery_date: Optional[date] = None
     pregnancy_status: Optional[str] = None
     number_of_offspring: Optional[int] = Field(None, ge=0)
-    breeding_cost: Optional[Decimal] = Field(None, ge=0)
+    breeding_cost: Optional[JsonDecimal] = Field(None, ge=0)
     veterinarian_name: Optional[str] = None
     notes: Optional[str] = None
     
@@ -110,7 +111,7 @@ class OffspringBase(BaseModel):
     farmer_id: int = Field(..., description="Farmer/owner ID")
     birth_date: date = Field(..., description="Date of birth")
     gender: Optional[str] = Field(None, description="Gender: male, female")
-    birth_weight: Optional[Decimal] = Field(None, ge=0, description="Birth weight in kg")
+    birth_weight: Optional[JsonDecimal] = Field(None, ge=0, description="Birth weight in kg")
     health_status: str = Field(default="healthy", description="Status: healthy, weak, deceased")
     notes: Optional[str] = Field(None, description="Additional notes")
     
@@ -144,13 +145,13 @@ class OffspringUpdate(BaseModel):
     """Schema for updating offspring"""
     livestock_id: Optional[int] = None
     gender: Optional[str] = None
-    birth_weight: Optional[Decimal] = Field(None, ge=0)
+    birth_weight: Optional[JsonDecimal] = Field(None, ge=0)
     health_status: Optional[str] = None
-    current_weight: Optional[Decimal] = Field(None, ge=0)
-    growth_rate: Optional[Decimal] = Field(None, ge=0)
+    current_weight: Optional[JsonDecimal] = Field(None, ge=0)
+    growth_rate: Optional[JsonDecimal] = Field(None, ge=0)
     weaning_date: Optional[date] = None
     sale_date: Optional[date] = None
-    sale_price: Optional[Decimal] = Field(None, ge=0)
+    sale_price: Optional[JsonDecimal] = Field(None, ge=0)
     notes: Optional[str] = None
     
     @field_validator('gender')
@@ -180,11 +181,11 @@ class OffspringResponse(OffspringBase):
     """Schema for offspring response"""
     id: int
     livestock_id: Optional[int] = None
-    current_weight: Optional[Decimal] = None
-    growth_rate: Optional[Decimal] = None
+    current_weight: Optional[JsonDecimal] = None
+    growth_rate: Optional[JsonDecimal] = None
     weaning_date: Optional[date] = None
     sale_date: Optional[date] = None
-    sale_price: Optional[Decimal] = None
+    sale_price: Optional[JsonDecimal] = None
     created_at: datetime
     updated_at: datetime
     enable: int = 1
@@ -206,7 +207,7 @@ class BreedingPairRecommendation(BaseModel):
     """Schema for breeding pair recommendation"""
     mate_id: Optional[int] = Field(None, description="Recommended mate livestock ID")
     mate_breed: str = Field(..., description="Recommended mate breed")
-    compatibility_score: Decimal = Field(..., ge=0, le=1, description="Compatibility score (0-1)")
+    compatibility_score: JsonDecimal = Field(..., ge=0, le=1, description="Compatibility score (0-1)")
     expected_offspring_traits: dict = Field(..., description="Expected offspring characteristics")
     reasoning: str = Field(..., description="Reasoning for recommendation")
 
@@ -237,13 +238,13 @@ class BreedingProgramMetrics(BaseModel):
     """Breeding program metrics"""
     total_breedings: int
     successful_breedings: int
-    success_rate: Decimal
+    success_rate: JsonDecimal
     total_offspring: int
-    average_offspring_per_breeding: Decimal
-    total_breeding_cost: Decimal
-    total_offspring_revenue: Decimal
-    breeding_roi: Decimal
-    genetic_improvement_score: Decimal
+    average_offspring_per_breeding: JsonDecimal
+    total_breeding_cost: JsonDecimal
+    total_offspring_revenue: JsonDecimal
+    breeding_roi: JsonDecimal
+    genetic_improvement_score: JsonDecimal
 
 
 class BreedingProgramReportResponse(BaseModel):

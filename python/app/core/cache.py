@@ -370,7 +370,8 @@ def cached(
     Example:
         @cached("farms", ttl=3600)
         def get_farm(farm_id: int):
-            return db.query(Farm).filter(Farm.id == farm_id).first()
+            rows = DB.raw("SELECT * FROM farms WHERE id = ?", [farm_id]).result  # app.core.db.DB
+            return rows[0] if rows else None
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)

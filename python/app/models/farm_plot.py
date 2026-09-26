@@ -2,6 +2,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from datetime import datetime as _datetime
 
 
 class FarmPlot(BaseModel):
@@ -11,21 +12,43 @@ class FarmPlot(BaseModel):
     enable: int
     farm_id: int
     plot_name: str
-    area: int
+    area: float
     soil_type: str
     irrigation_type: str
     state: str
     district: str
     previous_crops: str | None = None
-    investment_capacity: int | None = None
-    nitrogen: int | None = None
-    phosphorus: int | None = None
-    potassium: int | None = None
-    ph_level: int | None = None
-    organic_carbon: int | None = None
-    electrical_conductivity: int | None = None
-    sulfur: int | None = None
-    zinc: int | None = None
-    iron: int | None = None
-    boron: int | None = None
-    active_role_id: int
+    investment_capacity: float | None = None
+    nitrogen: float | None = None
+    phosphorus: float | None = None
+    potassium: float | None = None
+    ph_level: float | None = None
+    organic_carbon: float | None = None
+    electrical_conductivity: float | None = None
+    sulfur: float | None = None
+    zinc: float | None = None
+    iron: float | None = None
+    boron: float | None = None
+
+
+class FarmPlotInput(BaseModel):
+    enable: int | None = None
+    farm_id: int | None = None
+    plot_name: str | None = None
+    area: float | None = None
+    soil_type: str | None = None
+    irrigation_type: str | None = None
+    state: str | None = None
+    district: str | None = None
+    previous_crops: str | None = None
+    investment_capacity: float | None = None
+    nitrogen: float | None = None
+    phosphorus: float | None = None
+    potassium: float | None = None
+    ph_level: float | None = None
+    organic_carbon: float | None = None
+    electrical_conductivity: float | None = None
+    sulfur: float | None = None
+    zinc: float | None = None
+    iron: float | None = None
+    boron: float | None = None

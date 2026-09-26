@@ -39,6 +39,9 @@ from app.api.v1 import (
     livestock_nutrition,
     livestock_breeding,
     livestock_transactions,
+    livestock_listings,
+    livestock_marketplace,
+    supply_requests,
     vaccination_reminders,
     veterinary,
     health,
@@ -173,8 +176,17 @@ def create_app() -> FastAPI:
     
     # Include generated routers (CRUD operations from schema-driven generation)
     logger.info("Loading generated CRUD routers...")
+    # Guard by namespace here, not in the generated files, so regeneration can't drop the auth:
+    # /isuper -> admin only, /islogin -> any signed-in user, /ipublic -> open.
+    from fastapi import Depends
+    from app.core.auth import get_current_active_user, get_current_admin
+    namespace_guards = {
+        "/isuper": [Depends(get_current_admin)],
+        "/islogin": [Depends(get_current_active_user)],
+    }
     for router in all_routers:
-        app.include_router(router, prefix=settings.API_V1_STR)
+        guard = next((deps for ns, deps in namespace_guards.items() if router.prefix.startswith(ns)), [])
+        app.include_router(router, prefix=settings.API_V1_STR, dependencies=guard)
     
     # Include v1 API routers (custom business logic)
     # IMPORTANT: Register specific routes BEFORE catch-all routes to avoid conflicts
@@ -208,6 +220,10 @@ def create_app() -> FastAPI:
     app.include_router(livestock_nutrition.router, prefix=settings.API_V1_STR, tags=["Livestock Nutrition"])
     app.include_router(livestock_breeding.router, prefix=settings.API_V1_STR, tags=["Livestock Breeding"])
     app.include_router(livestock_transactions.router, prefix=settings.API_V1_STR, tags=["Livestock Transactions"])
+    # These were built but never mounted (see FEATURES.md, "built but not wired up").
+    app.include_router(livestock_listings.router, prefix=settings.API_V1_STR, tags=["Livestock Listings"])
+    app.include_router(livestock_marketplace.router, prefix=settings.API_V1_STR, tags=["Livestock Marketplace"])
+    app.include_router(supply_requests.router, prefix=settings.API_V1_STR, tags=["Supply Requests"])
     app.include_router(vaccination_reminders.router, prefix=settings.API_V1_STR, tags=["Vaccination Reminders"])
     app.include_router(veterinary.router, prefix=settings.API_V1_STR, tags=["Veterinary Services"])
     app.include_router(sagemaker.router, prefix=settings.API_V1_STR, tags=["SageMaker Infrastructure"])
@@ -249,41 +265,8 @@ async def root():
     }
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Run on application startup"""
-    logger.info(f"Starting {settings.APP_NAME} v{settings.VERSION}")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
-    logger.info(f"Debug mode: {settings.DEBUG}")
-    
-    # Initialize cache manager
-    if settings.CACHE_ENABLED:
-        try:
-            from app.core.cache import init_cache_manager
-            cache_manager = init_cache_manager(
-                redis_url=settings.REDIS_URL,
-                default_ttl=settings.CACHE_TTL_SECONDS,
-                enabled=True
-            )
-            logger.info(f"Cache manager initialized (Redis: {settings.REDIS_HOST}:{settings.REDIS_PORT})")
-        except Exception as e:
-            logger.warning(f"Failed to initialize cache manager: {e}. Caching disabled.")
-    else:
-        logger.info("Caching disabled by configuration")
-    
-    # Connect rate limiter to Redis
-    if settings.RATE_LIMIT_ENABLED:
-        try:
-            from app.core.rate_limiter import get_rate_limiter
-            rate_limiter = get_rate_limiter()
-            if rate_limiter:
-                await rate_limiter.init()
-                logger.info(f"Rate limiter connected (Authenticated: {settings.RATE_LIMIT_PER_MINUTE}/min, Public: {settings.RATE_LIMIT_PUBLIC_PER_MINUTE}/min)")
-        except Exception as e:
-            logger.warning(f"Failed to connect rate limiter to Redis on startup: {e}")
-    else:
-        logger.info("Rate limiting disabled by configuration")
-    
+async def _start_background_jobs():
+    """Schedulers and one-off seeding that reach external services (skipped in E2E mode)."""
     # Initialize quota reset scheduler
     try:
         from app.jobs.quota_reset_job import start_quota_reset_scheduler
@@ -321,6 +304,49 @@ async def startup_event():
                 logger.info(f"shc_state_district_codes already has {count} rows — skipping seed")
     except Exception as e:
         logger.warning(f"Failed to seed SHC state/district codes: {e}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Run on application startup"""
+    logger.info(f"Starting {settings.APP_NAME} v{settings.VERSION}")
+    logger.info(f"Environment: {settings.ENVIRONMENT}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
+    
+    # Initialize cache manager
+    if settings.CACHE_ENABLED:
+        try:
+            from app.core.cache import init_cache_manager
+            cache_manager = init_cache_manager(
+                redis_url=settings.REDIS_URL,
+                default_ttl=settings.CACHE_TTL_SECONDS,
+                enabled=True
+            )
+            logger.info(f"Cache manager initialized (Redis: {settings.REDIS_HOST}:{settings.REDIS_PORT})")
+        except Exception as e:
+            logger.warning(f"Failed to initialize cache manager: {e}. Caching disabled.")
+    else:
+        logger.info("Caching disabled by configuration")
+    
+    # Connect rate limiter to Redis
+    if settings.RATE_LIMIT_ENABLED:
+        try:
+            from app.core.rate_limiter import get_rate_limiter
+            rate_limiter = get_rate_limiter()
+            if rate_limiter:
+                await rate_limiter.init()
+                logger.info(f"Rate limiter connected (Authenticated: {settings.RATE_LIMIT_PER_MINUTE}/min, Public: {settings.RATE_LIMIT_PUBLIC_PER_MINUTE}/min)")
+        except Exception as e:
+            logger.warning(f"Failed to connect rate limiter to Redis on startup: {e}")
+    else:
+        logger.info("Rate limiting disabled by configuration")
+    
+    if settings.E2E_ACTIVE:
+        logger.warning("E2E mode: background schedulers and SHC code seeding are off")
+        app.state.quota_scheduler = None
+        app.state.slusi_scheduler = None
+    else:
+        await _start_background_jobs()
     
     # Check database connection
     from app.core.database import check_db_connection

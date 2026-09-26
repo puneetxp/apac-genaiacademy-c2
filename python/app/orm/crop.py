@@ -26,14 +26,37 @@ class Crop(Model):
         'actual_yield',
         'actual_profit',
         'status',
-        'active_role_id',
-        'active_role_id',
     ]
     
     relations = {
-            'active_role': {
-                'name': 'active_role_id',
+            'farm_plot': {
+                'name': 'farm_plot_id',
                 'key': 'id',
-                'callback': lambda: __import__('app.orm.active_roles', fromlist=['ActiveRoles']).ActiveRoles
+                'callback': lambda: __import__('app.orm.farm_plot', fromlist=['FarmPlot']).FarmPlot
+            },
+            'annual_strategy': {
+                'name': 'strategy_id',
+                'key': 'id',
+                'callback': lambda: __import__('app.orm.annual_strategy', fromlist=['AnnualStrategy']).AnnualStrategy
+            },
+            'crop_expense': {
+                'name': 'id',
+                'key': 'crop_id',
+                'callback': lambda: __import__('app.orm.crop_expense', fromlist=['CropExpense']).CropExpense
+            },
+            'crop_milestone': {
+                'name': 'id',
+                'key': 'crop_id',
+                'callback': lambda: __import__('app.orm.crop_milestone', fromlist=['CropMilestone']).CropMilestone
+            },
+            'fertilizer_application': {
+                'name': 'id',
+                'key': 'crop_id',
+                'callback': lambda: __import__('app.orm.fertilizer_application', fromlist=['FertilizerApplication']).FertilizerApplication
+            },
+            'pest_disease_alert': {
+                'name': 'id',
+                'key': 'crop_id',
+                'callback': lambda: __import__('app.orm.pest_disease_alert', fromlist=['PestDiseaseAlert']).PestDiseaseAlert
             },
     }

@@ -1,6 +1,7 @@
 """Rate limiting middleware for FastAPI using Redis backend."""
 from __future__ import annotations
 
+import os
 import time
 from typing import Callable, Optional
 from fastapi import Request, Response, HTTPException, status
@@ -9,6 +10,33 @@ import redis.asyncio as redis
 import logging
 
 logger = logging.getLogger(__name__)
+
+# How many proxies in front of us append to X-Forwarded-For (Cloud Run's front end adds one).
+TRUSTED_PROXY_HOPS = int(os.getenv("TRUSTED_PROXY_HOPS", "1" if os.getenv("K_SERVICE") else "0"))
+
+
+def client_ip(request: Request) -> str:
+    """Real client IP. The left of X-Forwarded-For is whatever the client sent, so only the
+    entry added by our own trusted proxy (counting from the right) can be believed."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded and TRUSTED_PROXY_HOPS > 0:
+        hops = [h.strip() for h in forwarded.split(",") if h.strip()]
+        if len(hops) >= TRUSTED_PROXY_HOPS:
+            return hops[-TRUSTED_PROXY_HOPS]
+    return request.client.host if request.client else "unknown"
+
+
+def user_id_from_token(request: Request) -> Optional[str]:
+    """Verified user id from the Bearer token, or None (bad or missing tokens count as anonymous)."""
+    header = request.headers.get("Authorization", "")
+    if not header.lower().startswith("bearer "):
+        return None
+    try:
+        from app.core.auth import token_validator
+        claims = token_validator.verify_token(header[7:].strip())
+        return claims.get("sub") or claims.get("uid")
+    except Exception:
+        return None
 
 
 class RateLimiter:
@@ -80,14 +108,7 @@ class RateLimiter:
         if user_id:
             return f"user:{user_id}"
         
-        # Fall back to IP address
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            ip = forwarded.split(",")[0].strip()
-        else:
-            ip = request.client.host if request.client else "unknown"
-        
-        return f"ip:{ip}"
+        return f"ip:{client_ip(request)}"
     
     def _get_rate_limit_key(self, identifier: str, endpoint: str) -> str:
         """
@@ -196,8 +217,10 @@ class RateLimiter:
             if request.url.path in ["/health", "/", "/docs", "/redoc", "/openapi.json"]:
                 return await call_next(request)
             
-            # Determine if user is authenticated
-            user_id = getattr(request.state, "user_id", None)
+            # Middleware runs before route auth, so identify signed-in users from the token here.
+            if getattr(request.state, "user_id", None) is None:
+                request.state.user_id = user_id_from_token(request)
+            user_id = request.state.user_id
             is_authenticated = user_id is not None
             
             # Use different limits for authenticated vs public

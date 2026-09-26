@@ -1,15 +1,37 @@
 """
-Historical Yield ORM Model - STUB
-TODO: This is a temporary stub to allow application startup.
-Needs to be properly implemented with full schema.
+HistoricalYield ORM Model
+Auto-generated from JSON schema
 """
 
 from app.core.model import Model
 
 
 class HistoricalYield(Model):
-    """ORM model for historical_yields table - STUB"""
-    __tablename__ = "historical_yields"
+    """HistoricalYield model for historical_yields table"""
     
-    # TODO: Add proper columns when table schema is defined
-    # This is just a stub to prevent import errors
+    table = 'historical_yields'
+    
+    fillable = [
+        'enable',
+        'crop_type',
+        'variety',
+        'state',
+        'district',
+        'block',
+        'year',
+        'season',
+        'avg_yield_per_acre',
+        'min_yield',
+        'max_yield',
+        'success_rate',
+        'farmer_count',
+        'total_area_cultivated',
+        'soil_types',
+        'irrigation_methods',
+        'avg_rainfall',
+        'avg_temperature',
+        'quality_distribution',
+        'avg_quality_grade',
+        'data_source',
+        'data_quality_score',
+    ]

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import date, datetime
 from typing import Optional
 from decimal import Decimal
+from app.schemas.types import JsonDecimal
 
 
 class LivestockHealthRecordBase(BaseModel):
@@ -15,7 +16,7 @@ class LivestockHealthRecordBase(BaseModel):
     record_date: date = Field(..., description="Date of record")
     description: str = Field(..., description="Detailed description of the record")
     veterinarian_name: Optional[str] = Field(None, description="Veterinarian name if applicable")
-    cost: Optional[Decimal] = Field(None, ge=0, description="Cost in INR")
+    cost: Optional[JsonDecimal] = Field(None, ge=0, description="Cost in INR")
     next_due_date: Optional[date] = Field(None, description="Next due date for vaccinations/checkups")
     notes: Optional[str] = Field(None, description="Additional notes")
     
@@ -56,7 +57,7 @@ class HealthRecordUpdate(BaseModel):
     record_date: Optional[date] = None
     description: Optional[str] = None
     veterinarian_name: Optional[str] = None
-    cost: Optional[Decimal] = Field(None, ge=0)
+    cost: Optional[JsonDecimal] = Field(None, ge=0)
     next_due_date: Optional[date] = None
     notes: Optional[str] = None
     medication_name: Optional[str] = None
@@ -117,7 +118,7 @@ class HealthRecordReport(BaseModel):
     treatments: list[HealthRecordResponse] = Field(default_factory=list)
     checkups: list[HealthRecordResponse] = Field(default_factory=list)
     observations: list[HealthRecordResponse] = Field(default_factory=list)
-    total_health_cost: Decimal = Field(default=Decimal('0'), description="Total health costs")
+    total_health_cost: JsonDecimal = Field(default=Decimal('0'), description="Total health costs")
     last_checkup_date: Optional[date] = None
     upcoming_vaccinations: list[dict] = Field(default_factory=list)
     health_summary: str = Field(default="", description="Summary of health status")

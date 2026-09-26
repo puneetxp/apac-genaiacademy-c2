@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.soil_test_result import SoilTestResult
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.soil_test_result import SoilTestResult, SoilTestResultInput
 from app.services.soil_test_result_service import get_service
+from app.core.auth import get_current_admin
 from typing import List, Dict
 
 
-router = APIRouter(prefix="/isuper/soil_test_result", tags=["isuper-soil_test_result"])
+router = APIRouter(prefix="/isuper/soil_test_result", tags=["isuper-soil_test_result"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[SoilTestResult])
@@ -20,11 +22,11 @@ def show_isuper_soil_test_result(item_id: int):
     return record
 
 @router.post("/", response_model=SoilTestResult, status_code=201)
-def create_isuper_soil_test_result(payload: SoilTestResult):
+def create_isuper_soil_test_result(payload: SoilTestResultInput):
     return service.create(payload.dict(exclude_unset=True))
 
 @router.put("/{item_id}", response_model=SoilTestResult)
-def update_isuper_soil_test_result(item_id: int, payload: SoilTestResult):
+def update_isuper_soil_test_result(item_id: int, payload: SoilTestResultInput):
     updated = service.update(item_id, payload.dict(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Soil_test_result not found")

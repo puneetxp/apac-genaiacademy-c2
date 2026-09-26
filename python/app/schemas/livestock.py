@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import date, datetime
 from typing import Optional
 from decimal import Decimal
+from app.schemas.types import JsonDecimal
 
 
 class LivestockBase(BaseModel):
@@ -15,14 +16,14 @@ class LivestockBase(BaseModel):
     species: str = Field(..., description="Species: cattle, goat, poultry, buffalo")
     breed: str = Field(..., description="Breed name")
     quantity: int = Field(default=1, ge=1, description="Number of animals")
-    purchase_price: Decimal = Field(..., ge=0, description="Purchase price in INR")
+    purchase_price: JsonDecimal = Field(..., ge=0, description="Purchase price in INR")
     purchase_date: date = Field(..., description="Date of purchase")
     purpose: str = Field(..., description="Purpose: dairy, meat, breeding, eggs")
     status: str = Field(default="active", description="Status: active, sold, deceased")
     
     # Livestock location (can differ from farm address)
-    latitude: Optional[Decimal] = Field(None, description="GPS latitude (optional)")
-    longitude: Optional[Decimal] = Field(None, description="GPS longitude (optional)")
+    latitude: Optional[JsonDecimal] = Field(None, description="GPS latitude (optional)")
+    longitude: Optional[JsonDecimal] = Field(None, description="GPS longitude (optional)")
     pincode: Optional[str] = Field(None, max_length=10, description="Postal code")
     state: Optional[str] = Field(None, max_length=100, description="State")
     district: Optional[str] = Field(None, max_length=100, description="District")
@@ -68,16 +69,16 @@ class LivestockUpdate(BaseModel):
     species: Optional[str] = None
     breed: Optional[str] = None
     quantity: Optional[int] = Field(None, ge=1)
-    purchase_price: Optional[Decimal] = Field(None, ge=0)
+    purchase_price: Optional[JsonDecimal] = Field(None, ge=0)
     purchase_date: Optional[date] = None
     purpose: Optional[str] = None
     status: Optional[str] = None
-    expected_roi: Optional[Decimal] = None
+    expected_roi: Optional[JsonDecimal] = None
     break_even_date: Optional[date] = None
     
     # Livestock location fields
-    latitude: Optional[Decimal] = None
-    longitude: Optional[Decimal] = None
+    latitude: Optional[JsonDecimal] = None
+    longitude: Optional[JsonDecimal] = None
     pincode: Optional[str] = Field(None, max_length=10)
     state: Optional[str] = Field(None, max_length=100)
     district: Optional[str] = Field(None, max_length=100)
@@ -121,15 +122,15 @@ class LivestockUpdate(BaseModel):
 class LivestockResponse(LivestockBase):
     """Schema for livestock response"""
     id: int
-    expected_roi: Optional[Decimal] = None
+    expected_roi: Optional[JsonDecimal] = None
     break_even_date: Optional[date] = None
     created_at: datetime
     updated_at: datetime
     enable: int = 1
     
     # Include location fields in response
-    latitude: Optional[Decimal] = None
-    longitude: Optional[Decimal] = None
+    latitude: Optional[JsonDecimal] = None
+    longitude: Optional[JsonDecimal] = None
     pincode: Optional[str] = None
     state: Optional[str] = None
     district: Optional[str] = None
@@ -148,10 +149,10 @@ class LivestockWithROI(LivestockResponse):
 class LivestockPortfolioDashboard(BaseModel):
     """Schema for livestock portfolio dashboard"""
     total_livestock: int = Field(..., description="Total number of livestock")
-    total_investment: Decimal = Field(..., description="Total investment in INR")
-    total_expected_returns: Decimal = Field(..., description="Total expected returns in INR")
-    total_current_value: Decimal = Field(..., description="Current portfolio value in INR")
-    overall_roi_percentage: Decimal = Field(..., description="Overall ROI percentage")
+    total_investment: JsonDecimal = Field(..., description="Total investment in INR")
+    total_expected_returns: JsonDecimal = Field(..., description="Total expected returns in INR")
+    total_current_value: JsonDecimal = Field(..., description="Current portfolio value in INR")
+    overall_roi_percentage: JsonDecimal = Field(..., description="Overall ROI percentage")
     livestock_by_species: dict = Field(..., description="Breakdown by species")
     livestock_by_purpose: dict = Field(..., description="Breakdown by purpose")
     active_livestock: int = Field(..., description="Number of active livestock")

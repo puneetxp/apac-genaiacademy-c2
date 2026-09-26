@@ -1,6 +1,6 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
-from app.models.transport_provider import TransportProvider
+from app.models.transport_provider import TransportProvider, TransportProviderInput
 from app.services.transport_provider_service import get_service
 
 

@@ -34,14 +34,32 @@ class MarketplaceListing(Model):
         'embedding',
         'embedding_cache_key',
         'price_per_unit',
-        'active_role_id',
-        'active_role_id',
     ]
     
     relations = {
-            'active_role': {
-                'name': 'active_role_id',
+            'farm': {
+                'name': 'farm_id',
                 'key': 'id',
-                'callback': lambda: __import__('app.orm.active_roles', fromlist=['ActiveRoles']).ActiveRoles
+                'callback': lambda: __import__('app.orm.farm', fromlist=['Farm']).Farm
+            },
+            'user': {
+                'name': 'farmer_id',
+                'key': 'id',
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
+            },
+            'advance_booking': {
+                'name': 'id',
+                'key': 'listing_id',
+                'callback': lambda: __import__('app.orm.advance_booking', fromlist=['AdvanceBooking']).AdvanceBooking
+            },
+            'market_price': {
+                'name': 'id',
+                'key': 'listing_id',
+                'callback': lambda: __import__('app.orm.market_price', fromlist=['MarketPrice']).MarketPrice
+            },
+            'supply_match': {
+                'name': 'id',
+                'key': 'listing_id',
+                'callback': lambda: __import__('app.orm.supply_match', fromlist=['SupplyMatch']).SupplyMatch
             },
     }

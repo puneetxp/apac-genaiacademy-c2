@@ -33,13 +33,12 @@ class TransportProvider(Model):
         'verification_documents',
         'license_number',
         'status',
-        'active_role_id',
     ]
     
     relations = {
-            'active_role': {
-                'name': 'active_role_id',
+            'user': {
+                'name': 'user_id',
                 'key': 'id',
-                'callback': lambda: __import__('app.orm.active_roles', fromlist=['ActiveRoles']).ActiveRoles
+                'callback': lambda: __import__('app.orm.user', fromlist=['User']).User
             },
     }

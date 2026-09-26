@@ -1,7 +1,8 @@
 from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
+from datetime import date as _date, datetime as _datetime
 
 
 class Crop(BaseModel):
@@ -14,13 +15,28 @@ class Crop(BaseModel):
     crop_name: str
     crop_variety: str | None = None
     season: str
-    planting_date: datetime
-    expected_harvest_date: datetime
-    area: int
-    expected_yield: int | None = None
-    expected_profit: int | None = None
-    actual_yield: int | None = None
-    actual_profit: int | None = None
+    planting_date: date
+    expected_harvest_date: date
+    area: float
+    expected_yield: float | None = None
+    expected_profit: float | None = None
+    actual_yield: float | None = None
+    actual_profit: float | None = None
     status: str | None = None
-    active_role_id: int
-    active_role_id: int
+
+
+class CropInput(BaseModel):
+    enable: int | None = None
+    farm_plot_id: int | None = None
+    strategy_id: int | None = None
+    crop_name: str | None = None
+    crop_variety: str | None = None
+    season: str | None = None
+    planting_date: _date | None = None
+    expected_harvest_date: _date | None = None
+    area: float | None = None
+    expected_yield: float | None = None
+    expected_profit: float | None = None
+    actual_yield: float | None = None
+    actual_profit: float | None = None
+    status: str | None = None

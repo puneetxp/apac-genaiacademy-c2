@@ -1,6 +1,6 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
-from app.models.crop_market_data import CropMarketData
+from app.models.crop_market_data import CropMarketData, CropMarketDataInput
 from app.services.crop_market_data_service import get_service
 
 

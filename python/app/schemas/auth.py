@@ -18,7 +18,7 @@ class SignUpRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="Unique username")
     password: str = Field(..., min_length=8, max_length=128, description="Password (min 8 characters)")
     email: EmailStr = Field(..., description="Email address")
-    phone_number: str = Field(..., description="Phone number (+919876543210)")
+    phone_number: Optional[str] = Field(None, description="Phone number (+919876543210), optional")
     full_name: str = Field(..., min_length=2, max_length=100, description="Full name")
     user_type: str = Field(default="farmer", description="User type: farmer, buyer, admin")
     
@@ -47,8 +47,10 @@ class SignUpRequest(BaseModel):
     
     @field_validator('phone_number')
     @classmethod
-    def validate_phone_format(cls, v: str) -> str:
-        """Validate phone number"""
+    def validate_phone_format(cls, v: Optional[str]) -> Optional[str]:
+        """Validate phone number when given; blank means none"""
+        if v is None or not v.strip():
+            return None
         return validate_phone(v)
     
     @field_validator('user_type')
@@ -118,6 +120,12 @@ class SignInRequest(BaseModel):
     def sanitize_username(cls, v: str) -> str:
         """Sanitize username"""
         return sanitize_input(v, allow_html=False)
+
+
+class GoogleSignInRequest(BaseModel):
+    """Sign in with a Firebase ID token (Google, email/password or phone) obtained on the client"""
+    id_token: str = Field(..., description="Firebase ID token from the client SDK")
+    refresh_token: Optional[str] = Field(None, description="Firebase refresh token, used by /auth/refresh")
 
 
 class SignInResponse(BaseModel):

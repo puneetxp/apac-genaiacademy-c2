@@ -2,7 +2,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date, datetime
-from decimal import Decimal
+from datetime import date as _date, datetime as _datetime
 
 
 class SoilMoistureData(BaseModel):
@@ -15,8 +15,16 @@ class SoilMoistureData(BaseModel):
     date: date
     year: int
     month: str
-    moisture_level: Decimal
-    agency_name: Optional[str] = None
+    moisture_level: float
+    agency_name: str | None = None
 
-    class Config:
-        from_attributes = True
+
+class SoilMoistureDataInput(BaseModel):
+    enable: int | None = None
+    state: str | None = None
+    district: str | None = None
+    date: _date | None = None
+    year: int | None = None
+    month: str | None = None
+    moisture_level: float | None = None
+    agency_name: str | None = None

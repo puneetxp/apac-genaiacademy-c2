@@ -93,6 +93,9 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """User response schema"""
+    # Phone / Google sign-ups can lack an email or phone; a response must never 500 over that.
+    email: Optional[str] = Field(None, description="Email address")
+    phone_number: Optional[str] = Field(None, description="Phone number")
     id: int = Field(..., description="User ID")
     username: str = Field(..., description="Username")
     cognito_user_id: Optional[str] = Field(None, description="Cognito user ID")
@@ -102,7 +105,26 @@ class UserResponse(UserBase):
     language_preference: Optional[str] = Field(None, description="Preferred language")
     created_at: datetime = Field(..., description="Account creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
-    
+
+    @model_validator(mode='before')
+    @classmethod
+    def map_user_columns(cls, data: Any) -> Any:
+        """The users table stores name / phone / preferred_language; the API calls them
+        full_name / phone_number / language_preference."""
+        if not isinstance(data, dict):
+            data = {k: getattr(data, k) for k in dir(data)
+                    if not k.startswith('_') and not callable(getattr(data, k, None))}
+        data = dict(data)
+        data.setdefault('full_name', data.get('name') or data.get('username') or 'User')
+        data.setdefault('phone_number', data.get('phone'))
+        data.setdefault('language_preference', data.get('preferred_language'))
+        return data
+
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone_format(cls, v: Optional[str]) -> Optional[str]:
+        return validate_phone(v) if v else v
+
     class Config:
         from_attributes = True
 

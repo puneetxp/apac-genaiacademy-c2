@@ -11,6 +11,7 @@ from pydantic import field_validator
 from typing import List, Optional
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 
 
 class Settings(BaseSettings):
@@ -27,7 +28,21 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
-    
+
+    # E2E test mode (e2e/ Playwright suite): mock Firebase auth, no background jobs.
+    # Only honoured with ENVIRONMENT=test, a *_e2e database, and off Cloud Run (see E2E_ACTIVE).
+    E2E_MODE: bool = False
+    E2E_PASSWORD: str = "E2e-Test-Pass1!"
+
+    @property
+    def E2E_ACTIVE(self) -> bool:
+        return (
+            self.E2E_MODE
+            and self.ENVIRONMENT == "test"
+            and self.POSTGRES_DB.endswith("_e2e")
+            and not os.getenv("K_SERVICE")
+        )
+
     # API Configuration
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = "test-secret-key-change-in-production"
@@ -57,11 +72,16 @@ class Settings(BaseSettings):
     # Database URLs
     @property
     def DATABASE_URL(self) -> str:
-        return f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-    
+        user = quote_plus(self.POSTGRES_USER)
+        password = quote_plus(self.POSTGRES_PASSWORD)
+        # A path like /cloudsql/<instance> is a Unix socket dir (Cloud Run); it can't go in the URL host slot.
+        if self.POSTGRES_SERVER.startswith("/"):
+            return f"postgresql+psycopg://{user}:{password}@/{self.POSTGRES_DB}?host={self.POSTGRES_SERVER}"
+        return f"postgresql+psycopg://{user}:{password}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
     @property
     def ASYNC_DATABASE_URL(self) -> str:
-        return f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        return self.DATABASE_URL
     
     # Redis Configuration
     REDIS_HOST: str = "localhost"
@@ -102,7 +122,12 @@ class Settings(BaseSettings):
     # Amazon SNS Configuration
     # Firebase Configuration
     FIREBASE_CREDENTIALS_PATH: Optional[str] = None
-    
+
+    # Web Push (VAPID) Configuration
+    VAPID_PUBLIC_KEY: Optional[str] = None
+    VAPID_PRIVATE_KEY: Optional[str] = None
+    VAPID_SUBJECT: str = "mailto:admin@cropsense.ai"
+
     # Email Configuration
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587
@@ -203,6 +228,9 @@ dynamodb_tables = DynamoDBTables()
 # Validation
 def validate_settings():
     """Validate critical settings - only in production"""
+    if settings.E2E_MODE and not settings.E2E_ACTIVE:
+        raise ValueError("E2E_MODE requires ENVIRONMENT=test and a POSTGRES_DB ending in _e2e, and is refused on Cloud Run")
+
     # Skip validation in test/development environments
     if settings.ENVIRONMENT in ["test", "testing", "development"]:
         return

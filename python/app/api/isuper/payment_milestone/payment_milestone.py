@@ -1,11 +1,13 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from app.models.payment_milestone import PaymentMilestone
+from fastapi import APIRouter, HTTPException, Depends
+from app.models.payment_milestone import PaymentMilestone, PaymentMilestoneInput
 from app.services.payment_milestone_service import get_service
+from app.core.auth import get_current_admin
 from typing import List, Dict
 
 
-router = APIRouter(prefix="/isuper/payment_milestone", tags=["isuper-payment_milestone"])
+router = APIRouter(prefix="/isuper/payment_milestone", tags=["isuper-payment_milestone"],
+                   dependencies=[Depends(get_current_admin)])
 service = get_service()
 
 @router.get("/", response_model=List[PaymentMilestone])
@@ -20,11 +22,11 @@ def show_isuper_payment_milestone(item_id: int):
     return record
 
 @router.post("/", response_model=PaymentMilestone, status_code=201)
-def create_isuper_payment_milestone(payload: PaymentMilestone):
+def create_isuper_payment_milestone(payload: PaymentMilestoneInput):
     return service.create(payload.dict(exclude_unset=True))
 
 @router.put("/{item_id}", response_model=PaymentMilestone)
-def update_isuper_payment_milestone(item_id: int, payload: PaymentMilestone):
+def update_isuper_payment_milestone(item_id: int, payload: PaymentMilestoneInput):
     updated = service.update(item_id, payload.dict(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Payment_milestone not found")
