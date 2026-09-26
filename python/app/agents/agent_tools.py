@@ -5,9 +5,10 @@ These tools allow the agents to query the primary PostgreSQL database and the Op
 
 import logging
 from contextvars import ContextVar
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 from app.core.database import get_db_context
-from app.services.farm_access import fetch_one, fetch_all, farm_for_user, plot_for_user
+from app.services.farm_access import farm_for_user, fetch_all, fetch_one, plot_for_user
 from app.services.weather_service import WeatherService
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ _agent_user: ContextVar[Any] = ContextVar("cropsense_agent_user", default=None)
 def set_agent_user(user) -> None:
     """Set the signed-in user whose farms / plots the agent tools may read (call before running an agent)."""
     _agent_user.set(user)
+
 
 def get_farm_details(farm_id: int) -> str:
     """Retrieves metadata for a specific farm (owner user ID, size in acres, location details).
@@ -56,6 +58,7 @@ def get_farm_details(farm_id: int) -> str:
         logger.error(f"Error getting farm details: {e}")
         return f"Error retrieving details for farm {farm_id}: {str(e)}"
 
+
 def get_soil_info(plot_id: int) -> str:
     """Retrieves the latest soil test results for a specific farm plot.
 
@@ -82,8 +85,7 @@ def get_soil_info(plot_id: int) -> str:
             return plot_info + "No soil test records found for this plot."
 
         return (
-            plot_info +
-            f"Soil Test Date: {soil_test.test_date}\n"
+            plot_info + f"Soil Test Date: {soil_test.test_date}\n"
             f"Nitrogen (N): {soil_test.nitrogen_kg_per_ha} kg/ha\n"
             f"Phosphorus (P): {soil_test.phosphorus_kg_per_ha} kg/ha\n"
             f"Potassium (K): {soil_test.potassium_kg_per_ha} kg/ha\n"
@@ -95,6 +97,7 @@ def get_soil_info(plot_id: int) -> str:
     except Exception as e:
         logger.error(f"Error getting soil info: {e}")
         return f"Error retrieving soil info for plot {plot_id}: {str(e)}"
+
 
 async def get_weather_forecast(latitude: float, longitude: float) -> str:
     """Fetches weather forecast details for agricultural coordinates.
@@ -110,7 +113,7 @@ async def get_weather_forecast(latitude: float, longitude: float) -> str:
             forecast = await weather_service.get_forecast(latitude, longitude)
             if not forecast:
                 return "Failed to fetch weather forecast data."
-            
+
             # Formulate summary
             summary = []
             for day in forecast[:5]:  # Return 5-day forecast
@@ -122,6 +125,7 @@ async def get_weather_forecast(latitude: float, longitude: float) -> str:
     except Exception as e:
         logger.error(f"Error getting weather: {e}")
         return f"Error retrieving weather forecast: {str(e)}"
+
 
 def get_market_prices(crop_name: str) -> str:
     """Retrieves current market prices and historical price trends for a crop.

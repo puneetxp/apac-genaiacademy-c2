@@ -8,14 +8,16 @@ certifications, and media uploads.
 Compatible with Python 3.14.3, Pydantic 2.10.5
 """
 
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
-from datetime import datetime, date
+from datetime import date, datetime
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class SpeciesEnum(str, Enum):
     """Livestock species"""
+
     CATTLE = "cattle"
     GOAT = "goat"
     SHEEP = "sheep"
@@ -25,6 +27,7 @@ class SpeciesEnum(str, Enum):
 
 class PurposeEnum(str, Enum):
     """Livestock purpose"""
+
     DAIRY = "dairy"
     MEAT = "meat"
     BREEDING = "breeding"
@@ -34,6 +37,7 @@ class PurposeEnum(str, Enum):
 
 class GenderEnum(str, Enum):
     """Livestock gender"""
+
     MALE = "male"
     FEMALE = "female"
     MIXED = "mixed"
@@ -41,6 +45,7 @@ class GenderEnum(str, Enum):
 
 class HealthStatusEnum(str, Enum):
     """Health status"""
+
     HEALTHY = "healthy"
     RECOVERING = "recovering"
     PREGNANT = "pregnant"
@@ -49,6 +54,7 @@ class HealthStatusEnum(str, Enum):
 
 class VaccinationStatusEnum(str, Enum):
     """Vaccination status"""
+
     UP_TO_DATE = "up_to_date"
     PARTIAL = "partial"
     NONE = "none"
@@ -56,6 +62,7 @@ class VaccinationStatusEnum(str, Enum):
 
 class ListingStatusEnum(str, Enum):
     """Listing status"""
+
     ACTIVE = "active"
     SOLD = "sold"
     RESERVED = "reserved"
@@ -64,6 +71,7 @@ class ListingStatusEnum(str, Enum):
 
 class LivestockListingBase(BaseModel):
     """Base livestock listing schema"""
+
     livestock_id: int = Field(..., description="ID of the livestock being listed")
     title: str = Field(..., min_length=5, max_length=255, description="Listing title")
     description: Optional[str] = Field(None, description="Detailed description")
@@ -77,12 +85,18 @@ class LivestockListingBase(BaseModel):
     price: float = Field(..., gt=0, description="Price in INR")
     price_negotiable: bool = Field(True, description="Whether price is negotiable")
     weight_kg: Optional[float] = Field(None, gt=0, description="Weight in kilograms")
-    health_status: HealthStatusEnum = Field(HealthStatusEnum.HEALTHY, description="Current health status")
-    vaccination_status: Optional[VaccinationStatusEnum] = Field(None, description="Vaccination status")
+    health_status: HealthStatusEnum = Field(
+        HealthStatusEnum.HEALTHY, description="Current health status"
+    )
+    vaccination_status: Optional[VaccinationStatusEnum] = Field(
+        None, description="Vaccination status"
+    )
     last_vaccination_date: Optional[date] = Field(None, description="Last vaccination date")
     milk_production_liters: Optional[float] = Field(None, ge=0, description="Daily milk production")
     breeding_certified: bool = Field(False, description="Has breeding certification")
-    breeding_certification_number: Optional[str] = Field(None, max_length=255, description="Certification number")
+    breeding_certification_number: Optional[str] = Field(
+        None, max_length=255, description="Certification number"
+    )
     genetic_lineage: Optional[str] = Field(None, description="Parent breed information")
     location_state: str = Field(..., min_length=2, max_length=100, description="State")
     location_district: str = Field(..., min_length=2, max_length=100, description="District")
@@ -97,18 +111,19 @@ class LivestockListingBase(BaseModel):
 
 class LivestockListingCreate(LivestockListingBase):
     """Schema for creating a livestock listing"""
+
     farmer_id: int = Field(..., description="ID of the farmer creating the listing")
     photos: Optional[List[str]] = Field(None, description="List of photo URLs")
     videos: Optional[List[str]] = Field(None, description="List of video URLs")
 
-    @field_validator('photos')
+    @field_validator("photos")
     @classmethod
     def validate_photos(cls, v):
         if v and len(v) > 10:
             raise ValueError("Maximum 10 photos allowed")
         return v
 
-    @field_validator('videos')
+    @field_validator("videos")
     @classmethod
     def validate_videos(cls, v):
         if v and len(v) > 3:
@@ -118,6 +133,7 @@ class LivestockListingCreate(LivestockListingBase):
 
 class LivestockListingUpdate(BaseModel):
     """Schema for updating a livestock listing"""
+
     title: Optional[str] = Field(None, min_length=5, max_length=255)
     description: Optional[str] = None
     age_years: Optional[int] = Field(None, ge=0, le=30)
@@ -148,6 +164,7 @@ class LivestockListingUpdate(BaseModel):
 
 class LivestockListingResponse(LivestockListingBase):
     """Schema for livestock listing response"""
+
     id: int
     farmer_id: int
     photos: List[str] = Field(default_factory=list, description="List of photo URLs")
@@ -167,6 +184,7 @@ class LivestockListingResponse(LivestockListingBase):
 
 class LivestockListingSearchFilters(BaseModel):
     """Search filters for livestock listings"""
+
     species: Optional[SpeciesEnum] = None
     breed: Optional[str] = None
     purpose: Optional[PurposeEnum] = None
@@ -190,6 +208,7 @@ class LivestockListingSearchFilters(BaseModel):
 
 class LivestockListingAnalytics(BaseModel):
     """Analytics for a livestock listing"""
+
     listing_id: int
     views_count: int
     interest_count: int
@@ -204,6 +223,7 @@ class LivestockListingAnalytics(BaseModel):
 
 class MediaUploadRequest(BaseModel):
     """Request for media upload URL"""
+
     filename: str = Field(..., description="Original filename")
     content_type: str = Field(..., description="MIME type")
     file_size: int = Field(..., gt=0, le=10485760, description="File size in bytes (max 10MB)")
@@ -211,6 +231,7 @@ class MediaUploadRequest(BaseModel):
 
 class MediaUploadResponse(BaseModel):
     """Response with presigned upload URL"""
+
     upload_url: str = Field(..., description="Presigned S3 upload URL")
     file_url: str = Field(..., description="Final S3 file URL after upload")
     expires_in: int = Field(..., description="URL expiration time in seconds")

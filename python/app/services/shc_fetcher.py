@@ -1,4 +1,5 @@
 """SHC WMS Fetcher — fires parallel GetFeatureInfo requests for a farm coordinate."""
+
 from __future__ import annotations
 
 import asyncio
@@ -15,40 +16,40 @@ logger = logging.getLogger(__name__)
 
 # 7 SRM layers: (code, property_key)
 SRM_LAYERS: list[tuple[str, str]] = [
-    ("srm_depth",   "Soil_Depth"),
-    ("srm_slope",   "Slope"),
+    ("srm_depth", "Soil_Depth"),
+    ("srm_slope", "Slope"),
     ("srm_erosion", "Erosion"),
     ("srm_texture", "Texture"),
-    ("srm_lcc",     "LCC"),
-    ("srm_lic",     "LIC"),
-    ("srm_hsg",     "HSG"),
+    ("srm_lcc", "LCC"),
+    ("srm_lic", "LIC"),
+    ("srm_hsg", "HSG"),
 ]
 
 # SRM property key → SHCSoilProfile field name
 _SRM_FIELD_MAP: dict[str, str] = {
     "Soil_Depth": "soil_depth_class",
-    "Slope":      "slope_class",
-    "Erosion":    "erosion_class",
-    "Texture":    "soil_texture_class",
-    "LCC":        "land_capability_class",
-    "LIC":        "land_irrigability_class",
-    "HSG":        "hydrological_soil_group",
+    "Slope": "slope_class",
+    "Erosion": "erosion_class",
+    "Texture": "soil_texture_class",
+    "LCC": "land_capability_class",
+    "LIC": "land_irrigability_class",
+    "HSG": "hydrological_soil_group",
 }
 
 # SHC nutrient key → SHCSoilProfile field name
 _NUTRIENT_FIELD_MAP: dict[str, str] = {
-    "N":   "nitrogen",
-    "P":   "phosphorus",
-    "K":   "potassium",
-    "S":   "sulfur",
-    "B":   "boron",
-    "Fe":  "iron",
-    "Zn":  "zinc",
-    "Cu":  "copper",
-    "Mn":  "manganese",
-    "OC":  "organic_carbon",
-    "pH":  "ph_level",
-    "EC":  "electrical_conductivity",
+    "N": "nitrogen",
+    "P": "phosphorus",
+    "K": "potassium",
+    "S": "sulfur",
+    "B": "boron",
+    "Fe": "iron",
+    "Zn": "zinc",
+    "Cu": "copper",
+    "Mn": "manganese",
+    "OC": "organic_carbon",
+    "pH": "ph_level",
+    "EC": "electrical_conductivity",
 }
 
 _UNAVAILABLE_VALUES = {"", "-", "n/a", "na", "null", "none"}
@@ -83,9 +84,7 @@ class SHCFetcher:
     # Layer discovery
     # ------------------------------------------------------------------
 
-    async def get_district_layers(
-        self, state_code: int, district_code: int
-    ) -> dict[str, object]:
+    async def get_district_layers(self, state_code: int, district_code: int) -> dict[str, object]:
         """
         Call /public/layers?state_code=&district_code= to get fixedLayers,
         shcLayers, and district bbox. Result is cached per (state, district).
@@ -217,7 +216,7 @@ class SHCFetcher:
                     continue
                 try:
                     val = float(raw)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     continue
                 if val == 0.0:
                     continue  # 0 = not collected
@@ -259,7 +258,9 @@ class SHCFetcher:
             logger.error("get_district_layers failed: %s", exc)
             return SHCSoilProfile(wms_available=False, partial_data=True)
 
-        fixed_layers: list[dict[str, str]] = cast(list[dict[str, str]], layers_data.get("fixedLayers", []))
+        fixed_layers: list[dict[str, str]] = cast(
+            list[dict[str, str]], layers_data.get("fixedLayers", [])
+        )
         shc_layers: list[str] = cast(list[str], layers_data.get("shcLayers", []))
         bbox_dict: dict[str, float] = cast(dict[str, float], layers_data.get("bbox", {}))
 

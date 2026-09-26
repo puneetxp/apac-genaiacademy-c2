@@ -1,29 +1,39 @@
 """
 Transport coordination API endpoints for livestock marketplace.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from typing import List, Optional
+
 from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from app.core.auth import get_current_active_user
 from app.services.transport_service import transport_service
 
-
-from app.core.auth import get_current_active_user
-
-router = APIRouter(prefix="/transport", tags=["transport"], dependencies=[Depends(get_current_active_user)])
+router = APIRouter(
+    prefix="/transport", tags=["transport"], dependencies=[Depends(get_current_active_user)]
+)
 # Request/Response Models
+
 
 class TransportProviderCreate(BaseModel):
     """Request model for registering a transport provider."""
-    user_id: Optional[int] = Field(None, description="Ignored; the provider belongs to the signed-in user")
+
+    user_id: Optional[int] = Field(
+        None, description="Ignored; the provider belongs to the signed-in user"
+    )
     company_name: str = Field(..., min_length=1, max_length=255)
     contact_person: str = Field(..., min_length=1, max_length=255)
     contact_phone: str = Field(..., min_length=10, max_length=20)
     contact_email: Optional[str] = None
     service_areas: List[str] = Field(..., min_items=1, description="States/districts served")
-    vehicle_types: List[str] = Field(..., min_items=1, description="truck, tempo, mini_truck, specialized_livestock")
-    livestock_specialization: Optional[List[str]] = Field(None, description="cattle, goat, sheep, poultry, buffalo")
+    vehicle_types: List[str] = Field(
+        ..., min_items=1, description="truck, tempo, mini_truck, specialized_livestock"
+    )
+    livestock_specialization: Optional[List[str]] = Field(
+        None, description="cattle, goat, sheep, poultry, buffalo"
+    )
     base_rate_per_km: float = Field(..., gt=0, description="Base rate in INR per kilometer")
     minimum_charge: float = Field(..., gt=0, description="Minimum charge in INR")
     max_capacity_animals: int = Field(..., gt=0, description="Maximum animals per trip")
@@ -35,6 +45,7 @@ class TransportProviderCreate(BaseModel):
 
 class TransportProviderUpdate(BaseModel):
     """Request model for updating transport provider."""
+
     company_name: Optional[str] = None
     contact_person: Optional[str] = None
     contact_phone: Optional[str] = None
@@ -54,6 +65,7 @@ class TransportProviderUpdate(BaseModel):
 
 class TransportProviderResponse(BaseModel):
     """Response model for transport provider."""
+
     id: int
     user_id: int
     company_name: str
@@ -75,13 +87,14 @@ class TransportProviderResponse(BaseModel):
     license_number: Optional[str]
     status: str
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
 class CostEstimateRequest(BaseModel):
     """Request model for transport cost estimate."""
+
     provider_id: int
     pickup_latitude: Optional[float] = None
     pickup_longitude: Optional[float] = None
@@ -95,6 +108,7 @@ class CostEstimateRequest(BaseModel):
 
 class CostEstimateResponse(BaseModel):
     """Response model for transport cost estimate."""
+
     distance_km: float
     transport_cost: float
     insurance_cost: float
@@ -105,9 +119,12 @@ class CostEstimateResponse(BaseModel):
 
 class TransportBookingCreate(BaseModel):
     """Request model for creating transport booking."""
+
     transaction_id: int
     provider_id: int
-    requester_id: Optional[int] = Field(None, description="Ignored; the requester is the signed-in user")
+    requester_id: Optional[int] = Field(
+        None, description="Ignored; the requester is the signed-in user"
+    )
     pickup_address: str = Field(..., min_length=10)
     pickup_latitude: Optional[float] = None
     pickup_longitude: Optional[float] = None
@@ -124,6 +141,7 @@ class TransportBookingCreate(BaseModel):
 
 class TransportBookingResponse(BaseModel):
     """Response model for transport booking."""
+
     id: int
     transaction_id: int
     provider_id: int
@@ -156,13 +174,14 @@ class TransportBookingResponse(BaseModel):
     cancelled_at: Optional[datetime] = None
     cancellation_reason: Optional[str] = None
     provider_name: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
 
 
 class StatusUpdate(BaseModel):
     """Request model for updating booking status."""
+
     status: str = Field(..., pattern="^(pending|confirmed|in_transit|delivered|cancelled)$")
     message: Optional[str] = None
     actual_pickup_date: Optional[datetime] = None
@@ -171,12 +190,14 @@ class StatusUpdate(BaseModel):
 
 class RatingReview(BaseModel):
     """Request model for adding rating and review."""
+
     rating: int = Field(..., ge=1, le=5)
     review: Optional[str] = None
 
 
 class CancellationRequest(BaseModel):
     """Request model for cancelling booking."""
+
     cancellation_reason: str = Field(..., min_length=10)
 
 
@@ -194,7 +215,10 @@ def _run(fn, *args, **kwargs):
 
 # Transport Provider Endpoints
 
-@router.post("/providers", response_model=TransportProviderResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/providers", response_model=TransportProviderResponse, status_code=status.HTTP_201_CREATED
+)
 async def register_provider(
     provider_data: TransportProviderCreate,
     current_user=Depends(get_current_active_user),
@@ -247,20 +271,31 @@ async def update_provider(
 
 # Cost Estimation Endpoint
 
+
 @router.post("/cost-estimate", response_model=CostEstimateResponse)
 async def estimate_transport_cost(estimate_request: CostEstimateRequest):
     """Calculate transport cost estimate."""
     r = estimate_request
     return _run(
         transport_service.estimate,
-        r.provider_id, r.pickup_latitude, r.pickup_longitude, r.delivery_latitude, r.delivery_longitude,
-        r.livestock_type, r.livestock_count, r.animal_value, r.insurance_opted,
+        r.provider_id,
+        r.pickup_latitude,
+        r.pickup_longitude,
+        r.delivery_latitude,
+        r.delivery_longitude,
+        r.livestock_type,
+        r.livestock_count,
+        r.animal_value,
+        r.insurance_opted,
     )
 
 
 # Transport Booking Endpoints
 
-@router.post("/bookings", response_model=TransportBookingResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/bookings", response_model=TransportBookingResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_booking(
     booking_data: TransportBookingCreate,
     current_user=Depends(get_current_active_user),
@@ -300,7 +335,9 @@ async def track_booking_alias(id: int, current_user=Depends(get_current_active_u
 
 # Static /bookings/<word>/... routes are registered before /bookings/{id}.
 @router.get("/bookings/transaction/{transaction_id}", response_model=List[TransportBookingResponse])
-async def get_transaction_bookings(transaction_id: int, current_user=Depends(get_current_active_user)):
+async def get_transaction_bookings(
+    transaction_id: int, current_user=Depends(get_current_active_user)
+):
     """Get all transport bookings for a livestock transaction (buyer, seller or admin)."""
     return _run(transport_service.get_bookings_for_transaction, transaction_id, current_user)
 
@@ -362,4 +399,6 @@ async def cancel_booking(
     current_user=Depends(get_current_active_user),
 ):
     """Cancel an open transport booking (any party or admin)."""
-    return _run(transport_service.cancel_booking, booking_id, current_user, cancellation.cancellation_reason)
+    return _run(
+        transport_service.cancel_booking, booking_id, current_user, cancellation.cancellation_reason
+    )

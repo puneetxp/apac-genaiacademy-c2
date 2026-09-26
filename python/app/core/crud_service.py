@@ -5,6 +5,7 @@ Generated services only declare `model`; all CRUD lives here so the ORM is used 
 Pass `owner` (the signed-in user) from /islogin/* controllers to apply app/core/ownership.py rules;
 /isuper/* and /ipublic/* controllers call without it.
 """
+
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
@@ -32,7 +33,9 @@ class CrudService:
             return None
         return ownership.owner_condition(self.table, owner.id)
 
-    def _select(self, where: str = "", bind: Optional[list] = None, owner=None, for_write: bool = False) -> List[Dict]:
+    def _select(
+        self, where: str = "", bind: Optional[list] = None, owner=None, for_write: bool = False
+    ) -> List[Dict]:
         clauses = [f"({where})"] if where else []
         scope = self._scope(owner, for_write)
         if scope:
@@ -56,7 +59,9 @@ class CrudService:
             rule = ownership.owner_condition(parent_table, owner.id)
             if not rule:
                 continue
-            rows = DB.raw(f'SELECT 1 FROM "{parent_table}" t WHERE t.id = ? AND {rule}', [parent_id]).result
+            rows = DB.raw(
+                f'SELECT 1 FROM "{parent_table}" t WHERE t.id = ? AND {rule}', [parent_id]
+            ).result
             if not rows:
                 raise HTTPException(status_code=404, detail=f"{parent_table} {parent_id} not found")
 
@@ -87,7 +92,9 @@ class CrudService:
             raise HTTPException(status_code=422, detail="No valid fields to create")
         cols = ", ".join(f'"{k}"' for k in data)
         marks = ", ".join("?" for _ in data)
-        rows = DB.raw(f'INSERT INTO "{self.table}" ({cols}) VALUES ({marks}) RETURNING *', list(data.values())).result
+        rows = DB.raw(
+            f'INSERT INTO "{self.table}" ({cols}) VALUES ({marks}) RETURNING *', list(data.values())
+        ).result
         return rows[0]
 
     def update(self, item_id: int, data: Dict, owner=None) -> Optional[Dict]:
@@ -102,8 +109,10 @@ class CrudService:
         if not data:
             return self.find(item_id)
         sets = ", ".join(f'"{k}" = ?' for k in data)
-        rows = DB.raw(f'UPDATE "{self.table}" SET {sets}, "updated_at" = CURRENT_TIMESTAMP WHERE id = ? RETURNING *',
-                      list(data.values()) + [item_id]).result
+        rows = DB.raw(
+            f'UPDATE "{self.table}" SET {sets}, "updated_at" = CURRENT_TIMESTAMP WHERE id = ? RETURNING *',
+            list(data.values()) + [item_id],
+        ).result
         return rows[0] if rows else None
 
     def upsert(self, data: Dict, owner=None) -> Optional[Dict]:

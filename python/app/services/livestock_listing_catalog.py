@@ -4,6 +4,7 @@ Livestock listing catalog: create, search and manage animals offered for sale.
 Named livestock_listing_catalog.py on purpose: `livestock_listing_service.py` is the generated CRUD
 service and `php setup.php` overwrites it. Same method names as the old service so the router is unchanged.
 """
+
 import json
 import logging
 from datetime import datetime
@@ -14,11 +15,40 @@ from app.core.db import DB
 
 logger = logging.getLogger(__name__)
 
-COLUMNS = ["livestock_id", "title", "description", "species", "breed", "age_years", "age_months", "gender", "quantity",
-           "purpose", "price", "price_negotiable", "weight_kg", "health_status", "vaccination_status",
-           "last_vaccination_date", "milk_production_liters", "breeding_certified", "breeding_certification_number",
-           "genetic_lineage", "photos", "videos", "location_state", "location_district", "location_village",
-           "latitude", "longitude", "pincode", "address_line", "farmer_contact_phone", "farmer_contact_email", "status"]
+COLUMNS = [
+    "livestock_id",
+    "title",
+    "description",
+    "species",
+    "breed",
+    "age_years",
+    "age_months",
+    "gender",
+    "quantity",
+    "purpose",
+    "price",
+    "price_negotiable",
+    "weight_kg",
+    "health_status",
+    "vaccination_status",
+    "last_vaccination_date",
+    "milk_production_liters",
+    "breeding_certified",
+    "breeding_certification_number",
+    "genetic_lineage",
+    "photos",
+    "videos",
+    "location_state",
+    "location_district",
+    "location_village",
+    "latitude",
+    "longitude",
+    "pincode",
+    "address_line",
+    "farmer_contact_phone",
+    "farmer_contact_email",
+    "status",
+]
 
 
 def _value(v):
@@ -40,7 +70,7 @@ class LivestockListingService:
         for k in ("photos", "videos"):
             try:
                 out[k] = json.loads(out[k]) if out.get(k) else []
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 out[k] = [out[k]]
         for k in ("price_negotiable", "breeding_certified", "featured"):
             if k in out:
@@ -58,7 +88,9 @@ class LivestockListingService:
         return row
 
     async def create_listing(self, listing, user_id: int) -> Dict[str, Any]:
-        data = {k: _value(v) for k, v in listing.model_dump().items() if k in COLUMNS and v is not None}
+        data = {
+            k: _value(v) for k, v in listing.model_dump().items() if k in COLUMNS and v is not None
+        }
         animal = DB.raw("SELECT * FROM livestock WHERE id = ?", [data.get("livestock_id")]).result
         if not animal or animal[0]["farmer_id"] != user_id:
             raise ValueError("Livestock not found")
@@ -73,27 +105,41 @@ class LivestockListingService:
             data.setdefault("farmer_contact_email", user[0]["email"])
         data["farmer_id"] = user_id
         cols = ", ".join(f'"{k}"' for k in data)
-        row = DB.raw(f"INSERT INTO livestock_listings ({cols}) VALUES ({', '.join('?' for _ in data)}) RETURNING *",
-                     list(data.values())).result[0]
+        row = DB.raw(
+            f"INSERT INTO livestock_listings ({cols}) VALUES ({', '.join('?' for _ in data)}) RETURNING *",
+            list(data.values()),
+        ).result[0]
         return self._format_listing_response(row)
 
-    async def get_listing(self, listing_id: int, increment_views: bool = False) -> Optional[Dict[str, Any]]:
+    async def get_listing(
+        self, listing_id: int, increment_views: bool = False
+    ) -> Optional[Dict[str, Any]]:
         if increment_views:
-            rows = DB.raw("UPDATE livestock_listings SET views_count = COALESCE(views_count, 0) + 1 WHERE id = ? RETURNING *",
-                          [listing_id]).result
+            rows = DB.raw(
+                "UPDATE livestock_listings SET views_count = COALESCE(views_count, 0) + 1 WHERE id = ? RETURNING *",
+                [listing_id],
+            ).result
             return self._format_listing_response(rows[0]) if rows else None
         row = self._get(listing_id)
         return self._format_listing_response(row) if row else None
 
-    async def update_listing(self, listing_id: int, listing, user_id: int) -> Optional[Dict[str, Any]]:
+    async def update_listing(
+        self, listing_id: int, listing, user_id: int
+    ) -> Optional[Dict[str, Any]]:
         if not self._owned(listing_id, user_id):
             return None
-        data = {k: _value(v) for k, v in listing.model_dump(exclude_unset=True).items() if k in COLUMNS and k != "livestock_id"}
+        data = {
+            k: _value(v)
+            for k, v in listing.model_dump(exclude_unset=True).items()
+            if k in COLUMNS and k != "livestock_id"
+        }
         if not data:
             return await self.get_listing(listing_id)
         sets = ", ".join(f'"{k}" = ?' for k in data)
-        row = DB.raw(f'UPDATE livestock_listings SET {sets}, "updated_at" = CURRENT_TIMESTAMP WHERE id = ? RETURNING *',
-                     list(data.values()) + [listing_id]).result[0]
+        row = DB.raw(
+            f'UPDATE livestock_listings SET {sets}, "updated_at" = CURRENT_TIMESTAMP WHERE id = ? RETURNING *',
+            list(data.values()) + [listing_id],
+        ).result[0]
         return self._format_listing_response(row)
 
     async def delete_listing(self, listing_id: int, user_id: int) -> bool:
@@ -105,9 +151,16 @@ class LivestockListingService:
 
     async def search_listings(self, f) -> Tuple[List[Dict[str, Any]], int]:
         where, bind = [], []
-        exact = {"species": f.species, "purpose": f.purpose, "gender": f.gender, "location_state": f.location_state,
-                 "location_district": f.location_district, "health_status": f.health_status,
-                 "vaccination_status": f.vaccination_status, "status": f.status}
+        exact = {
+            "species": f.species,
+            "purpose": f.purpose,
+            "gender": f.gender,
+            "location_state": f.location_state,
+            "location_district": f.location_district,
+            "health_status": f.health_status,
+            "vaccination_status": f.vaccination_status,
+            "status": f.status,
+        }
         for column, value in exact.items():
             if value is not None:
                 where.append(f'"{column}" = ?')
@@ -134,13 +187,19 @@ class LivestockListingService:
         if f.featured_only:
             where.append("featured = 1")
         clause = f"WHERE {' AND '.join(where)}" if where else ""
-        total = DB.raw(f"SELECT COUNT(*) AS n FROM livestock_listings {clause}", bind).result[0]["n"]
+        total = DB.raw(f"SELECT COUNT(*) AS n FROM livestock_listings {clause}", bind).result[0][
+            "n"
+        ]
         order = f'"{f.sort_by}" {"ASC" if f.sort_order == "asc" else "DESC"}'
-        rows = DB.raw(f"SELECT * FROM livestock_listings {clause} ORDER BY {order} LIMIT ? OFFSET ?",
-                      bind + [f.limit, f.skip]).result
+        rows = DB.raw(
+            f"SELECT * FROM livestock_listings {clause} ORDER BY {order} LIMIT ? OFFSET ?",
+            bind + [f.limit, f.skip],
+        ).result
         return [self._format_listing_response(r) for r in rows], total
 
-    async def get_listing_analytics(self, listing_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+    async def get_listing_analytics(
+        self, listing_id: int, user_id: int
+    ) -> Optional[Dict[str, Any]]:
         row = self._owned(listing_id, user_id)
         if not row:
             return None
@@ -161,8 +220,10 @@ class LivestockListingService:
         }
 
     async def _bump(self, listing_id: int, column: str) -> bool:
-        rows = DB.raw(f"UPDATE livestock_listings SET {column} = COALESCE({column}, 0) + 1 WHERE id = ? AND status = 'active' RETURNING id",
-                      [listing_id]).result
+        rows = DB.raw(
+            f"UPDATE livestock_listings SET {column} = COALESCE({column}, 0) + 1 WHERE id = ? AND status = 'active' RETURNING id",
+            [listing_id],
+        ).result
         return bool(rows)
 
     async def increment_interest(self, listing_id: int) -> bool:
@@ -171,13 +232,17 @@ class LivestockListingService:
     async def increment_inquiry(self, listing_id: int) -> bool:
         return await self._bump(listing_id, "inquiry_count")
 
-    def generate_presigned_upload_url(self, filename: str, content_type: str, user_id: int) -> Dict[str, Any]:
+    def generate_presigned_upload_url(
+        self, filename: str, content_type: str, user_id: int
+    ) -> Dict[str, Any]:
         """Media is uploaded through POST /api/v1/upload/image (stored in GCS in production)."""
         if not content_type.startswith(("image/", "video/")):
             raise ValueError("Only images and videos can be uploaded")
         return {"upload_url": "/api/v1/upload/image", "file_url": "", "expires_in": 3600}
 
     def recent_for(self, user_id: int, limit: int = 5) -> List[Dict[str, Any]]:
-        rows = DB.raw("SELECT * FROM livestock_listings WHERE farmer_id = ? ORDER BY created_at DESC LIMIT ?",
-                      [user_id, limit]).result
+        rows = DB.raw(
+            "SELECT * FROM livestock_listings WHERE farmer_id = ? ORDER BY created_at DESC LIMIT ?",
+            [user_id, limit],
+        ).result
         return [self._format_listing_response(r) for r in rows]

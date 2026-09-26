@@ -5,6 +5,7 @@ Cloud Run's filesystem is wiped on every restart, so in production files go to t
 (settings.GCS_BUCKET). Locally, in tests, or if GCS is unreachable they go to UPLOAD_DIR.
 Files are always served back through GET /api/v1/upload/files/{name}, so the bucket can stay private.
 """
+
 import logging
 import mimetypes
 import os
@@ -36,6 +37,7 @@ def safe_name(filename: str) -> str:
 
 def _bucket():
     from google.cloud import storage
+
     return storage.Client().bucket(settings.GCS_BUCKET)
 
 
@@ -45,10 +47,14 @@ def save(filename: str, content: bytes) -> str:
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     if _use_gcs():
         try:
-            _bucket().blob(GCS_PREFIX + filename).upload_from_string(content, content_type=content_type)
+            _bucket().blob(GCS_PREFIX + filename).upload_from_string(
+                content, content_type=content_type
+            )
             return "gcs"
         except Exception as e:
-            logger.error(f"GCS upload failed, keeping {filename} on local disk (lost on restart): {e}")
+            logger.error(
+                f"GCS upload failed, keeping {filename} on local disk (lost on restart): {e}"
+            )
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
         f.write(content)

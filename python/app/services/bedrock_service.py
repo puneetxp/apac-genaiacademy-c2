@@ -6,79 +6,83 @@ Task 18.1: Integrated Redis caching with 6-hour TTL for Bedrock API responses
 """
 
 import json
-from typing import Dict, Any, Optional, List
 import logging
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
+from app.core.cache import TTL_BEDROCK_API, get_cache_manager
 from app.core.config import settings
-from app.core.cache import get_cache_manager, TTL_BEDROCK_API
 
 logger = logging.getLogger(__name__)
 
 
 class BedrockService:
     """Service for Google Cloud Vertex AI foundation model operations (renamed for compatibility)"""
-    
+
     def __init__(self):
         """Initialize Vertex AI runtime client"""
         import os
+
         from google import genai
-        
+
         # Ensure credentials set up
         if settings.GOOGLE_APPLICATION_CREDENTIALS:
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.GOOGLE_APPLICATION_CREDENTIALS
-            
+
         try:
             self.client = genai.Client(
                 vertexai=True,
                 project=settings.GOOGLE_CLOUD_PROJECT,
-                location=settings.GOOGLE_CLOUD_REGION
+                location=settings.GOOGLE_CLOUD_REGION,
             )
             self.vertex_enabled = True
-            logger.info(f"Vertex AI Client initialized with project {settings.GOOGLE_CLOUD_PROJECT} in region {settings.GOOGLE_CLOUD_REGION}")
+            logger.info(
+                f"Vertex AI Client initialized with project {settings.GOOGLE_CLOUD_PROJECT} in region {settings.GOOGLE_CLOUD_REGION}"
+            )
         except Exception as e:
             self.vertex_enabled = False
-            logger.warning(f"Vertex AI Client initialization failed: {e}. Running in fallback/mock mode.")
-            
-        self.model_name = settings.GEMINI_MODEL # defaults to gemini-2.5-flash
+            logger.warning(
+                f"Vertex AI Client initialization failed: {e}. Running in fallback/mock mode."
+            )
+
+        self.model_name = settings.GEMINI_MODEL  # defaults to gemini-2.5-flash
         self.embedding_model_name = "text-embedding-004"
 
     async def generate_annual_strategy(self, farm_data: Dict[str, Any]) -> str:
         """
         Generate annual crop strategy using Gemini
-        
+
         Args:
             farm_data: Dictionary containing farm details, soil profiles, and region
-            
+
         Returns:
             AI-generated strategy text (Markdown format)
         """
-        prompt = farm_data.get('prompt', json.dumps(farm_data))
-        
+        prompt = farm_data.get("prompt", json.dumps(farm_data))
+
         try:
             return await self._invoke_nova(prompt)
         except Exception as e:
             logger.error(f"Annual strategy generation error: {str(e)}")
             raise
 
-    async def _invoke_nova(self, prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> str:
+    async def _invoke_nova(
+        self, prompt: str, max_tokens: int = 4096, temperature: float = 0.7
+    ) -> str:
         """
         Invoke Gemini using Vertex AI
         """
         if not getattr(self, "vertex_enabled", False):
             logger.warning("Vertex AI not enabled. Returning mock generation response.")
             return "Mock Gemini Response: Vertex AI is currently uninitialized."
-            
+
         try:
             from google.genai import types
-            
+
             response = await self.client.aio.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=temperature,
-                    top_p=0.9
-                )
+                config=types.GenerateContentConfig(temperature=temperature, top_p=0.9),
             )
             return response.text
         except Exception as e:
@@ -89,71 +93,74 @@ class BedrockService:
         """
         Generate embedding using Google Cloud Vertex AI text-embedding-004 model.
         Note: This is synchronous for compatibility with existing service calls.
-        
+
         Args:
             text: Text to embed
             reduce_to_384: If True, reduces 768 dimensions to 384 for database compatibility
-            
+
         Returns:
             Embedding vector
         """
         if not getattr(self, "vertex_enabled", False):
             logger.warning("Vertex AI not enabled. Returning mock embedding.")
             return [0.0] * (384 if reduce_to_384 else 768)
-            
+
         try:
             from google.genai import types
-            
+
             dim = 384 if reduce_to_384 else None
             config = types.EmbedContentConfig(output_dimensionality=dim) if dim else None
-            
+
             response = self.client.models.embed_content(
-                model=self.embedding_model_name,
-                contents=text,
-                config=config
+                model=self.embedding_model_name, contents=text, config=config
             )
-            
+
             if not response or not response.embeddings:
                 return [0.0] * (384 if reduce_to_384 else 768)
-                
+
             return response.embeddings[0].values
-            
+
         except Exception as e:
             logger.error(f"Vertex AI embedding generation failed: {e}. Returning mock vector.")
             return [0.0] * (384 if reduce_to_384 else 768)
 
-    def _invoke_claude(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.1, use_instant: bool = False) -> str:
+    def _invoke_claude(
+        self,
+        prompt: str,
+        max_tokens: int = 2000,
+        temperature: float = 0.1,
+        use_instant: bool = False,
+    ) -> str:
         """
         Synchronous wrapper for existing calls. Uses Gemini.
         """
         if not getattr(self, "vertex_enabled", False):
             logger.warning("Vertex AI not enabled. Returning mock generation response.")
             return "Mock Gemini Response: Vertex AI is currently uninitialized."
-            
+
         try:
             from google.genai import types
-            
+
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=temperature,
-                    top_p=0.9
-                )
+                config=types.GenerateContentConfig(temperature=temperature, top_p=0.9),
             )
             return response.text
         except Exception as e:
-            logger.error(f"Vertex AI Gemini sync invocation failed: {str(e)}. Returning mock response.")
+            logger.error(
+                f"Vertex AI Gemini sync invocation failed: {str(e)}. Returning mock response."
+            )
             return "Mock Vertex AI Gemini Response: Crop match score is 90% and quality meets requirements."
 
     async def predict_location_from_gps(self, latitude: float, longitude: float) -> Dict[str, Any]:
         """
         Predict state, district, pincode, village, and soil type from GPS coordinates
-        
+
         Args:
             latitude: GPS latitude
             longitude: GPS longitude
-            
+
         Returns:
             Dict containing state, district, pincode, village, primary_soil_type
         """
@@ -162,15 +169,13 @@ class BedrockService:
         cache_key = None
         if cache_manager and cache_manager.enabled:
             cache_key = cache_manager._generate_cache_key(
-                "bedrock:predict_location_gps", 
-                lat=round(latitude, 4), 
-                lon=round(longitude, 4)
+                "bedrock:predict_location_gps", lat=round(latitude, 4), lon=round(longitude, 4)
             )
             cached_result = cache_manager.get(cache_key)
             if cached_result:
                 logger.info(f"Cache hit for GPS location prediction: {latitude}, {longitude}")
                 return cached_result
-                
+
         prompt = f"""You are an expert in Indian Geography and Agriculture.
 Given the precise GPS coordinates Latitude: {latitude}, Longitude: {longitude}, predict the likely location details and prominent soil conditions.
 
@@ -184,19 +189,21 @@ Answer ONLY with a valid JSON object matching the following format completely, n
 }}"""
 
         try:
-            response_text = self._invoke_claude(prompt, max_tokens=500, temperature=0.1, use_instant=True)
+            response_text = self._invoke_claude(
+                prompt, max_tokens=500, temperature=0.1, use_instant=True
+            )
             logger.info(f"Raw Claude GPS Response: {response_text}")
-            
+
             # Extract and parse JSON
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 result = json.loads(response_text[json_start:json_end])
-                
+
                 # Cache the JSON outcome
                 if cache_manager and cache_manager.enabled and cache_key:
                     cache_manager.set(cache_key, result, TTL_BEDROCK_API)
-                    
+
                 return result
             else:
                 logger.warning("Could not parse JSON from Bedrock GPS prediction response")
@@ -208,10 +215,10 @@ Answer ONLY with a valid JSON object matching the following format completely, n
     async def predict_location_from_pincode(self, pincode: str) -> Dict[str, Any]:
         """
         Predict village, district, state, and likely soil type from a pincode
-        
+
         Args:
             pincode: 6-digit Indian Pincode
-            
+
         Returns:
             Dict containing state, district, village, primary_soil_type
         """
@@ -220,14 +227,13 @@ Answer ONLY with a valid JSON object matching the following format completely, n
         cache_key = None
         if cache_manager and cache_manager.enabled:
             cache_key = cache_manager._generate_cache_key(
-                "bedrock:predict_location_pincode", 
-                pincode=pincode
+                "bedrock:predict_location_pincode", pincode=pincode
             )
             cached_result = cache_manager.get(cache_key)
             if cached_result:
                 logger.info(f"Cache hit for pincode prediction: {pincode}")
                 return cached_result
-                
+
         prompt = f"""You are an expert in Indian Geography and Agriculture.
 Given the Indian Pincode {pincode}, predict the state, district, and a LIST of EXACTLY 5 prominent villages or post office names (VPO) covering that pincode. 
 For each village, predict the dominant soil type.
@@ -246,19 +252,21 @@ Answer ONLY with a valid JSON object matching the following format completely, n
 }}"""
 
         try:
-            response_text = self._invoke_claude(prompt, max_tokens=500, temperature=0.1, use_instant=True)
+            response_text = self._invoke_claude(
+                prompt, max_tokens=500, temperature=0.1, use_instant=True
+            )
             logger.info(f"Raw Claude Pincode Response: {response_text}")
-            
+
             # Extract and parse JSON
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 result = json.loads(response_text[json_start:json_end])
-                
+
                 # Cache the JSON outcome
                 if cache_manager and cache_manager.enabled and cache_key:
                     cache_manager.set(cache_key, result, TTL_BEDROCK_API)
-                    
+
                 return result
             else:
                 logger.warning("Could not parse JSON from Bedrock pincode prediction response")
@@ -270,11 +278,11 @@ Answer ONLY with a valid JSON object matching the following format completely, n
     async def predict_location_from_village(self, pincode: str, village: str) -> Dict[str, Any]:
         """
         Predict soil type and verify details for a specific village and pincode
-        
+
         Args:
             pincode: 6-digit Indian Pincode
             village: Village/VPO name
-            
+
         Returns:
             Dict containing state, district, village, primary_soil_type
         """
@@ -283,15 +291,13 @@ Answer ONLY with a valid JSON object matching the following format completely, n
         cache_key = None
         if cache_manager and cache_manager.enabled:
             cache_key = cache_manager._generate_cache_key(
-                "bedrock:predict_location_village", 
-                pincode=pincode,
-                village=village
+                "bedrock:predict_location_village", pincode=pincode, village=village
             )
             cached_result = cache_manager.get(cache_key)
             if cached_result:
                 logger.info(f"Cache hit for village prediction: {pincode}, {village}")
                 return cached_result
-                
+
         prompt = f"""You are an expert in Indian Geography and Agriculture.
 Given the Indian Pincode {pincode} and the village/VPO name "{village}", predict the state, district, and the dominant soil type for that specific location.
 
@@ -304,19 +310,21 @@ Answer ONLY with a valid JSON object matching the following format completely, n
 }}"""
 
         try:
-            response_text = self._invoke_claude(prompt, max_tokens=500, temperature=0.1, use_instant=True)
+            response_text = self._invoke_claude(
+                prompt, max_tokens=500, temperature=0.1, use_instant=True
+            )
             logger.info(f"Raw Claude Village Response: {response_text}")
-            
+
             # Extract and parse JSON
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 result = json.loads(response_text[json_start:json_end])
-                
+
                 # Cache the JSON outcome
                 if cache_manager and cache_manager.enabled and cache_key:
                     cache_manager.set(cache_key, result, TTL_BEDROCK_API)
-                    
+
                 return result
             else:
                 logger.warning("Could not parse JSON from Bedrock Village prediction response")
@@ -324,7 +332,7 @@ Answer ONLY with a valid JSON object matching the following format completely, n
         except Exception as e:
             logger.error(f"Village location prediction error: {e}")
             return {}
-    
+
     async def get_annual_crop_strategy(
         self,
         state: str,
@@ -342,14 +350,14 @@ Answer ONLY with a valid JSON object matching the following format completely, n
         current_date: Optional[str] = None,
         db_session: Optional[Any] = None,
         weather_forecast: Optional[Dict[str, Any]] = None,
-        soil_moisture: Optional[float] = None
+        soil_moisture: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Generate comprehensive annual crop strategy using Bedrock
-        
+
         Task 18.1: Cached with 6-hour TTL to reduce API costs and improve response time
         Task 40.2: Integrated with AI quota system for GPS-enhanced vs pincode-based recommendations
-        
+
         Args:
             state: State name
             district: District name
@@ -364,42 +372,46 @@ Answer ONLY with a valid JSON object matching the following format completely, n
             preferred_crop: Farmer-prioritized crop (optional)
             custom_message: Free-form context from farmer (optional)
             db_session: Database session for quota service (optional)
-        
+
         Returns:
             Comprehensive annual strategy with seasonal recommendations
             Includes quota_status with remaining_quota, gps_enhanced, quota_exceeded flags
         """
-        
+
         # Initialize quota tracking variables
         gps_enhanced = False
         remaining_quota = None
         quota_exceeded = False
         fallback_message = None
-        
+
         # Check quota if user_id and db_session provided
         if user_id and db_session:
             from app.services.ai_quota_service import AIQuotaService
-            
+
             quota_service = AIQuotaService(db_session)
             has_gps = latitude is not None and longitude is not None
-            
+
             # Check quota availability
             quota_check = await quota_service.check_quota(user_id, has_gps=has_gps)
             remaining_quota = quota_check.remaining_quota
-            
+
             # Determine if we can use GPS-enhanced recommendation
             if has_gps and quota_check.can_use_gps:
                 gps_enhanced = True
-                logger.info(f"Using GPS-enhanced recommendation for user {user_id} (lat: {latitude}, lon: {longitude})")
+                logger.info(
+                    f"Using GPS-enhanced recommendation for user {user_id} (lat: {latitude}, lon: {longitude})"
+                )
             elif has_gps and quota_check.fallback_to_pincode:
                 gps_enhanced = False
                 quota_exceeded = True
                 fallback_message = quota_check.message
-                logger.info(f"Quota exceeded for user {user_id}, falling back to pincode-based recommendation")
+                logger.info(
+                    f"Quota exceeded for user {user_id}, falling back to pincode-based recommendation"
+                )
             else:
                 gps_enhanced = False
                 logger.info(f"Using pincode-based recommendation for user {user_id}")
-        
+
         # Check cache first (include GPS status in cache key)
         cache_manager = get_cache_manager()
         if cache_manager and cache_manager.enabled:
@@ -417,34 +429,39 @@ Answer ONLY with a valid JSON object matching the following format completely, n
                 current_date=current_date or "",
                 gps_enhanced=gps_enhanced,
                 latitude=latitude if gps_enhanced else None,
-                longitude=longitude if gps_enhanced else None
+                longitude=longitude if gps_enhanced else None,
             )
-            
+
             cached_result = cache_manager.get(cache_key)
             if cached_result:
-                logger.info(f"Cache hit for annual strategy: {state}, {district} (GPS: {gps_enhanced})")
+                logger.info(
+                    f"Cache hit for annual strategy: {state}, {district} (GPS: {gps_enhanced})"
+                )
                 # Add quota status to cached result
-                cached_result['quota_status'] = {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
+                cached_result["quota_status"] = {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
                 }
                 return cached_result
-        
+
         # Build prompt with GPS enhancement if available
         location_context = f"- Location: {state}, {district}"
         if gps_enhanced and latitude and longitude:
-            location_context += f"\n- GPS Coordinates: {latitude}, {longitude} (precise microclimate analysis)"
-        
+            location_context += (
+                f"\n- GPS Coordinates: {latitude}, {longitude} (precise microclimate analysis)"
+            )
+
         farmer_context = f"\n- Farmer Context: {custom_message.strip()}" if custom_message else ""
 
         moisture_str = f"{soil_moisture:.2f}%" if soil_moisture is not None else "Not available"
-        
+
         weather_str = "Not available"
         if weather_forecast:
             try:
                 import json
+
                 weather_str = json.dumps(weather_forecast, indent=2)
             except Exception:
                 weather_str = str(weather_forecast)
@@ -606,103 +623,115 @@ Provide ONLY the JSON response, no additional text."""
 
         try:
             response_text = self._invoke_claude(prompt, max_tokens=3000, temperature=0.1)
-            
+
             # Try to parse JSON from response
             # Sometimes Claude adds text before/after JSON, so we need to extract it
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
-            
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
             if json_start >= 0 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
                 strategy = json.loads(json_text)
-                
+
                 # Add quota status to response
-                strategy['quota_status'] = {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
+                strategy["quota_status"] = {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
                 }
-                
+
                 # Increment usage counter if quota service available
                 if user_id and db_session:
                     from app.services.ai_quota_service import AIQuotaService
+
                     quota_service = AIQuotaService(db_session)
                     await quota_service.increment_usage(user_id, is_gps_enhanced=gps_enhanced)
-                    logger.info(f"Incremented {'GPS-enhanced' if gps_enhanced else 'pincode-based'} usage for user {user_id}")
-                
+                    logger.info(
+                        f"Incremented {'GPS-enhanced' if gps_enhanced else 'pincode-based'} usage for user {user_id}"
+                    )
+
                 # Cache the result with 6-hour TTL
                 if cache_manager and cache_manager.enabled:
                     cache_manager.set(cache_key, strategy, TTL_BEDROCK_API)
-                    logger.info(f"Cached annual strategy for {state}, {district} (6-hour TTL, GPS: {gps_enhanced})")
-                
-                logger.info(f"Annual crop strategy generated for {state}, {district} (GPS: {gps_enhanced})")
+                    logger.info(
+                        f"Cached annual strategy for {state}, {district} (6-hour TTL, GPS: {gps_enhanced})"
+                    )
+
+                logger.info(
+                    f"Annual crop strategy generated for {state}, {district} (GPS: {gps_enhanced})"
+                )
                 return strategy
             else:
                 # Fallback: return structured response from text
                 logger.warning("Could not parse JSON from Bedrock response, using fallback")
-                with open("/Users/puneetsharma/ai-bharat-hackathon/cropsense-ai/python/failed_response.txt", "w") as f:
+                with open(
+                    "/Users/puneetsharma/ai-bharat-hackathon/cropsense-ai/python/failed_response.txt",
+                    "w",
+                ) as f:
                     f.write(f"response_text: {response_text}")
                 fallback_strategy = self._create_fallback_strategy(state, district, soil_type)
-                
+
                 # Add quota status to fallback
-                fallback_strategy['quota_status'] = {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
+                fallback_strategy["quota_status"] = {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
                 }
-                
+
                 # Increment usage counter for fallback too
                 if user_id and db_session:
                     from app.services.ai_quota_service import AIQuotaService
+
                     quota_service = AIQuotaService(db_session)
                     await quota_service.increment_usage(user_id, is_gps_enhanced=gps_enhanced)
-                
+
                 # Cache fallback with shorter TTL (1 hour)
                 if cache_manager and cache_manager.enabled:
                     cache_manager.set(cache_key, fallback_strategy, 3600)
-                
+
                 return fallback_strategy
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error: {e}")
             fallback_strategy = self._create_fallback_strategy(state, district, soil_type)
-            
+
             # Add quota status to fallback
-            fallback_strategy['quota_status'] = {
-                'remaining_quota': remaining_quota,
-                'gps_enhanced': gps_enhanced,
-                'quota_exceeded': quota_exceeded,
-                'fallback_message': fallback_message
+            fallback_strategy["quota_status"] = {
+                "remaining_quota": remaining_quota,
+                "gps_enhanced": gps_enhanced,
+                "quota_exceeded": quota_exceeded,
+                "fallback_message": fallback_message,
             }
-            
+
             # Increment usage counter for fallback
             if user_id and db_session:
                 from app.services.ai_quota_service import AIQuotaService
+
                 quota_service = AIQuotaService(db_session)
                 await quota_service.increment_usage(user_id, is_gps_enhanced=gps_enhanced)
-            
+
             # Cache fallback with shorter TTL (1 hour)
             if cache_manager and cache_manager.enabled:
                 cache_manager.set(cache_key, fallback_strategy, 3600)
-            
+
             return fallback_strategy
         except Exception as e:
             logger.error(f"Annual strategy generation error: {e}")
             logger.warning("Using fallback strategy due to Bedrock failure")
             fallback_strategy = self._create_fallback_strategy(state, district, soil_type)
-            
+
             # Add quota status to fallback
-            fallback_strategy['quota_status'] = {
-                'remaining_quota': remaining_quota,
-                'gps_enhanced': gps_enhanced,
-                'quota_exceeded': quota_exceeded,
-                'fallback_message': fallback_message
+            fallback_strategy["quota_status"] = {
+                "remaining_quota": remaining_quota,
+                "gps_enhanced": gps_enhanced,
+                "quota_exceeded": quota_exceeded,
+                "fallback_message": fallback_message,
             }
-            
+
             return fallback_strategy
-    
+
     async def get_crop_recommendations(
         self,
         state: str,
@@ -715,14 +744,14 @@ Provide ONLY the JSON response, no additional text."""
         latitude: Optional[float] = None,
         longitude: Optional[float] = None,
         current_date: Optional[str] = None,
-        db_session: Optional[Any] = None
+        db_session: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
         Get top crop recommendations for a specific season
-        
+
         Task 18.1: Cached with 6-hour TTL
         Task 40.2: Integrated with AI quota system
-        
+
         Args:
             state: State name
             district: District name
@@ -734,34 +763,34 @@ Provide ONLY the JSON response, no additional text."""
             latitude: GPS latitude (optional)
             longitude: GPS longitude (optional)
             db_session: Database session for quota service (optional)
-        
+
         Returns:
             Dictionary with recommendations list and quota_status
         """
-        
+
         # Initialize quota tracking
         gps_enhanced = False
         remaining_quota = None
         quota_exceeded = False
         fallback_message = None
-        
+
         # Check quota if user_id and db_session provided
         if user_id and db_session:
             from app.services.ai_quota_service import AIQuotaService
-            
+
             quota_service = AIQuotaService(db_session)
             has_gps = latitude is not None and longitude is not None
-            
+
             quota_check = await quota_service.check_quota(user_id, has_gps=has_gps)
             remaining_quota = quota_check.remaining_quota
-            
+
             if has_gps and quota_check.can_use_gps:
                 gps_enhanced = True
             elif has_gps and quota_check.fallback_to_pincode:
                 gps_enhanced = False
                 quota_exceeded = True
                 fallback_message = quota_check.message
-        
+
         # Check cache first
         cache_manager = get_cache_manager()
         if cache_manager and cache_manager.enabled:
@@ -775,29 +804,33 @@ Provide ONLY the JSON response, no additional text."""
                 irrigation_type=irrigation_type,
                 gps_enhanced=gps_enhanced,
                 latitude=latitude if gps_enhanced else None,
-                longitude=longitude if gps_enhanced else None
+                longitude=longitude if gps_enhanced else None,
             )
-            
+
             cached_result = cache_manager.get(cache_key)
             if cached_result:
-                logger.info(f"Cache hit for crop recommendations: {state}, {district}, {season} (GPS: {gps_enhanced})")
+                logger.info(
+                    f"Cache hit for crop recommendations: {state}, {district}, {season} (GPS: {gps_enhanced})"
+                )
                 # Add quota status to cached result
                 if isinstance(cached_result, list):
                     cached_result = {
-                        'recommendations': cached_result,
-                        'quota_status': {
-                            'remaining_quota': remaining_quota,
-                            'gps_enhanced': gps_enhanced,
-                            'quota_exceeded': quota_exceeded,
-                            'fallback_message': fallback_message
-                        }
+                        "recommendations": cached_result,
+                        "quota_status": {
+                            "remaining_quota": remaining_quota,
+                            "gps_enhanced": gps_enhanced,
+                            "quota_exceeded": quota_exceeded,
+                            "fallback_message": fallback_message,
+                        },
                     }
                 return cached_result
-        
+
         location_context = f"Location: {state}, {district}"
         if gps_enhanced and latitude and longitude:
-            location_context += f"\nGPS Coordinates: {latitude}, {longitude} (precise microclimate analysis)"
-        
+            location_context += (
+                f"\nGPS Coordinates: {latitude}, {longitude} (precise microclimate analysis)"
+            )
+
         prompt = f"""As an agricultural expert, recommend the top 5 most suitable crops for:
 - State: {state}
 - District: {district}
@@ -860,75 +893,80 @@ Provide ONLY the JSON array, no additional text."""
 
         try:
             response_text = self._invoke_claude(prompt, max_tokens=2000, temperature=0.1)
-            
+
             # Extract JSON array
-            json_start = response_text.find('[')
-            json_end = response_text.rfind(']') + 1
-            
+            json_start = response_text.find("[")
+            json_end = response_text.rfind("]") + 1
+
             if json_start >= 0 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
                 recommendations = json.loads(json_text)
-                
+
                 # Build response with quota status
                 result = {
-                    'recommendations': recommendations,
-                    'quota_status': {
-                        'remaining_quota': remaining_quota,
-                        'gps_enhanced': gps_enhanced,
-                        'quota_exceeded': quota_exceeded,
-                        'fallback_message': fallback_message
-                    }
+                    "recommendations": recommendations,
+                    "quota_status": {
+                        "remaining_quota": remaining_quota,
+                        "gps_enhanced": gps_enhanced,
+                        "quota_exceeded": quota_exceeded,
+                        "fallback_message": fallback_message,
+                    },
                 }
-                
+
                 # Increment usage counter
                 if user_id and db_session:
                     from app.services.ai_quota_service import AIQuotaService
+
                     quota_service = AIQuotaService(db_session)
                     await quota_service.increment_usage(user_id, is_gps_enhanced=gps_enhanced)
-                
+
                 # Cache the result with 6-hour TTL
                 if cache_manager and cache_manager.enabled:
                     cache_manager.set(cache_key, result, TTL_BEDROCK_API)
-                    logger.info(f"Cached crop recommendations for {state}, {district}, {season} (6-hour TTL, GPS: {gps_enhanced})")
-                
-                logger.info(f"Crop recommendations generated for {state}, {district}, {season} (GPS: {gps_enhanced})")
+                    logger.info(
+                        f"Cached crop recommendations for {state}, {district}, {season} (6-hour TTL, GPS: {gps_enhanced})"
+                    )
+
+                logger.info(
+                    f"Crop recommendations generated for {state}, {district}, {season} (GPS: {gps_enhanced})"
+                )
                 return result
             else:
                 logger.warning("Could not parse JSON from Bedrock response")
                 return {
-                    'recommendations': [],
-                    'quota_status': {
-                        'remaining_quota': remaining_quota,
-                        'gps_enhanced': gps_enhanced,
-                        'quota_exceeded': quota_exceeded,
-                        'fallback_message': fallback_message
-                    }
+                    "recommendations": [],
+                    "quota_status": {
+                        "remaining_quota": remaining_quota,
+                        "gps_enhanced": gps_enhanced,
+                        "quota_exceeded": quota_exceeded,
+                        "fallback_message": fallback_message,
+                    },
                 }
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error: {e}")
             return {
-                'recommendations': [],
-                'quota_status': {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
-                }
+                "recommendations": [],
+                "quota_status": {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
+                },
             }
         except Exception as e:
             logger.error(f"Crop recommendations error: {e}")
             logger.warning("Using fallback due to Bedrock failure")
             return {
-                'recommendations': [],
-                'quota_status': {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
-                }
+                "recommendations": [],
+                "quota_status": {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
+                },
             }
-    
+
     async def predict_yield_and_harvest(
         self,
         crop_name: str,
@@ -942,14 +980,14 @@ Provide ONLY the JSON array, no additional text."""
         user_id: Optional[int] = None,
         latitude: Optional[float] = None,
         longitude: Optional[float] = None,
-        db_session: Optional[Any] = None
+        db_session: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
         Predict crop yield and harvest date
-        
+
         Task 18.1: Cached with 6-hour TTL
         Task 40.2: Integrated with AI quota system
-        
+
         Args:
             crop_name: Crop name
             variety: Crop variety
@@ -963,34 +1001,34 @@ Provide ONLY the JSON array, no additional text."""
             latitude: GPS latitude (optional)
             longitude: GPS longitude (optional)
             db_session: Database session for quota service (optional)
-        
+
         Returns:
             Yield prediction and harvest date with confidence intervals and quota_status
         """
-        
+
         # Initialize quota tracking
         gps_enhanced = False
         remaining_quota = None
         quota_exceeded = False
         fallback_message = None
-        
+
         # Check quota if user_id and db_session provided
         if user_id and db_session:
             from app.services.ai_quota_service import AIQuotaService
-            
+
             quota_service = AIQuotaService(db_session)
             has_gps = latitude is not None and longitude is not None
-            
+
             quota_check = await quota_service.check_quota(user_id, has_gps=has_gps)
             remaining_quota = quota_check.remaining_quota
-            
+
             if has_gps and quota_check.can_use_gps:
                 gps_enhanced = True
             elif has_gps and quota_check.fallback_to_pincode:
                 gps_enhanced = False
                 quota_exceeded = True
                 fallback_message = quota_check.message
-        
+
         # Check cache first
         cache_manager = get_cache_manager()
         if cache_manager and cache_manager.enabled:
@@ -1006,25 +1044,29 @@ Provide ONLY the JSON array, no additional text."""
                 irrigation_type=irrigation_type,
                 gps_enhanced=gps_enhanced,
                 latitude=latitude if gps_enhanced else None,
-                longitude=longitude if gps_enhanced else None
+                longitude=longitude if gps_enhanced else None,
             )
-            
+
             cached_result = cache_manager.get(cache_key)
             if cached_result:
-                logger.info(f"Cache hit for yield prediction: {crop_name}, {state}, {district} (GPS: {gps_enhanced})")
+                logger.info(
+                    f"Cache hit for yield prediction: {crop_name}, {state}, {district} (GPS: {gps_enhanced})"
+                )
                 # Add quota status to cached result
-                cached_result['quota_status'] = {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
+                cached_result["quota_status"] = {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
                 }
                 return cached_result
-        
+
         location_context = f"Location: {state}, {district}"
         if gps_enhanced and latitude and longitude:
-            location_context += f"\nGPS Coordinates: {latitude}, {longitude} (precise microclimate analysis)"
-        
+            location_context += (
+                f"\nGPS Coordinates: {latitude}, {longitude} (precise microclimate analysis)"
+            )
+
         prompt = f"""As an agricultural expert, predict the yield and harvest timing for:
 
 Crop: {crop_name} ({variety})
@@ -1068,77 +1110,77 @@ Provide ONLY the JSON response."""
 
         try:
             response_text = self._invoke_claude(prompt, max_tokens=1000, temperature=0.1)
-            
+
             # Extract JSON
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
-            
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
             if json_start >= 0 and json_end > json_start:
                 json_text = response_text[json_start:json_end]
                 prediction = json.loads(json_text)
-                
+
                 # Add quota status to prediction
-                prediction['quota_status'] = {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
+                prediction["quota_status"] = {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
                 }
-                
+
                 # Increment usage counter
                 if user_id and db_session:
                     from app.services.ai_quota_service import AIQuotaService
+
                     quota_service = AIQuotaService(db_session)
                     await quota_service.increment_usage(user_id, is_gps_enhanced=gps_enhanced)
-                
+
                 # Cache the result with 6-hour TTL
                 if cache_manager and cache_manager.enabled:
                     cache_manager.set(cache_key, prediction, TTL_BEDROCK_API)
-                    logger.info(f"Cached yield prediction for {crop_name} (6-hour TTL, GPS: {gps_enhanced})")
-                
+                    logger.info(
+                        f"Cached yield prediction for {crop_name} (6-hour TTL, GPS: {gps_enhanced})"
+                    )
+
                 logger.info(f"Yield prediction generated for {crop_name} (GPS: {gps_enhanced})")
                 return prediction
             else:
                 logger.warning("Could not parse JSON from Bedrock response")
                 return {
-                    'quota_status': {
-                        'remaining_quota': remaining_quota,
-                        'gps_enhanced': gps_enhanced,
-                        'quota_exceeded': quota_exceeded,
-                        'fallback_message': fallback_message
+                    "quota_status": {
+                        "remaining_quota": remaining_quota,
+                        "gps_enhanced": gps_enhanced,
+                        "quota_exceeded": quota_exceeded,
+                        "fallback_message": fallback_message,
                     }
                 }
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse error: {e}")
             return {
-                'quota_status': {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
+                "quota_status": {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
                 }
             }
         except Exception as e:
             logger.error(f"Yield prediction error: {e}")
             logger.warning("Using fallback due to Bedrock failure")
             return {
-                'quota_status': {
-                    'remaining_quota': remaining_quota,
-                    'gps_enhanced': gps_enhanced,
-                    'quota_exceeded': quota_exceeded,
-                    'fallback_message': fallback_message
+                "quota_status": {
+                    "remaining_quota": remaining_quota,
+                    "gps_enhanced": gps_enhanced,
+                    "quota_exceeded": quota_exceeded,
+                    "fallback_message": fallback_message,
                 }
             }
-    
+
     def _create_fallback_strategy(
-        self,
-        state: str,
-        district: str,
-        soil_type: str
+        self, state: str, district: str, soil_type: str
     ) -> Dict[str, Any]:
         """Create a basic fallback strategy when Bedrock fails"""
-        
+
         # Simple fallback based on common crops
         return {
             "kharif": {
@@ -1159,9 +1201,9 @@ Provide ONLY the JSON response."""
                         "alert_type": "heavy_rainfall",
                         "severity": "medium",
                         "description": "Heavy rainfall possible during monsoon season",
-                        "action": "Ensure proper drainage to prevent waterlogging"
+                        "action": "Ensure proper drainage to prevent waterlogging",
                     }
-                ]
+                ],
             },
             "rabi": {
                 "recommended_crop": "Wheat",
@@ -1171,7 +1213,11 @@ Provide ONLY the JSON response."""
                 "investment_per_acre": 12000,
                 "planting_window": "November-December",
                 "harvest_window": "March-April",
-                "key_success_factors": ["Proper irrigation", "Fertilizer application", "Weed control"],
+                "key_success_factors": [
+                    "Proper irrigation",
+                    "Fertilizer application",
+                    "Weed control",
+                ],
                 "confidence_score": 0.6,
                 "seasonal_weather_pattern": "Cool winter temperatures (10-25°C) ideal for wheat growth. Minimal rainfall during growing season requires irrigation.",
                 "weather_aware_planting_timing": "Plant in November when temperatures drop below 25°C. Avoid late planting after mid-December.",
@@ -1181,9 +1227,9 @@ Provide ONLY the JSON response."""
                         "alert_type": "cold_wave",
                         "severity": "low",
                         "description": "Cold wave possible in January",
-                        "action": "Light irrigation during cold periods can protect crop"
+                        "action": "Light irrigation during cold periods can protect crop",
                     }
-                ]
+                ],
             },
             "zaid": {
                 "recommended_crop": "Green Gram (Moong)",
@@ -1196,19 +1242,19 @@ Provide ONLY the JSON response."""
                         "alert_type": "heat_wave",
                         "severity": "high",
                         "description": "Severe heat waves common in May",
-                        "action": "Maintain soil moisture and harvest early in the day"
+                        "action": "Maintain soil moisture and harvest early in the day",
                     }
-                ]
+                ],
             },
             "annual_summary": {
                 "total_expected_profit_per_acre": 75000,
                 "total_investment_per_acre": 27000,
                 "roi_percentage": 178,
                 "risk_level": "medium",
-                "sustainability_score": 0.7
+                "sustainability_score": 0.7,
             },
             "alternative_options": [],
-            "monthly_action_plan": []
+            "monthly_action_plan": [],
         }
 
 

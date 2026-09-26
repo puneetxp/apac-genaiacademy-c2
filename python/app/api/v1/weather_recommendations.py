@@ -6,27 +6,33 @@ Task 23.3: Build weather-based recommendations
 Validates: Requirements AC8 (Phase 6 - Required)
 """
 
+from datetime import date
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
-from datetime import date
-
-from app.core.database import get_db
-from app.services.weather_service import get_weather_service
-from app.services.severe_weather_service import get_severe_weather_service
-from app.services.weather_recommendations_service import get_weather_recommendations_service
-from app.core.cache import get_cache_manager
 
 from app.core.auth import get_current_active_user
+from app.core.cache import get_cache_manager
+from app.core.database import get_db
+from app.services.severe_weather_service import get_severe_weather_service
+from app.services.weather_recommendations_service import get_weather_recommendations_service
+from app.services.weather_service import get_weather_service
 
-router = APIRouter(prefix="/weather-recommendations", tags=["weather-recommendations"], dependencies=[Depends(get_current_active_user)])
+router = APIRouter(
+    prefix="/weather-recommendations",
+    tags=["weather-recommendations"],
+    dependencies=[Depends(get_current_active_user)],
+)
+
+
 @router.get("")
 async def get_weather_recommendations_root():
     """Registry alias for weather recommendations root"""
     return {
         "status": "success",
         "message": "Weather recommendations system operational",
-        "features": ["planting", "harvest_timing", "irrigation", "crop_care"]
+        "features": ["planting", "harvest_timing", "irrigation", "crop_care"],
     }
 
 
@@ -36,11 +42,11 @@ async def get_planting_recommendations(
     longitude: float = Query(..., description="GPS longitude"),
     crop_type: str = Query(..., description="Type of crop to plant"),
     season: str = Query(..., description="Growing season (kharif, rabi, zaid)"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get weather-aware planting recommendations
-    
+
     Returns optimal planting windows based on rainfall forecast
     """
     cache_manager = get_cache_manager()
@@ -49,7 +55,7 @@ async def get_planting_recommendations(
     recommendations_service = get_weather_recommendations_service(
         db, weather_service, severe_weather_service
     )
-    
+
     try:
         result = await recommendations_service.get_planting_recommendations(
             latitude, longitude, crop_type, season
@@ -71,7 +77,7 @@ async def get_harvest_timing_recommendations(
 ):
     """
     Get optimal harvest timing based on weather windows
-    
+
     Identifies dry periods to avoid rain during harvest
     """
     cache_manager = get_cache_manager()
@@ -80,7 +86,7 @@ async def get_harvest_timing_recommendations(
     recommendations_service = get_weather_recommendations_service(
         db, weather_service, severe_weather_service
     )
-    
+
     try:
         result = await recommendations_service.get_harvest_timing_recommendations(
             farm_id, crop_id, expected_harvest_date, user=current_user
@@ -94,7 +100,6 @@ async def get_harvest_timing_recommendations(
         await weather_service.close()
 
 
-
 @router.get("/irrigation-schedule")
 async def get_irrigation_schedule(
     latitude: float = Query(..., description="GPS latitude"),
@@ -102,11 +107,11 @@ async def get_irrigation_schedule(
     crop_type: str = Query(..., description="Type of crop"),
     soil_type: str = Query(..., description="Soil type (sandy, loamy, clay)"),
     days_ahead: int = Query(7, description="Number of days to schedule", ge=1, le=14),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get irrigation schedule based on rainfall forecasts
-    
+
     Reduces water waste by accounting for expected rainfall
     """
     cache_manager = get_cache_manager()
@@ -115,7 +120,7 @@ async def get_irrigation_schedule(
     recommendations_service = get_weather_recommendations_service(
         db, weather_service, severe_weather_service
     )
-    
+
     try:
         result = await recommendations_service.get_irrigation_schedule(
             latitude, longitude, crop_type, soil_type, days_ahead
@@ -132,13 +137,15 @@ async def get_crop_care_recommendations(
     latitude: float = Query(..., description="GPS latitude"),
     longitude: float = Query(..., description="GPS longitude"),
     crop_type: str = Query(..., description="Type of crop"),
-    growth_stage: str = Query(..., description="Growth stage (germination, vegetative, flowering, maturation)"),
+    growth_stage: str = Query(
+        ..., description="Growth stage (germination, vegetative, flowering, maturation)"
+    ),
     days_ahead: int = Query(7, description="Number of days to plan", ge=1, le=14),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get weather-based crop care recommendations
-    
+
     Provides optimal timing for pest control and fertilizer application
     """
     cache_manager = get_cache_manager()
@@ -147,7 +154,7 @@ async def get_crop_care_recommendations(
     recommendations_service = get_weather_recommendations_service(
         db, weather_service, severe_weather_service
     )
-    
+
     try:
         result = await recommendations_service.get_crop_care_recommendations(
             latitude, longitude, crop_type, growth_stage, days_ahead

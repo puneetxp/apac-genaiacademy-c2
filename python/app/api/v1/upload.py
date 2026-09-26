@@ -3,13 +3,14 @@ File Upload API endpoints
 Handles photo uploads for quality verification and other features
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
-from fastapi.responses import Response
-from typing import Any, Dict
+import logging
 import os
 import uuid
 from datetime import datetime
-import logging
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import Response
 
 from app.core.auth import get_current_active_user
 from app.services import file_storage
@@ -33,14 +34,14 @@ async def _store(file: UploadFile, allowed: set) -> Dict[str, Any]:
     if file_ext not in allowed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file type. Allowed types: {', '.join(sorted(allowed))}"
+            detail=f"Invalid file type. Allowed types: {', '.join(sorted(allowed))}",
         )
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File size exceeds maximum allowed size of {MAX_FILE_SIZE / (1024 * 1024)}MB"
+            detail=f"File size exceeds maximum allowed size of {MAX_FILE_SIZE / (1024 * 1024)}MB",
         )
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -49,7 +50,9 @@ async def _store(file: UploadFile, allowed: set) -> Dict[str, Any]:
         storage = file_storage.save(filename, content)
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to upload file")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to upload file"
+        )
 
     logger.info(f"File uploaded ({storage}): {filename}")
     return {"success": True, "url": f"{FILES_PATH}/{filename}", "filename": filename}
@@ -66,7 +69,9 @@ async def upload_image(file: UploadFile = File(...), current_user=Depends(get_cu
 
 
 @router.post("/document", response_model=Dict[str, Any])
-async def upload_document(file: UploadFile = File(...), current_user=Depends(get_current_active_user)):
+async def upload_document(
+    file: UploadFile = File(...), current_user=Depends(get_current_active_user)
+):
     """
     Upload a document (images or PDF)
     """
@@ -83,8 +88,11 @@ async def get_file(filename: str):
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     content, content_type = found
-    return Response(content=content, media_type=content_type,
-                    headers={"Cache-Control": "private, max-age=86400"})
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
 
 
 @router.delete("/photo/{filename}", response_model=Dict[str, Any])

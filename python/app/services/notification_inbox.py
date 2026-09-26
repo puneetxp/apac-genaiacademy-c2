@@ -15,8 +15,14 @@ from app.core.db import DB
 logger = logging.getLogger(__name__)
 
 
-def add(user_id: int, title: str, message: str, type: str = "general",
-        link: Optional[str] = None, data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+def add(
+    user_id: int,
+    title: str,
+    message: str,
+    type: str = "general",
+    link: Optional[str] = None,
+    data: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
     """Store a notification for a user. Never raises: a failed inbox write must not block the push."""
     try:
         rows = DB.raw(
@@ -30,7 +36,9 @@ def add(user_id: int, title: str, message: str, type: str = "general",
         return None
 
 
-def list_for(user_id: int, unread_only: bool = False, skip: int = 0, limit: int = 50) -> Dict[str, Any]:
+def list_for(
+    user_id: int, unread_only: bool = False, skip: int = 0, limit: int = 50
+) -> Dict[str, Any]:
     """The user's notifications, newest first, plus the unread count."""
     where = "user_id = ? AND enable = 1" + (" AND is_read = false" if unread_only else "")
     items = DB.raw(

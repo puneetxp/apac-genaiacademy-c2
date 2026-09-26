@@ -11,12 +11,18 @@ Validates: Requirements AC9 (Phase 6 - Required)
 """
 
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
 from decimal import Decimal
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.db import DB
 from app.services.farm_access import (
-    Row, fetch_one, fetch_all, farm_for_user, plot_for_user, crop_for_user, soil_test_for_user,
+    Row,
+    crop_for_user,
+    farm_for_user,
+    fetch_all,
+    fetch_one,
+    plot_for_user,
+    soil_test_for_user,
 )
 
 # Data access is raw SQL through app.core.db.DB (app/orm classes are not SQLAlchemy models).
@@ -25,11 +31,31 @@ FertilizerApplication = Row
 AsyncSession = Any  # kept for the constructor signature; queries don't use it
 
 APP_COLUMNS = (
-    "farm_id", "plot_id", "crop_id", "application_date", "fertilizer_type", "category", "quantity_kg",
-    "quantity_per_hectare", "area_applied_hectares", "nitrogen_kg", "phosphorus_kg", "potassium_kg",
-    "cost_total", "cost_per_kg", "cost_per_hectare", "application_method", "growth_stage",
-    "days_after_planting", "soil_test_before_id", "weather_conditions", "temperature_celsius",
-    "rainfall_mm_24h", "recommended_by", "recommendation_id", "notes",
+    "farm_id",
+    "plot_id",
+    "crop_id",
+    "application_date",
+    "fertilizer_type",
+    "category",
+    "quantity_kg",
+    "quantity_per_hectare",
+    "area_applied_hectares",
+    "nitrogen_kg",
+    "phosphorus_kg",
+    "potassium_kg",
+    "cost_total",
+    "cost_per_kg",
+    "cost_per_hectare",
+    "application_method",
+    "growth_stage",
+    "days_after_planting",
+    "soil_test_before_id",
+    "weather_conditions",
+    "temperature_celsius",
+    "rainfall_mm_24h",
+    "recommended_by",
+    "recommendation_id",
+    "notes",
 )
 
 
@@ -67,7 +93,7 @@ class FertilizerTrackingService:
     ) -> FertilizerApplication:
         """
         Record a fertilizer application with all details
-        
+
         Args:
             farm_id: Farm where fertilizer was applied
             application_date: Date of application
@@ -91,13 +117,13 @@ class FertilizerTrackingService:
             recommended_by: system, agronomist, farmer
             recommendation_id: Reference to recommendation
             notes: Additional notes
-            
+
         Returns:
             Created FertilizerApplication record
         """
         # Calculate derived metrics
         cost_per_kg = cost_total / quantity_kg if quantity_kg > 0 else 0
-        
+
         quantity_per_hectare = None
         cost_per_hectare = None
         if area_applied_hectares and area_applied_hectares > 0:
@@ -110,21 +136,38 @@ class FertilizerTrackingService:
             raise ValueError(f"Plot {plot_id} is not on farm {farm_id}")
         if crop_id is not None and crop_for_user(crop_id, user)["farm_id"] != farm_id:
             raise ValueError(f"Crop {crop_id} is not on farm {farm_id}")
-        if soil_test_before_id is not None and soil_test_for_user(soil_test_before_id, user)["farm_id"] != farm_id:
+        if (
+            soil_test_before_id is not None
+            and soil_test_for_user(soil_test_before_id, user)["farm_id"] != farm_id
+        ):
             raise ValueError(f"Soil test {soil_test_before_id} is not for farm {farm_id}")
 
         values = {
-            "farm_id": farm_id, "plot_id": plot_id, "crop_id": crop_id,
-            "application_date": application_date, "fertilizer_type": fertilizer_type, "category": category,
-            "quantity_kg": quantity_kg, "quantity_per_hectare": quantity_per_hectare,
-            "area_applied_hectares": area_applied_hectares, "nitrogen_kg": nitrogen_kg,
-            "phosphorus_kg": phosphorus_kg, "potassium_kg": potassium_kg, "cost_total": cost_total,
-            "cost_per_kg": cost_per_kg, "cost_per_hectare": cost_per_hectare,
-            "application_method": application_method, "growth_stage": growth_stage,
-            "days_after_planting": days_after_planting, "soil_test_before_id": soil_test_before_id,
-            "weather_conditions": weather_conditions, "temperature_celsius": temperature_celsius,
-            "rainfall_mm_24h": rainfall_mm_24h, "recommended_by": recommended_by,
-            "recommendation_id": recommendation_id, "notes": notes,
+            "farm_id": farm_id,
+            "plot_id": plot_id,
+            "crop_id": crop_id,
+            "application_date": application_date,
+            "fertilizer_type": fertilizer_type,
+            "category": category,
+            "quantity_kg": quantity_kg,
+            "quantity_per_hectare": quantity_per_hectare,
+            "area_applied_hectares": area_applied_hectares,
+            "nitrogen_kg": nitrogen_kg,
+            "phosphorus_kg": phosphorus_kg,
+            "potassium_kg": potassium_kg,
+            "cost_total": cost_total,
+            "cost_per_kg": cost_per_kg,
+            "cost_per_hectare": cost_per_hectare,
+            "application_method": application_method,
+            "growth_stage": growth_stage,
+            "days_after_planting": days_after_planting,
+            "soil_test_before_id": soil_test_before_id,
+            "weather_conditions": weather_conditions,
+            "temperature_celsius": temperature_celsius,
+            "rainfall_mm_24h": rainfall_mm_24h,
+            "recommended_by": recommended_by,
+            "recommendation_id": recommendation_id,
+            "notes": notes,
         }
         application = fetch_one(
             f"INSERT INTO fertilizer_applications ({', '.join(APP_COLUMNS)}) "
@@ -143,17 +186,19 @@ class FertilizerTrackingService:
         """
         Update fertilizer application with soil test results after application
         and calculate effectiveness score
-        
+
         Args:
             application_id: Fertilizer application ID
             soil_test_after_id: Soil test conducted after application
             soil_response_notes: Observed soil response and crop performance
-            
+
         Returns:
             Updated FertilizerApplication with effectiveness score
         """
         # Get application
-        application = fetch_one("SELECT * FROM fertilizer_applications WHERE id = ?", [application_id])
+        application = fetch_one(
+            "SELECT * FROM fertilizer_applications WHERE id = ?", [application_id]
+        )
         if not application:
             raise ValueError(f"Fertilizer application {application_id} not found")
         try:
@@ -172,40 +217,40 @@ class FertilizerTrackingService:
         # Calculate effectiveness score if we have before and after tests
         if application.soil_test_before_id:
             effectiveness_score = await self._calculate_effectiveness_score(
-                application.soil_test_before_id,
-                soil_test_after_id,
-                application
+                application.soil_test_before_id, soil_test_after_id, application
             )
             application.effectiveness_score = Decimal(str(effectiveness_score))
 
         application = fetch_one(
             """UPDATE fertilizer_applications SET soil_test_after_id = ?, soil_response_notes = ?,
                effectiveness_score = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *""",
-            [soil_test_after_id, soil_response_notes, application.get("effectiveness_score"), application_id],
+            [
+                soil_test_after_id,
+                soil_response_notes,
+                application.get("effectiveness_score"),
+                application_id,
+            ],
         )
 
         return application
 
     async def _calculate_effectiveness_score(
-        self,
-        before_test_id: int,
-        after_test_id: int,
-        application: FertilizerApplication
+        self, before_test_id: int, after_test_id: int, application: FertilizerApplication
     ) -> float:
         """
         Calculate effectiveness score (0-100) based on soil nutrient improvements
-        
+
         Scoring factors:
         - Nitrogen improvement: 30%
         - Phosphorus improvement: 30%
         - Potassium improvement: 30%
         - Soil health score improvement: 10%
-        
+
         Args:
             before_test_id: Soil test before application
             after_test_id: Soil test after application
             application: Fertilizer application record
-            
+
         Returns:
             Effectiveness score (0-100)
         """
@@ -283,7 +328,7 @@ class FertilizerTrackingService:
     ) -> List[FertilizerApplication]:
         """
         Get fertilizer application history with filters
-        
+
         Args:
             farm_id: Farm ID
             plot_id: Optional plot filter
@@ -292,16 +337,19 @@ class FertilizerTrackingService:
             end_date: Optional end date filter
             fertilizer_type: Optional fertilizer type filter
             category: Optional category filter (organic/chemical)
-            
+
         Returns:
             List of fertilizer applications
         """
         farm_for_user(farm_id, user)
         where, bind = ["farm_id = ?"], [farm_id]
         for col, op, val in (
-            ("plot_id", "=", plot_id), ("crop_id", "=", crop_id),
-            ("application_date", ">=", start_date), ("application_date", "<=", end_date),
-            ("fertilizer_type", "=", fertilizer_type), ("category", "=", category),
+            ("plot_id", "=", plot_id),
+            ("crop_id", "=", crop_id),
+            ("application_date", ">=", start_date),
+            ("application_date", "<=", end_date),
+            ("fertilizer_type", "=", fertilizer_type),
+            ("category", "=", category),
         ):
             if val:
                 where.append(f"{col} {op} ?")
@@ -321,13 +369,13 @@ class FertilizerTrackingService:
     ) -> Dict[str, Any]:
         """
         Analyze fertilizer effectiveness with ROI calculations
-        
+
         Args:
             farm_id: Farm ID
             plot_id: Optional plot filter
             start_date: Optional start date filter
             end_date: Optional end date filter
-            
+
         Returns:
             Effectiveness analysis with ROI metrics
         """
@@ -345,18 +393,19 @@ class FertilizerTrackingService:
                 "total_cost": 0,
                 "average_effectiveness": 0,
                 "roi_analysis": {},
-                "recommendations": []
+                "recommendations": [],
             }
 
         # Calculate aggregate metrics
         total_cost = sum(float(app.cost_total) for app in applications)
         total_quantity = sum(float(app.quantity_kg) for app in applications)
-        
+
         # Calculate average effectiveness for applications with scores
         apps_with_scores = [app for app in applications if app.effectiveness_score]
         avg_effectiveness = (
             sum(float(app.effectiveness_score) for app in apps_with_scores) / len(apps_with_scores)
-            if apps_with_scores else 0
+            if apps_with_scores
+            else 0
         )
 
         # Analyze by fertilizer type
@@ -368,9 +417,9 @@ class FertilizerTrackingService:
                     "count": 0,
                     "total_cost": 0,
                     "total_quantity": 0,
-                    "effectiveness_scores": []
+                    "effectiveness_scores": [],
                 }
-            
+
             type_analysis[ftype]["count"] += 1
             type_analysis[ftype]["total_cost"] += float(app.cost_total)
             type_analysis[ftype]["total_quantity"] += float(app.quantity_kg)
@@ -379,15 +428,19 @@ class FertilizerTrackingService:
 
         # Calculate averages and ROI for each type
         for ftype, data in type_analysis.items():
-            data["avg_cost_per_kg"] = data["total_cost"] / data["total_quantity"] if data["total_quantity"] > 0 else 0
+            data["avg_cost_per_kg"] = (
+                data["total_cost"] / data["total_quantity"] if data["total_quantity"] > 0 else 0
+            )
             data["avg_effectiveness"] = (
                 sum(data["effectiveness_scores"]) / len(data["effectiveness_scores"])
-                if data["effectiveness_scores"] else 0
+                if data["effectiveness_scores"]
+                else 0
             )
             # ROI = (effectiveness / cost) * 100 - simplified metric
             data["roi_score"] = (
                 (data["avg_effectiveness"] / data["avg_cost_per_kg"])
-                if data["avg_cost_per_kg"] > 0 else 0
+                if data["avg_cost_per_kg"] > 0
+                else 0
             )
 
         # Analyze by category (organic vs chemical)
@@ -395,28 +448,25 @@ class FertilizerTrackingService:
         for app in applications:
             cat = app.category
             if cat not in category_analysis:
-                category_analysis[cat] = {
-                    "count": 0,
-                    "total_cost": 0,
-                    "effectiveness_scores": []
-                }
-            
+                category_analysis[cat] = {"count": 0, "total_cost": 0, "effectiveness_scores": []}
+
             category_analysis[cat]["count"] += 1
             category_analysis[cat]["total_cost"] += float(app.cost_total)
             if app.effectiveness_score:
-                category_analysis[cat]["effectiveness_scores"].append(float(app.effectiveness_score))
+                category_analysis[cat]["effectiveness_scores"].append(
+                    float(app.effectiveness_score)
+                )
 
         for cat, data in category_analysis.items():
             data["avg_effectiveness"] = (
                 sum(data["effectiveness_scores"]) / len(data["effectiveness_scores"])
-                if data["effectiveness_scores"] else 0
+                if data["effectiveness_scores"]
+                else 0
             )
 
         # Generate recommendations
         recommendations = self._generate_effectiveness_recommendations(
-            type_analysis,
-            category_analysis,
-            avg_effectiveness
+            type_analysis, category_analysis, avg_effectiveness
         )
 
         return {
@@ -431,7 +481,7 @@ class FertilizerTrackingService:
                     "total_quantity_kg": round(data["total_quantity"], 2),
                     "avg_cost_per_kg": round(data["avg_cost_per_kg"], 2),
                     "avg_effectiveness": round(data["avg_effectiveness"], 2),
-                    "roi_score": round(data["roi_score"], 2)
+                    "roi_score": round(data["roi_score"], 2),
                 }
                 for ftype, data in type_analysis.items()
             },
@@ -439,18 +489,18 @@ class FertilizerTrackingService:
                 cat: {
                     "count": data["count"],
                     "total_cost": round(data["total_cost"], 2),
-                    "avg_effectiveness": round(data["avg_effectiveness"], 2)
+                    "avg_effectiveness": round(data["avg_effectiveness"], 2),
                 }
                 for cat, data in category_analysis.items()
             },
-            "recommendations": recommendations
+            "recommendations": recommendations,
         }
 
     def _generate_effectiveness_recommendations(
         self,
         type_analysis: Dict[str, Any],
         category_analysis: Dict[str, Any],
-        avg_effectiveness: float
+        avg_effectiveness: float,
     ) -> List[str]:
         """Generate recommendations based on effectiveness analysis"""
         recommendations = []
@@ -479,7 +529,7 @@ class FertilizerTrackingService:
         if "organic" in category_analysis and "chemical" in category_analysis:
             org_eff = category_analysis["organic"].get("avg_effectiveness", 0)
             chem_eff = category_analysis["chemical"].get("avg_effectiveness", 0)
-            
+
             if org_eff > chem_eff + 10:
                 recommendations.append(
                     f"Organic fertilizers show better effectiveness ({org_eff:.1f}% vs {chem_eff:.1f}%). "
@@ -508,13 +558,13 @@ class FertilizerTrackingService:
     ) -> Dict[str, Any]:
         """
         Generate comprehensive fertilizer usage report with cost analysis
-        
+
         Args:
             farm_id: Farm ID
             plot_id: Optional plot filter
             start_date: Optional start date filter (defaults to 1 year ago)
             end_date: Optional end date filter (defaults to today)
-            
+
         Returns:
             Comprehensive usage report with cost analysis and recommendations
         """
@@ -551,46 +601,44 @@ class FertilizerTrackingService:
                     "applications": 0,
                     "total_cost": 0,
                     "total_quantity": 0,
-                    "by_type": {}
+                    "by_type": {},
                 }
-            
+
             monthly_breakdown[month_key]["applications"] += 1
             monthly_breakdown[month_key]["total_cost"] += float(app.cost_total)
             monthly_breakdown[month_key]["total_quantity"] += float(app.quantity_kg)
-            
+
             ftype = app.fertilizer_type
             if ftype not in monthly_breakdown[month_key]["by_type"]:
-                monthly_breakdown[month_key]["by_type"][ftype] = {
-                    "quantity": 0,
-                    "cost": 0
-                }
+                monthly_breakdown[month_key]["by_type"][ftype] = {"quantity": 0, "cost": 0}
             monthly_breakdown[month_key]["by_type"][ftype]["quantity"] += float(app.quantity_kg)
             monthly_breakdown[month_key]["by_type"][ftype]["cost"] += float(app.cost_total)
 
         # Calculate nutrient totals
         total_nitrogen = sum(float(app.nitrogen_kg) for app in applications if app.nitrogen_kg)
-        total_phosphorus = sum(float(app.phosphorus_kg) for app in applications if app.phosphorus_kg)
+        total_phosphorus = sum(
+            float(app.phosphorus_kg) for app in applications if app.phosphorus_kg
+        )
         total_potassium = sum(float(app.potassium_kg) for app in applications if app.potassium_kg)
 
         return {
             "report_period": {
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
-                "days": (end_date - start_date).days
+                "days": (end_date - start_date).days,
             },
             "summary": {
                 "total_applications": len(applications),
                 "total_cost": round(effectiveness["total_cost"], 2),
                 "total_quantity_kg": round(effectiveness["total_quantity_kg"], 2),
                 "avg_cost_per_application": round(
-                    effectiveness["total_cost"] / len(applications) if applications else 0,
-                    2
-                )
+                    effectiveness["total_cost"] / len(applications) if applications else 0, 2
+                ),
             },
             "nutrients_applied": {
                 "nitrogen_kg": round(total_nitrogen, 2),
                 "phosphorus_kg": round(total_phosphorus, 2),
-                "potassium_kg": round(total_potassium, 2)
+                "potassium_kg": round(total_potassium, 2),
             },
             "monthly_breakdown": {
                 month: {
@@ -600,24 +648,21 @@ class FertilizerTrackingService:
                     "by_type": {
                         ftype: {
                             "quantity_kg": round(tdata["quantity"], 2),
-                            "cost": round(tdata["cost"], 2)
+                            "cost": round(tdata["cost"], 2),
                         }
                         for ftype, tdata in data["by_type"].items()
-                    }
+                    },
                 }
                 for month, data in sorted(monthly_breakdown.items())
             },
             "effectiveness_analysis": effectiveness,
             "cost_optimization_tips": self._generate_cost_optimization_tips(
-                effectiveness,
-                applications
-            )
+                effectiveness, applications
+            ),
         }
 
     def _generate_cost_optimization_tips(
-        self,
-        effectiveness: Dict[str, Any],
-        applications: List[FertilizerApplication]
+        self, effectiveness: Dict[str, Any], applications: List[FertilizerApplication]
     ) -> List[str]:
         """Generate cost optimization tips based on usage patterns"""
         tips = []
@@ -636,9 +681,9 @@ class FertilizerTrackingService:
             org_cost = category_data["organic"]["total_cost"]
             chem_cost = category_data["chemical"]["total_cost"]
             total_cost = org_cost + chem_cost
-            
+
             org_ratio = org_cost / total_cost if total_cost > 0 else 0
-            
+
             if org_ratio < 0.2:
                 tips.append(
                     "Consider increasing organic fertilizer usage (currently <20% of cost). "
@@ -657,7 +702,7 @@ class FertilizerTrackingService:
                     seasonal_costs["rabi"] += float(app.cost_total)
                 else:  # Zaid
                     seasonal_costs["zaid"] += float(app.cost_total)
-            
+
             max_season = max(seasonal_costs.items(), key=lambda x: x[1])
             if max_season[1] > sum(seasonal_costs.values()) * 0.5:
                 tips.append(

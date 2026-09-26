@@ -9,17 +9,16 @@ Endpoints:
 - Doctor directory: /veterinary/doctors - add/find/connect with a livestock doctor
 """
 
-from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from app.services.veterinary_service import veterinary_service
-from app.services.veterinarian_directory_service import veterinarian_directory_service
-from app.schemas.veterinarian import VeterinarianCreate, VeterinarianUpdate, VeterinarianResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_active_user
-from fastapi import Depends
+from app.schemas.veterinarian import VeterinarianCreate, VeterinarianResponse, VeterinarianUpdate
+from app.services.veterinarian_directory_service import veterinarian_directory_service
+from app.services.veterinary_service import veterinary_service
 
 # The doctor directory is public (farmers can look up a vet before signing in); everything else needs sign-in.
 router = APIRouter(prefix="/veterinary", tags=["veterinary"])
@@ -28,6 +27,7 @@ signed_in = [Depends(get_current_active_user)]
 
 class SymptomCheckRequest(BaseModel):
     """Request model for symptom check"""
+
     livestock_id: int = Field(..., description="Livestock ID")
     symptoms: List[str] = Field(..., description="List of observed symptoms")
     duration_days: int = Field(..., ge=0, description="How long symptoms have been present")
@@ -36,16 +36,20 @@ class SymptomCheckRequest(BaseModel):
 
 class RemoteDiagnosisRequest(BaseModel):
     """Request model for remote diagnosis"""
+
     livestock_id: int = Field(..., description="Livestock ID")
     symptoms: List[str] = Field(..., description="List of observed symptoms")
     duration_days: int = Field(..., ge=0, description="Duration of symptoms in days")
-    temperature_celsius: Optional[float] = Field(None, ge=35.0, le=45.0, description="Body temperature")
+    temperature_celsius: Optional[float] = Field(
+        None, ge=35.0, le=45.0, description="Body temperature"
+    )
     photos: Optional[List[str]] = Field(None, description="Photo URLs (future feature)")
     additional_info: Optional[str] = Field(None, description="Additional observations")
 
 
 class SaveDiagnosisRequest(BaseModel):
     """Request model for saving diagnosis"""
+
     livestock_id: int = Field(..., description="Livestock ID")
     diagnosis: Dict[str, Any] = Field(..., description="Diagnosis results")
     veterinarian_name: Optional[str] = Field(None, description="Veterinarian name if consulted")
@@ -57,7 +61,7 @@ async def get_appointments_alias():
     return {
         "success": True,
         "message": "Veterinary appointments system operational",
-        "appointments": []
+        "appointments": [],
     }
 
 
@@ -65,7 +69,7 @@ async def get_appointments_alias():
 async def check_symptoms(request: SymptomCheckRequest):
     """
     Check symptoms against disease database and perform AI triage
-    
+
     Returns symptom analysis with:
     - Possible diseases matched from database
     - AI-powered diagnosis from Bedrock
@@ -77,33 +81,29 @@ async def check_symptoms(request: SymptomCheckRequest):
             livestock_id=request.livestock_id,
             symptoms=request.symptoms,
             duration_days=request.duration_days,
-            additional_info=request.additional_info
+            additional_info=request.additional_info,
         )
-        
+
         return {
             "success": True,
             "data": result,
-            "message": f"Symptom check completed. Severity: {result['triage']['severity']}"
+            "message": f"Symptom check completed. Severity: {result['triage']['severity']}",
         }
-        
+
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error checking symptoms: {str(e)}"
+            detail=f"Error checking symptoms: {str(e)}",
         )
-
 
 
 @router.post("/remote-diagnosis", status_code=status.HTTP_200_OK, dependencies=signed_in)
 async def get_remote_diagnosis(request: RemoteDiagnosisRequest):
     """
     Get comprehensive remote diagnosis with treatment recommendations
-    
+
     Returns complete diagnosis including:
     - Symptom analysis and triage
     - AI-powered diagnosis with confidence level
@@ -119,24 +119,21 @@ async def get_remote_diagnosis(request: RemoteDiagnosisRequest):
             duration_days=request.duration_days,
             temperature_celsius=request.temperature_celsius,
             photos=request.photos,
-            additional_info=request.additional_info
+            additional_info=request.additional_info,
         )
-        
+
         return {
             "success": True,
             "data": result,
-            "message": "Remote diagnosis completed successfully"
+            "message": "Remote diagnosis completed successfully",
         }
-        
+
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error getting remote diagnosis: {str(e)}"
+            detail=f"Error getting remote diagnosis: {str(e)}",
         )
 
 
@@ -144,7 +141,7 @@ async def get_remote_diagnosis(request: RemoteDiagnosisRequest):
 async def save_diagnosis(request: SaveDiagnosisRequest):
     """
     Save diagnosis results as health record
-    
+
     Creates a health record entry with:
     - Diagnosis details
     - Treatment plan
@@ -154,24 +151,17 @@ async def save_diagnosis(request: SaveDiagnosisRequest):
         result = veterinary_service.save_diagnosis_record(
             livestock_id=request.livestock_id,
             diagnosis=request.diagnosis,
-            veterinarian_name=request.veterinarian_name
+            veterinarian_name=request.veterinarian_name,
         )
-        
-        return {
-            "success": True,
-            "data": result,
-            "message": "Diagnosis saved successfully"
-        }
-        
+
+        return {"success": True, "data": result, "message": "Diagnosis saved successfully"}
+
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error saving diagnosis: {str(e)}"
+            detail=f"Error saving diagnosis: {str(e)}",
         )
 
 
@@ -179,7 +169,7 @@ async def save_diagnosis(request: SaveDiagnosisRequest):
 async def get_disease_database(species: str):
     """
     Get disease database for a specific species
-    
+
     Returns list of common diseases with:
     - Disease name
     - Common symptoms
@@ -190,21 +180,17 @@ async def get_disease_database(species: str):
     try:
         species_lower = species.lower()
         diseases = veterinary_service.DISEASE_DATABASE.get(species_lower, [])
-        
+
         if not diseases:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No disease database found for species: {species}"
+                detail=f"No disease database found for species: {species}",
             )
-        
+
         return {
             "success": True,
-            "data": {
-                "species": species,
-                "diseases": diseases,
-                "total_diseases": len(diseases)
-            },
-            "message": f"Disease database retrieved for {species}"
+            "data": {"species": species, "diseases": diseases, "total_diseases": len(diseases)},
+            "message": f"Disease database retrieved for {species}",
         }
 
     except HTTPException:
@@ -212,7 +198,7 @@ async def get_disease_database(species: str):
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving disease database: {str(e)}"
+            detail=f"Error retrieving disease database: {str(e)}",
         )
 
 
@@ -221,12 +207,19 @@ async def get_disease_database(species: str):
 # phone / WhatsApp / email.
 # ---------------------------------------------------------------------------
 
+
 def _ensure_can_edit(doctor_id: int, current_user) -> None:
     doctor = veterinarian_directory_service.find(doctor_id)
     if not doctor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found")
-    if doctor.get("added_by_user_id") != current_user.id and getattr(current_user, "user_type", None) != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the person who added this doctor can change it")
+    if (
+        doctor.get("added_by_user_id") != current_user.id
+        and getattr(current_user, "user_type", None) != "admin"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the person who added this doctor can change it",
+        )
 
 
 @router.post("/doctors", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
@@ -239,22 +232,24 @@ async def add_doctor(request: VeterinarianCreate, current_user=Depends(get_curre
         return {
             "success": True,
             "data": VeterinarianResponse(**result),
-            "message": "Doctor added successfully"
+            "message": "Doctor added successfully",
         }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error adding doctor: {str(e)}"
+            detail=f"Error adding doctor: {str(e)}",
         )
 
 
 @router.get("/doctors", response_model=Dict[str, Any])
 async def list_doctors(
-    species: Optional[str] = Query(None, description="Filter by species treated, e.g. cattle, goat, poultry"),
+    species: Optional[str] = Query(
+        None, description="Filter by species treated, e.g. cattle, goat, poultry"
+    ),
     state: Optional[str] = Query(None, description="Filter by state served"),
     district: Optional[str] = Query(None, description="Filter by district served"),
     available_only: bool = Query(False, description="Only doctors currently available"),
-    verified_only: bool = Query(False, description="Only verified doctors")
+    verified_only: bool = Query(False, description="Only verified doctors"),
 ):
     """Find livestock doctors, optionally filtered by species and location"""
     try:
@@ -263,17 +258,17 @@ async def list_doctors(
             state=state,
             district=district,
             available_only=available_only,
-            verified_only=verified_only
+            verified_only=verified_only,
         )
         return {
             "success": True,
             "data": [VeterinarianResponse(**r) for r in results],
-            "total": len(results)
+            "total": len(results),
         }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error listing doctors: {str(e)}"
+            detail=f"Error listing doctors: {str(e)}",
         )
 
 
@@ -283,23 +278,24 @@ async def get_doctor(doctor_id: int):
     result = veterinarian_directory_service.find(doctor_id)
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found")
-    return {
-        "success": True,
-        "data": VeterinarianResponse(**result)
-    }
+    return {"success": True, "data": VeterinarianResponse(**result)}
 
 
 @router.put("/doctors/{doctor_id}", response_model=Dict[str, Any])
-async def update_doctor(doctor_id: int, request: VeterinarianUpdate, current_user=Depends(get_current_active_user)):
+async def update_doctor(
+    doctor_id: int, request: VeterinarianUpdate, current_user=Depends(get_current_active_user)
+):
     """Update a doctor's directory entry (whoever added it, or an admin)"""
     _ensure_can_edit(doctor_id, current_user)
-    result = veterinarian_directory_service.update(doctor_id, request.model_dump(exclude_unset=True))
+    result = veterinarian_directory_service.update(
+        doctor_id, request.model_dump(exclude_unset=True)
+    )
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found")
     return {
         "success": True,
         "data": VeterinarianResponse(**result),
-        "message": "Doctor updated successfully"
+        "message": "Doctor updated successfully",
     }
 
 

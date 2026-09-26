@@ -2,16 +2,17 @@
 Notification management API endpoints
 """
 
+import logging
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
-from typing import Dict, Any, List, Optional
-import logging
 
 from app.core.config import settings
-from app.core.dependencies import DB, CurrentUser, CurrentAdmin
+from app.core.dependencies import DB, CurrentAdmin, CurrentUser
+from app.services import notification_inbox
 from app.services.notification_service import notification_service
 from app.services.web_push_service import web_push_service
-from app.services import notification_inbox
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -24,6 +25,7 @@ class PushKeys(BaseModel):
 
 class PushSubscriptionRequest(BaseModel):
     """Browser PushSubscription as sent by notification.service.ts"""
+
     endpoint: str
     keys: PushKeys
 
@@ -78,10 +80,7 @@ async def unsubscribe_notifications(
     """Remove the current browser's push subscription"""
     try:
         web_push_service.unsubscribe(current_user.id, subscription.endpoint)
-        return {
-            "success": True,
-            "message": "Unsubscribed from notifications successfully"
-        }
+        return {"success": True, "message": "Unsubscribed from notifications successfully"}
     except Exception as e:
         logger.error(f"Unsubscribe error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -104,7 +103,11 @@ async def send_notification(
         )
         return {
             "success": result["sent"] > 0,
-            "message": "Notification sent successfully" if result["sent"] else "User has no active push subscriptions",
+            "message": (
+                "Notification sent successfully"
+                if result["sent"]
+                else "User has no active push subscriptions"
+            ),
             **result,
         }
     except RuntimeError as e:
@@ -133,6 +136,7 @@ async def send_test_notification(current_user: CurrentUser):
 
 
 # ── In-app inbox (user_notifications) ────────────────────────────────────────
+
 
 @router.get("/inbox", response_model=Dict[str, Any])
 async def get_inbox(

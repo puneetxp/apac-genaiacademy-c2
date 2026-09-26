@@ -7,9 +7,10 @@ government planners, and agricultural extension officers.
 Demonstrates: Predictive Analytics, Real-time Inference, BigQuery Analytics — Google Cloud Hackathon criteria.
 """
 
-from fastapi import APIRouter, Query, HTTPException
-from typing import Optional, Dict, Any
 import logging
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, HTTPException, Query
 
 from app.services.bigquery_service import bigquery_service
 
@@ -42,10 +43,7 @@ async def get_community_dashboard(
     logger.info(f"Community dashboard request: state={state}, district={district}")
 
     try:
-        insights = bigquery_service.query_community_insights(
-            state=state,
-            district=district
-        )
+        insights = bigquery_service.query_community_insights(state=state, district=district)
 
         # Add interpretive analysis
         wellness = insights.get("community_wellness_score", 0)
@@ -65,11 +63,10 @@ async def get_community_dashboard(
         insights["health_status"] = health_status
         insights["recommendation"] = recommendation
 
-        return {
-            "success": True,
-            "data": insights
-        }
+        return {"success": True, "data": insights}
 
     except Exception as e:
         logger.error(f"Community dashboard error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate community insights: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate community insights: {str(e)}"
+        )

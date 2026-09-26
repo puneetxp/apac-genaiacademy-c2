@@ -3,9 +3,9 @@ TLS/HTTPS Configuration for Production Deployment
 Provides utilities and configuration for secure HTTPS/TLS 1.3 setup
 """
 
+import logging
 import ssl
 from typing import Optional
-import logging
 
 from app.core.config import settings
 
@@ -16,20 +16,20 @@ def create_ssl_context(
     certfile: str,
     keyfile: str,
     ca_certs: Optional[str] = None,
-    min_version: int = ssl.TLSVersion.TLSv1_3
+    min_version: int = ssl.TLSVersion.TLSv1_3,
 ) -> ssl.SSLContext:
     """
     Create SSL context for HTTPS with TLS 1.3
-    
+
     Args:
         certfile: Path to SSL certificate file
         keyfile: Path to SSL private key file
         ca_certs: Optional path to CA certificates
         min_version: Minimum TLS version (default: TLS 1.3)
-        
+
     Returns:
         Configured SSL context
-        
+
     Example:
         >>> ssl_context = create_ssl_context(
         ...     certfile="/path/to/cert.pem",
@@ -38,51 +38,49 @@ def create_ssl_context(
     """
     # Create SSL context with secure defaults
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    
+
     # Set minimum TLS version to 1.3
     context.minimum_version = min_version
-    
+
     # Load certificate and private key
     context.load_cert_chain(certfile=certfile, keyfile=keyfile)
-    
+
     # Load CA certificates if provided
     if ca_certs:
         context.load_verify_locations(cafile=ca_certs)
-    
+
     # Set secure cipher suites (TLS 1.3 ciphers)
     # TLS 1.3 has a simplified cipher suite selection
-    context.set_ciphers('TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256')
-    
+    context.set_ciphers(
+        "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256"
+    )
+
     # Additional security options
-    context.options |= ssl.OP_NO_TLSv1    # Disable TLS 1.0
+    context.options |= ssl.OP_NO_TLSv1  # Disable TLS 1.0
     context.options |= ssl.OP_NO_TLSv1_1  # Disable TLS 1.1
     context.options |= ssl.OP_NO_TLSv1_2  # Disable TLS 1.2 (enforce TLS 1.3 only)
     context.options |= ssl.OP_NO_COMPRESSION  # Disable compression (CRIME attack)
     context.options |= ssl.OP_CIPHER_SERVER_PREFERENCE  # Server chooses cipher
     context.options |= ssl.OP_SINGLE_DH_USE  # Generate new DH key for each connection
     context.options |= ssl.OP_SINGLE_ECDH_USE  # Generate new ECDH key for each connection
-    
+
     logger.info(f"SSL context created with TLS {min_version.name}")
-    
+
     return context
 
 
-def get_uvicorn_ssl_config(
-    certfile: str,
-    keyfile: str,
-    ca_certs: Optional[str] = None
-) -> dict:
+def get_uvicorn_ssl_config(certfile: str, keyfile: str, ca_certs: Optional[str] = None) -> dict:
     """
     Get SSL configuration for Uvicorn server
-    
+
     Args:
         certfile: Path to SSL certificate file
         keyfile: Path to SSL private key file
         ca_certs: Optional path to CA certificates
-        
+
     Returns:
         Dictionary with Uvicorn SSL configuration
-        
+
     Example:
         >>> ssl_config = get_uvicorn_ssl_config(
         ...     certfile="/etc/ssl/certs/server.crt",
@@ -103,16 +101,18 @@ def get_uvicorn_ssl_config(
 def validate_https_configuration() -> bool:
     """
     Validate that HTTPS is properly configured in production
-    
+
     Returns:
         True if HTTPS is properly configured, False otherwise
     """
     if settings.ENVIRONMENT == "production":
         # In production, we should enforce HTTPS
         # This is typically handled by a reverse proxy (nginx, ALB, etc.)
-        logger.info("Production environment detected - HTTPS should be configured at reverse proxy level")
+        logger.info(
+            "Production environment detected - HTTPS should be configured at reverse proxy level"
+        )
         return True
-    
+
     logger.info(f"Non-production environment ({settings.ENVIRONMENT}) - HTTPS validation skipped")
     return True
 

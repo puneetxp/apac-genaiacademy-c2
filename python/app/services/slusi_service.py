@@ -1,17 +1,16 @@
 """SLUSI Service — orchestrates DSS/Microwatershed ingestion and serves cached soil data."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any
+from datetime import datetime, timedelta, timezone
+from typing import Any  # db kept for compatibility; queries use app.core.db.DB
+from typing import Any as Session
 
 import httpx
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
-from typing import Any as Session  # db kept for compatibility; queries use app.core.db.DB
-
-from app.services.farm_access import run_named
 
 from app.schemas.slusi import (
     FarmSoilProfile,
@@ -21,6 +20,7 @@ from app.schemas.slusi import (
     SLUSIStatus,
 )
 from app.services.dss_parser import DSSParser, SchemaMismatchError
+from app.services.farm_access import run_named
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,7 @@ class SLUSIService:
         upserted = 0
         for report in reports:
             run_named(
-                (
-                    """
+                ("""
                     INSERT INTO slusi_lcc_reports
                         (state, district, report_no, year, total_area_ha,
                          lcc_class_i, lcc_class_ii, lcc_class_iii, lcc_class_iv,
@@ -83,8 +82,7 @@ class SLUSIService:
                         spatial_available     = EXCLUDED.spatial_available,
                         non_spatial_available = EXCLUDED.non_spatial_available,
                         ingested_at           = EXCLUDED.ingested_at
-                    """
-                ),
+                    """),
                 {
                     "state": report.state,
                     "district": report.district,
@@ -156,7 +154,9 @@ class SLUSIService:
                     if ingested_at.tzinfo is None:
                         ingested_at = ingested_at.replace(tzinfo=timezone.utc)
                     if ingested_at >= cutoff:
-                        logger.debug("Skipping %s — map fresh (ingested %s)", state_name, ingested_at)
+                        logger.debug(
+                            "Skipping %s — map fresh (ingested %s)", state_name, ingested_at
+                        )
                         continue
 
                 # Download PNG
@@ -164,7 +164,9 @@ class SLUSIService:
                     png_resp = await client.get(png_url)
                     if png_resp.status_code != 200:
                         logger.warning(
-                            "Failed to download map for %s: HTTP %d", state_name, png_resp.status_code
+                            "Failed to download map for %s: HTTP %d",
+                            state_name,
+                            png_resp.status_code,
                         )
                         continue
                     map_data = png_resp.content
@@ -174,8 +176,7 @@ class SLUSIService:
 
                 # Upsert
                 run_named(
-                    (
-                        """
+                    ("""
                         INSERT INTO slusi_microwatershed_maps
                             (state, map_data, file_size_bytes, ingested_at)
                         VALUES
@@ -184,8 +185,7 @@ class SLUSIService:
                             map_data        = EXCLUDED.map_data,
                             file_size_bytes = EXCLUDED.file_size_bytes,
                             ingested_at     = EXCLUDED.ingested_at
-                        """
-                    ),
+                        """),
                     {
                         "state": state_name,
                         "map_data": map_data,
@@ -195,7 +195,9 @@ class SLUSIService:
                 )
                 # committed by DB.raw
                 downloaded += 1
-                logger.info("Downloaded microwatershed map for %s (%d bytes)", state_name, len(map_data))
+                logger.info(
+                    "Downloaded microwatershed map for %s (%d bytes)", state_name, len(map_data)
+                )
 
         logger.info("ingest_microwatershed_maps: downloaded %d maps", downloaded)
         return downloaded
@@ -218,13 +220,11 @@ class SLUSIService:
 
         started_at = datetime.now(timezone.utc)
         result = run_named(
-            (
-                """
+            ("""
                 INSERT INTO slusi_ingestion_runs (started_at, status, lcc_records_ingested, maps_ingested)
                 VALUES (:started_at, 'running', 0, 0)
                 RETURNING id
-                """
-            ),
+                """),
             {"started_at": started_at},
         )
         new_row = result.fetchone()
@@ -246,8 +246,7 @@ class SLUSIService:
 
         completed_at = datetime.now(timezone.utc)
         run_named(
-            (
-                """
+            ("""
                 UPDATE slusi_ingestion_runs
                 SET status                = :status,
                     lcc_records_ingested  = :lcc_records_ingested,
@@ -255,8 +254,7 @@ class SLUSIService:
                     completed_at          = :completed_at,
                     error_message         = :error_message
                 WHERE id = :run_id
-                """
-            ),
+                """),
             {
                 "status": status,
                 "lcc_records_ingested": lcc_count,
@@ -288,8 +286,7 @@ class SLUSIService:
         """Return LCC reports for state/district, optionally filtered by year, sorted year DESC."""
         if year is not None:
             rows = run_named(
-                (
-                    """
+                ("""
                     SELECT state, district, report_no, year, total_area_ha,
                            lcc_class_i, lcc_class_ii, lcc_class_iii, lcc_class_iv,
                            lcc_class_v, lcc_class_vi, lcc_class_vii, lcc_class_viii,
@@ -300,14 +297,12 @@ class SLUSIService:
                       AND LOWER(district) = LOWER(:district)
                       AND year = :year
                     ORDER BY year DESC NULLS LAST
-                    """
-                ),
+                    """),
                 {"state": state, "district": district, "year": year},
             ).fetchall()
         else:
             rows = run_named(
-                (
-                    """
+                ("""
                     SELECT state, district, report_no, year, total_area_ha,
                            lcc_class_i, lcc_class_ii, lcc_class_iii, lcc_class_iv,
                            lcc_class_v, lcc_class_vi, lcc_class_vii, lcc_class_viii,
@@ -317,8 +312,7 @@ class SLUSIService:
                     WHERE LOWER(state) = LOWER(:state)
                       AND LOWER(district) = LOWER(:district)
                     ORDER BY year DESC NULLS LAST
-                    """
-                ),
+                    """),
                 {"state": state, "district": district},
             ).fetchall()
 
@@ -371,13 +365,11 @@ class SLUSIService:
             )
         ).fetchone()
 
-        total_lcc = run_named(
-            ("SELECT COUNT(*) FROM slusi_lcc_reports")
-        ).scalar() or 0
+        total_lcc = run_named(("SELECT COUNT(*) FROM slusi_lcc_reports")).scalar() or 0
 
-        states_with_maps = run_named(
-            ("SELECT COUNT(*) FROM slusi_microwatershed_maps")
-        ).scalar() or 0
+        states_with_maps = (
+            run_named(("SELECT COUNT(*) FROM slusi_microwatershed_maps")).scalar() or 0
+        )
 
         return SLUSIStatus(
             last_successful_ingestion=last_run[0] if last_run else None,
@@ -421,7 +413,9 @@ class SLUSIService:
             "VIII": report.lcc_class_viii,
         }
         valid_classes = {k: v for k, v in class_areas.items() if v is not None}
-        dominant_class: str | None = max(valid_classes, key=lambda k: valid_classes[k]) if valid_classes else None
+        dominant_class: str | None = (
+            max(valid_classes, key=lambda k: valid_classes[k]) if valid_classes else None
+        )
 
         lcc_summary = LCCSummary(
             dominant_class=dominant_class,
@@ -462,10 +456,15 @@ class SLUSIService:
                         return resp.text
                     logger.warning(
                         "Attempt %d/%d: HTTP %d for %s",
-                        attempt, _RETRY_COUNT, resp.status_code, url,
+                        attempt,
+                        _RETRY_COUNT,
+                        resp.status_code,
+                        url,
                     )
                 except Exception as exc:
-                    logger.warning("Attempt %d/%d: request error for %s: %s", attempt, _RETRY_COUNT, url, exc)
+                    logger.warning(
+                        "Attempt %d/%d: request error for %s: %s", attempt, _RETRY_COUNT, url, exc
+                    )
                     last_exc = exc
 
                 if attempt < _RETRY_COUNT:

@@ -1,4 +1,5 @@
 """SHC State/District Code Mapper — seeds from GraphQL API at soilhealth4.dac.gov.in."""
+
 from __future__ import annotations
 
 import logging
@@ -76,15 +77,13 @@ class SHCCodeMapper:
     ) -> tuple[int, int] | None:
         """Case-insensitive lookup. Returns (state_code, district_code) or None."""
         row = db.execute(
-            text(
-                """
+            text("""
                 SELECT state_code, district_code
                 FROM shc_state_district_codes
                 WHERE LOWER(state_name) = :state
                   AND LOWER(district_name) = :district
                 LIMIT 1
-                """
-            ),
+                """),
             {
                 "state": _normalise(state_name),
                 "district": _normalise(district_name),
@@ -128,8 +127,7 @@ class SHCCodeMapper:
                 district_code: int = int(district.get("code", 0))
 
                 db.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO shc_state_district_codes
                             (state_name, state_code, district_name, district_code,
                              created_at, updated_at, enable)
@@ -141,8 +139,7 @@ class SHCCodeMapper:
                             state_name    = EXCLUDED.state_name,
                             district_name = EXCLUDED.district_name,
                             updated_at    = NOW()
-                        """
-                    ),
+                        """),
                     {
                         "sn": state_name,
                         "sc": state_code,

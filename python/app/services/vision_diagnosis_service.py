@@ -11,7 +11,7 @@ import base64
 import json
 import logging
 import re
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from app.core.config import settings
 
@@ -60,14 +60,15 @@ If the image is not of a crop/plant, return:
             from vertexai.generative_models import GenerativeModel
 
             vertexai.init(
-                project=settings.GOOGLE_CLOUD_PROJECT,
-                location=settings.GOOGLE_CLOUD_REGION
+                project=settings.GOOGLE_CLOUD_PROJECT, location=settings.GOOGLE_CLOUD_REGION
             )
             self._model = GenerativeModel(settings.GEMINI_MODEL)
             self._enabled = True
             logger.info("VisionDiagnosisService: Gemini Vision model initialized.")
         except Exception as e:
-            logger.warning(f"VisionDiagnosisService: Gemini Vision init failed: {e}. Running mock mode.")
+            logger.warning(
+                f"VisionDiagnosisService: Gemini Vision init failed: {e}. Running mock mode."
+            )
             self._enabled = False
 
     async def diagnose_from_bytes(
@@ -75,7 +76,7 @@ If the image is not of a crop/plant, return:
         image_bytes: bytes,
         mime_type: str = "image/jpeg",
         crop_name: Optional[str] = None,
-        region: Optional[str] = None
+        region: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Diagnose crop disease from raw image bytes.
@@ -101,7 +102,7 @@ If the image is not of a crop/plant, return:
             return self._mock_diagnosis(crop_name)
 
         try:
-            from vertexai.generative_models import Part, GenerationConfig
+            from vertexai.generative_models import GenerationConfig, Part
 
             image_part = Part.from_data(data=image_bytes, mime_type=mime_type)
 
@@ -115,18 +116,21 @@ If the image is not of a crop/plant, return:
             )
 
             response = self._model.generate_content(
-                [image_part, full_prompt],
-                generation_config=generation_config
+                [image_part, full_prompt], generation_config=generation_config
             )
 
             text = response.text.strip()
 
             # Extract JSON from possible markdown wrapper
-            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+            json_match = re.search(r"\{.*\}", text, re.DOTALL)
             if json_match:
                 diagnosis = json.loads(json_match.group())
             else:
-                diagnosis = {"disease_detected": False, "error": "Could not parse model response.", "raw": text}
+                diagnosis = {
+                    "disease_detected": False,
+                    "error": "Could not parse model response.",
+                    "raw": text,
+                }
 
             diagnosis["model_used"] = settings.GEMINI_MODEL
             diagnosis["multimodal"] = True
@@ -142,7 +146,7 @@ If the image is not of a crop/plant, return:
                 "disease_detected": False,
                 "error": f"Diagnosis failed: {str(e)}",
                 "model_used": settings.GEMINI_MODEL,
-                "multimodal": True
+                "multimodal": True,
             }
 
     async def diagnose_from_base64(
@@ -150,7 +154,7 @@ If the image is not of a crop/plant, return:
         base64_image: str,
         mime_type: str = "image/jpeg",
         crop_name: Optional[str] = None,
-        region: Optional[str] = None
+        region: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Diagnose from a base64-encoded image string."""
         image_bytes = base64.b64decode(base64_image)
@@ -160,14 +164,18 @@ If the image is not of a crop/plant, return:
         """Stream diagnosis event to BigQuery for analytics."""
         try:
             from app.services.bigquery_service import bigquery_service
-            bigquery_service.log_event("vision_diagnoses", {
-                "disease_name": diagnosis.get("disease_name", "Unknown"),
-                "confidence": diagnosis.get("confidence", 0),
-                "severity": diagnosis.get("severity", "unknown"),
-                "crop_name": crop_name or "unspecified",
-                "region": region or "unspecified",
-                "model_used": diagnosis.get("model_used", ""),
-            })
+
+            bigquery_service.log_event(
+                "vision_diagnoses",
+                {
+                    "disease_name": diagnosis.get("disease_name", "Unknown"),
+                    "confidence": diagnosis.get("confidence", 0),
+                    "severity": diagnosis.get("severity", "unknown"),
+                    "crop_name": crop_name or "unspecified",
+                    "region": region or "unspecified",
+                    "model_used": diagnosis.get("model_used", ""),
+                },
+            )
         except Exception as e:
             logger.debug(f"BigQuery logging skipped: {e}")
 
@@ -183,34 +191,32 @@ If the image is not of a crop/plant, return:
             "symptoms_observed": [
                 "Yellow-orange lesions on leaf margins",
                 "Wilting of seedlings",
-                "Kresek symptom (wilting of leaves)"
+                "Kresek symptom (wilting of leaves)",
             ],
             "possible_causes": [
                 "Bacterial infection via contaminated water",
-                "High humidity and warm temperatures"
+                "High humidity and warm temperatures",
             ],
             "treatment": {
                 "organic": [
                     "Apply neem oil spray (5ml/L)",
-                    "Use Pseudomonas fluorescens biocontrol agent"
+                    "Use Pseudomonas fluorescens biocontrol agent",
                 ],
-                "chemical": [
-                    "Streptocycline 0.01% + Copper oxychloride 0.25%"
-                ],
+                "chemical": ["Streptocycline 0.01% + Copper oxychloride 0.25%"],
                 "cultural": [
                     "Drain excess water from fields",
-                    "Remove and destroy infected plant debris"
-                ]
+                    "Remove and destroy infected plant debris",
+                ],
             },
             "prevention": [
                 "Use disease-resistant varieties (e.g., IR64, Swarna)",
                 "Balanced fertilization — avoid excess nitrogen",
-                "Ensure proper field drainage"
+                "Ensure proper field drainage",
             ],
             "urgency": "high",
             "additional_notes": f"Common in {crop_name or 'rice'} during kharif (monsoon) season in India.",
             "model_used": "mock-fallback",
-            "multimodal": True
+            "multimodal": True,
         }
 
 

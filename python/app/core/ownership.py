@@ -8,6 +8,7 @@ Admins use /isuper/*, which is never scoped.
 
 Rules are SQL conditions on alias `t`; `{uid}` is the signed-in user's integer id.
 """
+
 from typing import Dict, List, Optional
 
 _FARMS = "SELECT id FROM farms WHERE user_id = {uid} OR owner_id = {uid}"
@@ -16,7 +17,9 @@ _CROPS = f"SELECT id FROM crops WHERE farm_plot_id IN ({_PLOTS})"
 _LIVESTOCK = "SELECT id FROM livestock WHERE farmer_id = {uid}"
 _LISTINGS = "SELECT id FROM marketplace_listings WHERE farmer_id = {uid}"
 _BOOKINGS = "SELECT id FROM advance_bookings WHERE buyer_id = {uid} OR farmer_id = {uid}"
-_LS_TRANSACTIONS = "SELECT id FROM livestock_transactions WHERE seller_id = {uid} OR buyer_id = {uid}"
+_LS_TRANSACTIONS = (
+    "SELECT id FROM livestock_transactions WHERE seller_id = {uid} OR buyer_id = {uid}"
+)
 _PROVIDERS = "SELECT id FROM transport_providers WHERE user_id = {uid}"
 _SUPPLY_REQUESTS = "SELECT id FROM supply_requests WHERE buyer_id = {uid}"
 

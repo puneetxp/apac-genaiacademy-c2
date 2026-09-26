@@ -6,20 +6,29 @@ Validates: Requirements AC10 (Phase 6 - Required)
 Task 25.2: Build pest and disease early warning system
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from pydantic import BaseModel, Field
 
-from app.core.database import get_db
-from app.services.pest_disease_service import get_pest_disease_service
-from app.services.weather_service import get_weather_service
-from app.services.crop_milestone_service import get_service as get_crop_milestone_service
-from app.services.farm_access import fetch_one, fetch_all, farm_for_user, crop_for_user, is_admin, clean
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_active_user
+from app.core.database import get_db
+from app.services.crop_milestone_service import get_service as get_crop_milestone_service
+from app.services.farm_access import (
+    clean,
+    crop_for_user,
+    farm_for_user,
+    fetch_all,
+    fetch_one,
+    is_admin,
+)
+from app.services.pest_disease_service import get_pest_disease_service
+from app.services.weather_service import get_weather_service
 
-router = APIRouter(prefix="/pest-disease", tags=["pest-disease"], dependencies=[Depends(get_current_active_user)])
+router = APIRouter(
+    prefix="/pest-disease", tags=["pest-disease"], dependencies=[Depends(get_current_active_user)]
+)
 
 
 # Data access: raw SQL through app.core.db.DB (app/orm classes are not SQLAlchemy models).
@@ -42,8 +51,10 @@ def _alert_dict(alert) -> dict:
     """Plain dict for an alert row (replaces the old ORM to_dict())."""
     return dict(clean(alert))
 
+
 class WeatherConditions(BaseModel):
     """Weather conditions for risk assessment"""
+
     temperature: float = Field(..., description="Temperature in Celsius")
     humidity: int = Field(..., ge=0, le=100, description="Humidity percentage")
     rainfall: float = Field(default=0.0, ge=0, description="Rainfall in mm")
@@ -51,6 +62,7 @@ class WeatherConditions(BaseModel):
 
 class RiskCheckRequest(BaseModel):
     """Request to check pest/disease risk"""
+
     crop_id: int = Field(..., description="Crop ID")
     weather_data: WeatherConditions
     current_stage: str = Field(..., description="Current growth stage")
@@ -58,6 +70,7 @@ class RiskCheckRequest(BaseModel):
 
 class ManagementRecommendation(BaseModel):
     """Pest/disease management recommendation"""
+
     pest_disease: str
     timing: str
     prevention: List[str]
@@ -67,6 +80,7 @@ class ManagementRecommendation(BaseModel):
 
 class RiskAlert(BaseModel):
     """Pest/disease risk alert"""
+
     pest_disease: str
     severity: str
     description: str
@@ -93,22 +107,22 @@ async def check_pest_disease_risk(
 ):
     """
     Check for pest and disease risks based on weather and crop stage
-    
+
     Validates: AC10.3 - Early warning alerts based on weather and crop stage
     """
     _owned_crop(request.crop_id, current_user)
     try:
         service = get_pest_disease_service(db)
-        
+
         risks = await service.check_pest_disease_risk(
             crop_id=request.crop_id,
             weather_data=request.weather_data.model_dump(),
             current_stage=request.current_stage,
             user=current_user,
         )
-        
+
         return risks
-        
+
     except LookupError:
         raise HTTPException(status_code=404, detail="Crop not found")
     except Exception as e:
@@ -119,7 +133,7 @@ async def check_pest_disease_risk(
 async def get_treatments_alias(
     pest_disease: str = Query(..., description="Pest or disease name"),
     preference: str = Query(default="both", pattern="^(organic|chemical|both)$"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Registry alias for treatments"""
     res = await get_management_recommendations(pest_disease, preference, db)
@@ -130,30 +144,29 @@ async def get_treatments_alias(
 async def get_management_recommendations(
     pest_disease: str,
     preference: str = Query(default="both", pattern="^(organic|chemical|both)$"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get pest/disease management recommendations
-    
+
     Args:
         pest_disease: Name of pest or disease (e.g., 'aphids', 'fungal_diseases')
         preference: Treatment preference ('organic', 'chemical', or 'both')
-    
+
     Validates: AC10.3 - Pest management recommendations with organic and chemical options
     """
     try:
         service = get_pest_disease_service(db)
-        
+
         recommendations = await service.get_management_recommendations(
-            pest_disease=pest_disease,
-            preference=preference
+            pest_disease=pest_disease, preference=preference
         )
-        
-        if 'error' in recommendations:
-            raise HTTPException(status_code=404, detail=recommendations['error'])
-        
+
+        if "error" in recommendations:
+            raise HTTPException(status_code=404, detail=recommendations["error"])
+
         return recommendations
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -169,30 +182,29 @@ async def get_crop_specific_risks(
 ):
     """
     Get common pest/disease risks for specific crop and stage
-    
+
     Validates: AC10.3 - Crop-specific pest/disease information
     """
     try:
         service = get_pest_disease_service(db)
-        
+
         # Get crop details to determine crop name (owner-scoped)
         crop = _owned_crop(crop_id, current_user)
-        
+
         if not crop:
             raise HTTPException(status_code=404, detail="Crop not found")
-        
+
         risks = await service.get_crop_specific_risks(
-            crop_name=crop.crop_name,
-            current_stage=current_stage
+            crop_name=crop.crop_name, current_stage=current_stage
         )
-        
+
         return {
-            'crop_id': crop_id,
-            'crop_name': crop.crop_name,
-            'current_stage': current_stage,
-            'risks': risks
+            "crop_id": crop_id,
+            "crop_name": crop.crop_name,
+            "current_stage": current_stage,
+            "risks": risks,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -208,20 +220,19 @@ async def get_prevention_guidance(
 ):
     """
     Get disease prevention guidance for current crop stage
-    
+
     Validates: AC10.3 - Disease prevention guidance with timing and application instructions
     """
     _owned_crop(crop_id, current_user)
     try:
         service = get_pest_disease_service(db)
-        
+
         guidance = await service.get_prevention_guidance(
-            crop_id=crop_id,
-            current_stage=current_stage
+            crop_id=crop_id, current_stage=current_stage
         )
-        
+
         return guidance
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -233,9 +244,9 @@ async def monitor_all_crops(
 ):
     """
     Background job endpoint to monitor all active crops for pest/disease risks
-    
+
     This endpoint should be called by a scheduled job (cron/celery)
-    
+
     Validates: AC10.3 - Automated pest/disease monitoring
     """
     # Scans every farmer's crops, so only an admin (or the scheduler's admin account) may run it.
@@ -245,14 +256,13 @@ async def monitor_all_crops(
         service = get_pest_disease_service(db)
         weather_service = get_weather_service(db)
         milestone_service = get_crop_milestone_service()  # generated factory takes no args
-        
+
         summary = await service.monitor_crops_for_risks(
-            weather_service=weather_service,
-            milestone_service=milestone_service
+            weather_service=weather_service, milestone_service=milestone_service
         )
-        
+
         return summary
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -261,24 +271,23 @@ async def monitor_all_crops(
 async def get_available_pests():
     """
     Get list of all pests and diseases tracked by the system
-    
+
     Returns list of pest/disease names with descriptions
     """
     from app.services.pest_disease_service import PEST_DISEASE_THRESHOLDS
-    
+
     pests = []
     for pest_disease, data in PEST_DISEASE_THRESHOLDS.items():
-        pests.append({
-            'name': pest_disease,
-            'description': data['description'],
-            'severity': data['severity'],
-            'risk_stages': data['risk_stages']
-        })
-    
-    return {
-        'total': len(pests),
-        'pests_diseases': pests
-    }
+        pests.append(
+            {
+                "name": pest_disease,
+                "description": data["description"],
+                "severity": data["severity"],
+                "risk_stages": data["risk_stages"],
+            }
+        )
+
+    return {"total": len(pests), "pests_diseases": pests}
 
 
 @router.get("/history/{crop_id}")
@@ -287,17 +296,15 @@ async def get_pest_disease_history(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
-    """ Get historical pest/disease records for a specific crop """
+    """Get historical pest/disease records for a specific crop"""
     _owned_crop(crop_id, current_user)
     try:
         alerts = fetch_all(
-            "SELECT * FROM pest_disease_alerts WHERE crop_id = ? ORDER BY created_at DESC, id DESC", [crop_id]
+            "SELECT * FROM pest_disease_alerts WHERE crop_id = ? ORDER BY created_at DESC, id DESC",
+            [crop_id],
         )
-        
-        return {
-            'crop_id': crop_id,
-            'history': [_alert_dict(alert) for alert in alerts]
-        }
+
+        return {"crop_id": crop_id, "history": [_alert_dict(alert) for alert in alerts]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -311,11 +318,15 @@ async def get_all_alerts_alias(
 ):
     """Registry alias for alerts"""
     if crop_id:
-        res = await get_crop_alerts(crop_id, include_resolved=False, db=db, current_user=current_user)
-        return res.get('alerts', [])
+        res = await get_crop_alerts(
+            crop_id, include_resolved=False, db=db, current_user=current_user
+        )
+        return res.get("alerts", [])
     if farm_id:
-        res = await get_farm_alerts(farm_id, include_resolved=False, limit=50, db=db, current_user=current_user)
-        return res.get('alerts', [])
+        res = await get_farm_alerts(
+            farm_id, include_resolved=False, limit=50, db=db, current_user=current_user
+        )
+        return res.get("alerts", [])
     return []
 
 
@@ -328,11 +339,11 @@ async def get_crop_alerts(
 ):
     """
     Get all pest/disease alerts for a specific crop
-    
+
     Args:
         crop_id: Crop ID
         include_resolved: Whether to include resolved alerts
-    
+
     Returns:
         List of alerts for the crop
     """
@@ -342,13 +353,13 @@ async def get_crop_alerts(
         if not include_resolved:
             sql += " AND COALESCE(is_resolved, 0) = 0"
         alerts = fetch_all(sql + " ORDER BY created_at DESC, id DESC", [crop_id])
-        
+
         return {
-            'crop_id': crop_id,
-            'total_alerts': len(alerts),
-            'alerts': [_alert_dict(alert) for alert in alerts]
+            "crop_id": crop_id,
+            "total_alerts": len(alerts),
+            "alerts": [_alert_dict(alert) for alert in alerts],
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -361,10 +372,10 @@ async def resolve_alert(
 ):
     """
     Mark a pest/disease alert as resolved
-    
+
     Args:
         alert_id: Alert ID
-    
+
     Returns:
         Updated alert
     """
@@ -373,22 +384,20 @@ async def resolve_alert(
 
         alert = fetch_one(
             """SELECT a.*, f.user_id AS farm_user_id FROM pest_disease_alerts a
-               LEFT JOIN farms f ON f.id = a.farm_id WHERE a.id = ?""", [alert_id]
+               LEFT JOIN farms f ON f.id = a.farm_id WHERE a.id = ?""",
+            [alert_id],
         )
         if not alert or (not is_admin(current_user) and alert.farm_user_id != current_user.id):
             raise HTTPException(status_code=404, detail="Alert not found")
 
         alert = fetch_one(
             """UPDATE pest_disease_alerts SET is_resolved = 1, resolved_at = ?, updated_at = CURRENT_TIMESTAMP
-               WHERE id = ? RETURNING *""", [datetime.now(), alert_id]
+               WHERE id = ? RETURNING *""",
+            [datetime.now(), alert_id],
         )
-        
-        return {
-            'success': True,
-            'message': 'Alert marked as resolved',
-            'alert': _alert_dict(alert)
-        }
-        
+
+        return {"success": True, "message": "Alert marked as resolved", "alert": _alert_dict(alert)}
+
     except HTTPException:
         raise
     except Exception as e:
@@ -405,12 +414,12 @@ async def get_farm_alerts(
 ):
     """
     Get all pest/disease alerts for a specific farm
-    
+
     Args:
         farm_id: Farm ID
         include_resolved: Whether to include resolved alerts
         limit: Maximum number of alerts to return
-    
+
     Returns:
         List of alerts for the farm
     """
@@ -419,13 +428,15 @@ async def get_farm_alerts(
         sql = "SELECT * FROM pest_disease_alerts WHERE farm_id = ?"
         if not include_resolved:
             sql += " AND COALESCE(is_resolved, 0) = 0"
-        alerts = fetch_all(sql + " ORDER BY created_at DESC, id DESC LIMIT ?", [farm_id, int(limit)])
-        
+        alerts = fetch_all(
+            sql + " ORDER BY created_at DESC, id DESC LIMIT ?", [farm_id, int(limit)]
+        )
+
         return {
-            'farm_id': farm_id,
-            'total_alerts': len(alerts),
-            'alerts': [_alert_dict(alert) for alert in alerts]
+            "farm_id": farm_id,
+            "total_alerts": len(alerts),
+            "alerts": [_alert_dict(alert) for alert in alerts],
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

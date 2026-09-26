@@ -8,8 +8,8 @@ Demonstrates: Responsible and Explainable AI — Google Cloud Hackathon criterio
 """
 
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
 
@@ -66,8 +66,8 @@ def wrap_with_explainability(
             "limitations": limitations,
             "bias_disclosure": bias_disclosure,
             "generated_at": datetime.now(UTC).isoformat(),
-            "responsible_ai_version": "1.0"
-        }
+            "responsible_ai_version": "1.0",
+        },
     }
 
 
@@ -120,10 +120,13 @@ def _infer_data_sources(query_type: str) -> List[str]:
             "Contextual farm data (PostgreSQL)",
         ],
     }
-    return source_map.get(query_type, [
-        "Google Cloud Vertex AI (Gemini)",
-        "PostgreSQL database records",
-    ])
+    return source_map.get(
+        query_type,
+        [
+            "Google Cloud Vertex AI (Gemini)",
+            "PostgreSQL database records",
+        ],
+    )
 
 
 def _infer_reasoning_chain(query_type: str) -> List[str]:
@@ -154,11 +157,14 @@ def _infer_reasoning_chain(query_type: str) -> List[str]:
             "Step 4: Generated treatment plan with organic-first priority",
         ],
     }
-    return chain_map.get(query_type, [
-        "Step 1: Parsed user query and extracted intent",
-        "Step 2: Retrieved relevant data from database and APIs",
-        "Step 3: Generated response using Vertex AI (Gemini)",
-    ])
+    return chain_map.get(
+        query_type,
+        [
+            "Step 1: Parsed user query and extracted intent",
+            "Step 2: Retrieved relevant data from database and APIs",
+            "Step 3: Generated response using Vertex AI (Gemini)",
+        ],
+    )
 
 
 def _get_limitations(query_type: str, region: Optional[str] = None) -> List[str]:

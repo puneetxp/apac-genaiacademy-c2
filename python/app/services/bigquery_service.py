@@ -2,9 +2,10 @@
 BigQuery service for streaming app events, crop audits, and marketplace metrics.
 """
 
-import logging
 import datetime
-from typing import Dict, Any, List, Optional
+import logging
+from typing import Any, Dict, List, Optional
+
 from google.cloud import bigquery
 
 from app.core.config import settings
@@ -14,12 +15,12 @@ logger = logging.getLogger(__name__)
 
 class BigQueryService:
     """Service to stream application events and metrics to BigQuery for analytics and Looker dashboards"""
-    
+
     def __init__(self):
         self._client = None
         self._dataset_id = settings.BIGQUERY_DATASET
         self._init_client()
-        
+
     def _init_client(self):
         try:
             # BigQuery will auto-authenticate using environment credentials
@@ -28,7 +29,7 @@ class BigQueryService:
         except Exception as e:
             logger.warning(f"BigQuery initialization failed: {e}. Running in fallback/mock mode.")
             self._client = None
-            
+
     def log_event(self, table_name: str, row_data: Dict[str, Any]) -> bool:
         """
         Stream a single event row to a BigQuery table.
@@ -37,26 +38,28 @@ class BigQueryService:
         # Ensure timestamp exists
         if "timestamp" not in row_data:
             row_data["timestamp"] = datetime.datetime.utcnow().isoformat()
-            
+
         if not self._client:
             logger.info(f"Mock BigQuery log to '{table_name}': {row_data}")
             return True
-            
+
         try:
             table_ref = self._client.dataset(self._dataset_id).table(table_name)
             errors = self._client.insert_rows_json(table_ref, [row_data])
-            
+
             if errors:
                 logger.error(f"BigQuery insert rows errors on table '{table_name}': {errors}")
                 return False
-                
+
             logger.debug(f"Logged event to BigQuery table '{table_name}' successfully")
             return True
         except Exception as e:
             logger.error(f"Failed to log event to BigQuery table '{table_name}': {e}")
             return False
 
-    def query_community_insights(self, state: str, district: Optional[str] = None) -> Dict[str, Any]:
+    def query_community_insights(
+        self, state: str, district: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Aggregate community-level decision intelligence data from BigQuery.
 
@@ -122,7 +125,7 @@ class BigQueryService:
                     "top_crops": [dict(c) for c in top_crops] if top_crops else [],
                     "recent_pest_alerts": recent_alerts,
                     "community_wellness_score": wellness_score,
-                    "data_source": "bigquery_live"
+                    "data_source": "bigquery_live",
                 }
 
         except Exception as e:
@@ -130,7 +133,9 @@ class BigQueryService:
 
         return self._mock_community_insights(state, district)
 
-    def _mock_community_insights(self, state: str, district: Optional[str] = None) -> Dict[str, Any]:
+    def _mock_community_insights(
+        self, state: str, district: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Return realistic mock community data for development/demo."""
         return {
             "state": state,
@@ -150,12 +155,11 @@ class BigQueryService:
             "wellness_breakdown": {
                 "crop_diversity": 40,
                 "pest_resilience": 12,
-                "market_activity": 20
+                "market_activity": 20,
             },
-            "data_source": "mock_development"
+            "data_source": "mock_development",
         }
 
 
 # Singleton instance
 bigquery_service = BigQueryService()
-

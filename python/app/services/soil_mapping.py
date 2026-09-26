@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ SOIL_DEFAULTS = {
         "sulfur": 10.0,
         "zinc": 0.8,
         "iron": 5.0,
-        "boron": 0.5
+        "boron": 0.5,
     },
     "Black": {
         "primary_soil_type": "clay",
@@ -31,7 +31,7 @@ SOIL_DEFAULTS = {
         "sulfur": 12.0,
         "zinc": 0.5,
         "iron": 4.0,
-        "boron": 0.4
+        "boron": 0.4,
     },
     "Red": {
         "primary_soil_type": "sandy",
@@ -44,7 +44,7 @@ SOIL_DEFAULTS = {
         "sulfur": 8.0,
         "zinc": 0.4,
         "iron": 8.0,
-        "boron": 0.3
+        "boron": 0.3,
     },
     "Laterite": {
         "primary_soil_type": "mixed",
@@ -57,7 +57,7 @@ SOIL_DEFAULTS = {
         "sulfur": 6.0,
         "zinc": 0.3,
         "iron": 12.0,
-        "boron": 0.2
+        "boron": 0.2,
     },
     "Desert": {
         "primary_soil_type": "sandy",
@@ -70,7 +70,7 @@ SOIL_DEFAULTS = {
         "sulfur": 5.0,
         "zinc": 0.2,
         "iron": 3.0,
-        "boron": 0.6
+        "boron": 0.6,
     },
     "Mountain": {
         "primary_soil_type": "loamy",
@@ -83,8 +83,8 @@ SOIL_DEFAULTS = {
         "sulfur": 15.0,
         "zinc": 0.6,
         "iron": 6.0,
-        "boron": 0.4
-    }
+        "boron": 0.4,
+    },
 }
 
 # General state-to-soil mapping based on India Soil Map
@@ -97,24 +97,19 @@ STATE_TO_SOIL = {
     "West Bengal": "Alluvial",
     "Assam": "Alluvial",
     "Delhi": "Alluvial",
-    
     "Rajasthan": "Desert",
-    
     "Maharashtra": "Black",
     "Madhya Pradesh": "Black",
-    "Gujarat": "Black", # Gujarat has parts Black, parts Alluvial
+    "Gujarat": "Black",  # Gujarat has parts Black, parts Alluvial
     "Telangana": "Black",
-    
-    "Odisha": "Red", # Includes Red and Mixed Red & Black
+    "Odisha": "Red",  # Includes Red and Mixed Red & Black
     "Chhattisgarh": "Red",
     "Jharkhand": "Red",
     "Andhra Pradesh": "Red",
     "Tamil Nadu": "Red",
-    
     "Kerala": "Laterite",
     "Goa": "Laterite",
-    "Karnataka": "Red", # Mixed Red, Black and Laterite
-    
+    "Karnataka": "Red",  # Mixed Red, Black and Laterite
     "Jammu and Kashmir": "Mountain",
     "Jammu & Kashmir": "Mountain",
     "Ladakh": "Mountain",
@@ -126,12 +121,13 @@ STATE_TO_SOIL = {
     "Nagaland": "Mountain",
     "Manipur": "Mountain",
     "Mizoram": "Mountain",
-    "Tripura": "Mountain"
+    "Tripura": "Mountain",
 }
+
 
 class SoilMappingService:
     """Service to map geographical locations in India to likely soil profiles"""
-    
+
     @staticmethod
     def get_likely_soil_profile(state: str, district: str = None) -> Dict[str, Any]:
         """
@@ -140,16 +136,20 @@ class SoilMappingService:
         """
         if not state:
             return {}
-            
+
         # Standardize state name representation (capitalization)
         clean_state = str(state).strip().title()
-        
+
         # Override for specific edge cases
         if clean_state == "Jammu & Kashmir" or clean_state == "Jammu And Kashmir":
             clean_state = "Jammu and Kashmir"
-            
+
         # District-specific overrides
-        if clean_state == "Haryana" and district and str(district).strip().upper() in ["GURGAON", "GURUGRAM"]:
+        if (
+            clean_state == "Haryana"
+            and district
+            and str(district).strip().upper() in ["GURGAON", "GURUGRAM"]
+        ):
             return {
                 "primary_soil_type": "sandy loam",
                 "ph_level": 7.2,
@@ -161,14 +161,14 @@ class SoilMappingService:
                 "sulfur": 9.0,
                 "zinc": 0.7,
                 "iron": 4.5,
-                "boron": 0.4
+                "boron": 0.4,
             }
 
         # Get dominant soil type for the state
         dominant_soil = STATE_TO_SOIL.get(clean_state)
-        
+
         if not dominant_soil:
             logger.info(f"Could not map state '{state}' to a known soil type.")
             return {}
-            
+
         return SOIL_DEFAULTS.get(dominant_soil, {})

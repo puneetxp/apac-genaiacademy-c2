@@ -11,6 +11,7 @@ their farm. Admins (user_type == 'admin') can see everything.
 Errors: LookupError -> 404 (also used for "not yours", so other users' ids are not revealed),
 PermissionError -> 403, ValueError -> 400.
 """
+
 import re
 from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional
@@ -57,7 +58,11 @@ def is_admin(user) -> bool:
 def _check_owner(row: Optional[Row], user, what: str, obj_id: Any) -> Row:
     if not row:
         raise LookupError(f"{what} {obj_id} not found")
-    if user is not None and not is_admin(user) and row.get("farm_user_id") != getattr(user, "id", None):
+    if (
+        user is not None
+        and not is_admin(user)
+        and row.get("farm_user_id") != getattr(user, "id", None)
+    ):
         raise LookupError(f"{what} {obj_id} not found")
     return row
 
@@ -71,7 +76,9 @@ def farm_for_user(farm_id: int, user) -> Row:
 def plot_for_user(plot_id: int, user) -> Row:
     row = fetch_one(
         """SELECT p.*, f.user_id AS farm_user_id FROM farm_plots p
-           JOIN farms f ON f.id = p.farm_id WHERE p.id = ?""", [plot_id])
+           JOIN farms f ON f.id = p.farm_id WHERE p.id = ?""",
+        [plot_id],
+    )
     return _check_owner(row, user, "Plot", plot_id)
 
 
@@ -80,14 +87,18 @@ def crop_for_user(crop_id: int, user) -> Row:
     row = fetch_one(
         """SELECT c.*, p.farm_id AS farm_id, f.user_id AS farm_user_id FROM crops c
            LEFT JOIN farm_plots p ON p.id = c.farm_plot_id
-           LEFT JOIN farms f ON f.id = p.farm_id WHERE c.id = ?""", [crop_id])
+           LEFT JOIN farms f ON f.id = p.farm_id WHERE c.id = ?""",
+        [crop_id],
+    )
     return _check_owner(row, user, "Crop", crop_id)
 
 
 def soil_test_for_user(test_id: int, user) -> Row:
     row = fetch_one(
         """SELECT s.*, f.user_id AS farm_user_id FROM soil_test_results s
-           JOIN farms f ON f.id = s.farm_id WHERE s.id = ?""", [test_id])
+           JOIN farms f ON f.id = s.farm_id WHERE s.id = ?""",
+        [test_id],
+    )
     return _check_owner(row, user, "Soil test", test_id)
 
 

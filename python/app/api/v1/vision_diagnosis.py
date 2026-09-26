@@ -7,22 +7,28 @@ using Gemini's multimodal (vision) capabilities.
 Demonstrates: Multimodal AI for image understanding — Google Cloud Hackathon criterion.
 """
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import Optional, Dict, Any
 import logging
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.services.vision_diagnosis_service import vision_diagnosis_service
 
 logger = logging.getLogger(__name__)
-from app.core.auth import get_current_active_user
 from fastapi import Depends
 
-router = APIRouter(prefix="/vision", tags=["Vision AI"], dependencies=[Depends(get_current_active_user)])
+from app.core.auth import get_current_active_user
+
+router = APIRouter(
+    prefix="/vision", tags=["Vision AI"], dependencies=[Depends(get_current_active_user)]
+)
+
+
 @router.post("/diagnose", response_model=Dict[str, Any])
 async def diagnose_crop_disease(
     image: UploadFile = File(..., description="Photo of the crop/leaf to diagnose"),
     crop_name: Optional[str] = Form(None, description="Name of the crop (e.g. Rice, Tomato)"),
-    region: Optional[str] = Form(None, description="State or district for regional context")
+    region: Optional[str] = Form(None, description="State or district for regional context"),
 ):
     """
     Upload a photo of a crop leaf/fruit and get an AI-powered disease diagnosis.
@@ -41,7 +47,7 @@ async def diagnose_crop_disease(
     if image.content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported image type '{image.content_type}'. Accepted: JPEG, PNG, WebP."
+            detail=f"Unsupported image type '{image.content_type}'. Accepted: JPEG, PNG, WebP.",
         )
 
     # Read image bytes
@@ -53,25 +59,19 @@ async def diagnose_crop_disease(
     if len(image_bytes) < 1000:  # Suspiciously small
         raise HTTPException(status_code=400, detail="Image appears too small or corrupted.")
 
-    logger.info(f"Vision diagnosis request: crop={crop_name}, region={region}, size={len(image_bytes)} bytes")
-
-    diagnosis = await vision_diagnosis_service.diagnose_from_bytes(
-        image_bytes=image_bytes,
-        mime_type=image.content_type,
-        crop_name=crop_name,
-        region=region
+    logger.info(
+        f"Vision diagnosis request: crop={crop_name}, region={region}, size={len(image_bytes)} bytes"
     )
 
-    return {
-        "success": True,
-        "diagnosis": diagnosis
-    }
+    diagnosis = await vision_diagnosis_service.diagnose_from_bytes(
+        image_bytes=image_bytes, mime_type=image.content_type, crop_name=crop_name, region=region
+    )
+
+    return {"success": True, "diagnosis": diagnosis}
 
 
 @router.post("/diagnose-base64", response_model=Dict[str, Any])
-async def diagnose_from_base64(
-    payload: Dict[str, Any]
-):
+async def diagnose_from_base64(payload: Dict[str, Any]):
     """
     Submit a base64-encoded crop image for AI disease diagnosis.
 
@@ -93,10 +93,7 @@ async def diagnose_from_base64(
         base64_image=image_b64,
         mime_type=payload.get("mime_type", "image/jpeg"),
         crop_name=payload.get("crop_name"),
-        region=payload.get("region")
+        region=payload.get("region"),
     )
 
-    return {
-        "success": True,
-        "diagnosis": diagnosis
-    }
+    return {"success": True, "diagnosis": diagnosis}
