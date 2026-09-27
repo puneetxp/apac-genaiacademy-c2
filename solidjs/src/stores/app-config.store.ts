@@ -1,8 +1,8 @@
 /**
  * App configuration store
  * Per-device choices for what the Dashboard shows and how much the Plant Crop
- * form asks for. Everything defaults to ON so nothing disappears until the
- * farmer switches it off on the Configuration page (/settings).
+ * form asks for. Everything defaults to ON (except OFF_BY_DEFAULT) so nothing
+ * disappears until the farmer switches it off on the Configuration page (/settings).
  */
 
 import { createRoot, createSignal } from 'solid-js';
@@ -10,6 +10,7 @@ import { createRoot, createSignal } from 'solid-js';
 export type DashboardSection =
     | 'assistant'
     | 'services'
+    | 'board'
     | 'stats'
     | 'quickActions'
     | 'farms'
@@ -29,8 +30,9 @@ export interface AppConfig {
 
 export const DASHBOARD_SECTIONS: { id: DashboardSection; emoji: string; label: string; hint: string }[] = [
     { id: 'assistant', emoji: '🎙️', label: 'Add livestock by voice', hint: 'AI assistant card at the top' },
-    { id: 'services', emoji: '☰', label: 'All services grid', hint: 'Full services menu on the dashboard' },
-    { id: 'stats', emoji: '📈', label: 'Quick stats', hint: 'Farms, crops, listings and revenue totals' },
+    { id: 'services', emoji: '☰', label: 'All services grid', hint: 'Full services menu on the dashboard (off by default)' },
+    { id: 'board', emoji: '📊', label: 'Farm & livestock board', hint: 'Charts, tables and AI projections' },
+    { id: 'stats', emoji: '📈', label: 'Quick stats', hint: 'Older totals row (the board has these tiles)' },
     { id: 'quickActions', emoji: '⚡', label: 'Quick actions', hint: 'Add Farm, Get Strategy, Marketplace, My Listings' },
     { id: 'farms', emoji: '🏡', label: 'Your farms', hint: 'Farm cards with manage / analytics buttons' },
     { id: 'weather', emoji: '🌦️', label: 'Weather alerts', hint: 'Shown only when there are alerts' },
@@ -52,8 +54,12 @@ export const CROP_FIELDS: { id: CropField; emoji: string; label: string; hint: s
 const allOn = <K extends string>(items: { id: K }[]) =>
     Object.fromEntries(items.map((i) => [i.id, true])) as Record<K, boolean>;
 
+// Sections that start switched off; the services menu lives at /menu instead.
+// Quick stats duplicate the board's KPI tiles.
+const OFF_BY_DEFAULT: DashboardSection[] = ['services', 'stats'];
+
 const DEFAULTS: AppConfig = {
-    dashboard: allOn(DASHBOARD_SECTIONS),
+    dashboard: { ...allOn(DASHBOARD_SECTIONS), ...Object.fromEntries(OFF_BY_DEFAULT.map((id) => [id, false])) },
     cropForm: allOn(CROP_FIELDS),
 };
 
@@ -63,7 +69,9 @@ const readSaved = (): AppConfig => {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return DEFAULTS;
-        const saved = JSON.parse(raw) as Partial<AppConfig>;
+        const saved = JSON.parse(raw) as Partial<AppConfig> & { v?: number };
+        // v3 moved the services grid and quick stats off by default; forget old saved ONs for them
+        if ((saved.v || 1) < 3 && saved.dashboard) OFF_BY_DEFAULT.forEach((id) => delete (saved.dashboard as any)[id]);
         // Merge so sections added later default to ON for existing users
         return {
             dashboard: { ...DEFAULTS.dashboard, ...(saved.dashboard || {}) },
@@ -80,7 +88,7 @@ const store = createRoot(() => {
     const save = (next: AppConfig) => {
         setConfig(next);
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...next, v: 3 }));
         } catch {
             // storage blocked (private window) - keep the choice for this session only
         }

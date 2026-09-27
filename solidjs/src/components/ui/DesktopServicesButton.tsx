@@ -19,7 +19,9 @@ const DesktopServicesButton: Component = () => {
 
   // Nothing to navigate to before sign-in, and the auth pages have their own flow.
   const visible = () =>
-    !deviceInfo().isMobile && isAuthenticated() && !location.pathname.startsWith('/auth');
+    !deviceInfo().isMobile && isAuthenticated() && !location.pathname.startsWith('/auth') &&
+    // The dashboard and full-screen chat have their own navigation; no floating menu over them
+    !['/dashboard', '/assistant'].includes(location.pathname);
 
   return (
     <Show when={visible()}>

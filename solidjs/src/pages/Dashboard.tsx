@@ -44,6 +44,9 @@ const WeatherAlertsCard = lazy(() =>
 const StrategyTimelineProgress = lazy(() =>
   import("../components/dashboard/StrategyTimelineProgress")
 );
+const AnalyticsBoard = lazy(() =>
+  import("../components/dashboard/board/AnalyticsBoard")
+);
 
 const Dashboard: Component = () => {
   const navigate = useNavigate();
@@ -101,78 +104,59 @@ const Dashboard: Component = () => {
       />
 
       {/* Header */}
-      <header class="bg-white shadow sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex justify-between items-center">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-900">
+      <header class="bg-white/95 backdrop-blur border-b border-gray-200 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="text-lg sm:text-2xl font-bold text-gray-900 truncate">
                 Farmer Dashboard
               </h1>
-              <p class="text-sm text-gray-600 mt-1">
+              <p class="text-xs sm:text-sm text-gray-500 truncate">
                 Welcome back, {user()?.full_name || user()?.username}
               </p>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <A
+                href="/assistant"
+                class="px-3 sm:px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
+                title="Chat or talk with CropSense AI about your farm"
+              >
+                <span>✦</span> Ask AI
+              </A>
               <A
                 href="/farm/register"
-                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors shadow-sm flex items-center gap-2"
+                class="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
                 title="Register a new farm"
               >
-                <span>➕</span> Add Farm
+                <span>＋</span><span class="hidden sm:inline">Add Farm</span>
               </A>
-              <A
-                href="/livestock"
-                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                title="Livestock management"
-              >
-                🐄 Livestock
-              </A>
-              {/* BottomNav (Pashu / Menu) is mobile-only, so desktop needs its own way into services. */}
-              <A
-                href="/livestock/doctors"
-                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                title="Veterinary doctors"
-              >
-                🩺 Vet Doctors
-              </A>
-              <A
-                href="/menu"
-                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                title="All services"
-              >
-                ☰ Services
-              </A>
-              <A
-                href="/settings"
-                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                title="Choose what the dashboard shows"
-              >
-                ⚙️ Configure
-              </A>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                title="Refresh dashboard"
-              >
-                🔄 Refresh
-              </button>
-              <button
-                type="button"
-                onClick={handleSignOut}
-                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors shadow-sm"
-              >
-                Sign Out
-              </button>
+              {/* Secondary links: desktop only (mobile has the bottom nav) */}
+              <div class="hidden md:flex items-center gap-0.5 ml-1 pl-2 border-l border-gray-200">
+                <A href="/livestock" class="px-2.5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Livestock management">
+                  🐄 Livestock
+                </A>
+                <A href="/livestock/doctors" class="px-2.5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Veterinary doctors">
+                  🩺 Vets
+                </A>
+                <A href="/settings" class="px-2.5 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Choose what the dashboard shows" aria-label="Configure dashboard">
+                  ⚙️
+                </A>
+                <button type="button" onClick={handleRefresh} class="px-2.5 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Refresh dashboard" aria-label="Refresh dashboard">
+                  🔄
+                </button>
+                <button type="button" onClick={handleSignOut} class="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium">
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 sm:pb-8">
         {/* Add livestock by talking to the AI (or by hand) — works before onboarding too */}
-        <Show when={showSection("assistant")}>
+        <Show when={showSection("assistant") && !profileStatus.loading && !profileStatus()?.is_onboarding_complete}>
           <div class="mb-8">
             <AddLivestockCard />
           </div>
@@ -286,6 +270,24 @@ const Dashboard: Component = () => {
                       >
                         <QuickStats stats={data().stats} />
                       </Suspense>
+                    </Show>
+
+                    {/* Farm & livestock board: charts, tables and AI projections */}
+                    <Show when={showSection("board")}>
+                      <Suspense
+                        fallback={
+                          <div class="h-96 bg-gray-100 animate-pulse rounded-lg" />
+                        }
+                      >
+                        <AnalyticsBoard
+                          data={data()}
+                          farms={profileStatus()?.farms || []}
+                        />
+                      </Suspense>
+                    </Show>
+
+                    <Show when={showSection("assistant")}>
+                      <AddLivestockCard />
                     </Show>
 
                     {/* Quick Actions */}
