@@ -6,6 +6,8 @@ interface Crop {
   id: number;
   crop_name: string;
   crop_variety: string;
+  crop_role?: string;
+  parent_crop_id?: number | null;
   season: string;
   planting_date: string;
   expected_harvest_date: string;
@@ -182,6 +184,11 @@ const MyCrops: Component = () => {
                             <span class={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(crop.status)}`}>
                               {crop.status}
                             </span>
+                            {crop.crop_role === 'supporting' && (
+                              <span class="px-2 py-1 text-xs font-medium rounded-full bg-lime-100 text-lime-800" title="Grown alongside a main crop">
+                                🌿 Supporting
+                              </span>
+                            )}
                           </div>
                           
                           <div class="text-sm text-gray-600 mb-3">

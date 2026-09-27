@@ -170,6 +170,8 @@ export const en = {
     'svc.dashboard.sub': 'Overview',
     'svc.aiUsage': 'AI Usage',
     'svc.aiUsage.sub': 'Quota',
+    'svc.config': 'Configuration',
+    'svc.config.sub': 'Dashboard & crop form',
 
     // Profile drawer
     'drawer.close': 'Close',

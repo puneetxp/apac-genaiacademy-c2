@@ -26,6 +26,8 @@ class Crop(Model):
         'actual_yield',
         'actual_profit',
         'status',
+        'parent_crop_id',
+        'crop_role',
     ]
     
     relations = {

@@ -22,6 +22,7 @@ import { SkeletonDashboard } from "../components/ui/SkeletonScreen";
 import { showToast } from "../components/ui/Toast";
 import ServicesMenu from "../components/ui/ServicesMenu";
 import AddLivestockCard from "../components/assistant/AddLivestockCard";
+import { showSection } from "../stores/app-config.store";
 
 // Lazy load heavy dashboard components for better performance
 const QuickStats = lazy(() => import("../components/dashboard/QuickStats"));
@@ -141,6 +142,13 @@ const Dashboard: Component = () => {
               >
                 ☰ Services
               </A>
+              <A
+                href="/settings"
+                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                title="Choose what the dashboard shows"
+              >
+                ⚙️ Configure
+              </A>
               <button
                 type="button"
                 onClick={handleRefresh}
@@ -164,14 +172,18 @@ const Dashboard: Component = () => {
       {/* Main Content */}
       <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Add livestock by talking to the AI (or by hand) — works before onboarding too */}
-        <div class="mb-8">
-          <AddLivestockCard />
-        </div>
+        <Show when={showSection("assistant")}>
+          <div class="mb-8">
+            <AddLivestockCard />
+          </div>
+        </Show>
         {/* Every service in one place; outside the loading/empty states so navigation always works. */}
-        <section class="bg-white rounded-lg shadow p-4 sm:p-6 mb-8" aria-label="All services">
-          <h2 class="text-lg font-semibold text-gray-900 mb-4">All Services</h2>
-          <ServicesMenu variant="grid" searchable />
-        </section>
+        <Show when={showSection("services")}>
+          <section class="bg-white rounded-lg shadow p-4 sm:p-6 mb-8" aria-label="All services">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">All Services</h2>
+            <ServicesMenu variant="grid" searchable />
+          </section>
+        </Show>
         <Show
           when={!profileStatus.loading}
           fallback={<SkeletonDashboard />}
@@ -266,15 +278,18 @@ const Dashboard: Component = () => {
                 {(data) => (
                   <div class="space-y-6">
                     {/* Quick Stats */}
-                    <Suspense
-                      fallback={
-                        <div class="h-32 bg-gray-100 animate-pulse rounded-lg" />
-                      }
-                    >
-                      <QuickStats stats={data().stats} />
-                    </Suspense>
+                    <Show when={showSection("stats")}>
+                      <Suspense
+                        fallback={
+                          <div class="h-32 bg-gray-100 animate-pulse rounded-lg" />
+                        }
+                      >
+                        <QuickStats stats={data().stats} />
+                      </Suspense>
+                    </Show>
 
                     {/* Quick Actions */}
+                    <Show when={showSection("quickActions")}>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <A
                         href="/farm/register"
@@ -310,9 +325,10 @@ const Dashboard: Component = () => {
                         <p class="text-sm opacity-90">Manage sales</p>
                       </A>
                     </div>
+                    </Show>
 
                     {/* Farms Display */}
-                    <Show when={(profileStatus()?.farms?.length || 0) > 0}>
+                    <Show when={showSection("farms") && (profileStatus()?.farms?.length || 0) > 0}>
                       <div class="bg-white rounded-lg shadow-md p-6 border border-green-100">
                         <div class="flex justify-between items-center mb-4 border-b pb-2">
                           <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -386,7 +402,7 @@ const Dashboard: Component = () => {
 
                     {/* Weather Alerts - Priority Display */}
                     <Show
-                      when={data().weather_alerts &&
+                      when={showSection("weather") && data().weather_alerts &&
                         data().weather_alerts.length > 0}
                     >
                       <Suspense
@@ -400,7 +416,7 @@ const Dashboard: Component = () => {
 
                     {/* Strategy Timeline Progress */}
                     <Show
-                      when={data().strategy_timeline &&
+                      when={showSection("strategy") && data().strategy_timeline &&
                         data().strategy_timeline!.length > 0}
                     >
                       <Suspense
@@ -417,6 +433,7 @@ const Dashboard: Component = () => {
                     {/* Main Dashboard Grid */}
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Active Crops */}
+                      <Show when={showSection("crops")}>
                       <Suspense
                         fallback={
                           <div class="h-80 bg-gray-100 animate-pulse rounded-lg" />
@@ -424,8 +441,10 @@ const Dashboard: Component = () => {
                       >
                         <ActiveCropsCard crops={data().active_crops} />
                       </Suspense>
+                      </Show>
 
                       {/* Marketplace Listings */}
+                      <Show when={showSection("listings")}>
                       <Suspense
                         fallback={
                           <div class="h-80 bg-gray-100 animate-pulse rounded-lg" />
@@ -435,8 +454,10 @@ const Dashboard: Component = () => {
                           listings={data().active_listings}
                         />
                       </Suspense>
+                      </Show>
 
                       {/* Upcoming Tasks */}
+                      <Show when={showSection("tasks")}>
                       <Suspense
                         fallback={
                           <div class="h-80 bg-gray-100 animate-pulse rounded-lg" />
@@ -444,8 +465,10 @@ const Dashboard: Component = () => {
                       >
                         <UpcomingTasksCard tasks={data().upcoming_tasks} />
                       </Suspense>
+                      </Show>
 
                       {/* Buyer Interests */}
+                      <Show when={showSection("buyers")}>
                       <Suspense
                         fallback={
                           <div class="h-80 bg-gray-100 animate-pulse rounded-lg" />
@@ -455,6 +478,7 @@ const Dashboard: Component = () => {
                           interests={data().buyer_interests}
                         />
                       </Suspense>
+                      </Show>
                     </div>
                   </div>
                 )}

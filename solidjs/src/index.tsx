@@ -45,6 +45,7 @@ const LivestockHubPage = lazy(() => import('./pages/livestock/LivestockHub'));
 const VeterinaryDoctorsPage = lazy(() => import('./pages/livestock/VeterinaryDoctors'));
 const PashuHomePage = lazy(() => import('./pages/livestock/PashuHome'));
 const AllServicesPage = lazy(() => import('./pages/AllServices'));
+const ConfigurationPage = lazy(() => import('./pages/Configuration'));
 const DietPlanPage = lazy(() => import('./pages/livestock/DietPlan'));
 const ServicesDirectoryPage = lazy(() => import('./pages/services/ServicesDirectory'));
 const TransportTrackingPage = lazy(() => import('./pages/transport/TransportTracking'));
@@ -84,6 +85,7 @@ const LivestockHubPageWrapped: Component = () => <ProtectedRoute><LivestockHubPa
 const VeterinaryDoctorsPageWrapped: Component = () => <ProtectedRoute><VeterinaryDoctorsPage /></ProtectedRoute>;
 const PashuHomePageWrapped: Component = () => <ProtectedRoute><PashuHomePage /></ProtectedRoute>;
 const AllServicesPageWrapped: Component = () => <ProtectedRoute><AllServicesPage /></ProtectedRoute>;
+const ConfigurationPageWrapped: Component = () => <ProtectedRoute><ConfigurationPage /></ProtectedRoute>;
 const DietPlanPageWrapped: Component = () => <ProtectedRoute><DietPlanPage /></ProtectedRoute>;
 const ServicesDirectoryPageWrapped: Component = () => <ProtectedRoute><ServicesDirectoryPage /></ProtectedRoute>;
 const TransportTrackingPageWrapped: Component = () => <ProtectedRoute><TransportTrackingPage /></ProtectedRoute>;
@@ -153,6 +155,7 @@ render(
       <Route path="/pest-disease/hub" component={PestDiseaseHubPageWrapped} />
       <Route path="/livestock" component={PashuHomePageWrapped} />
       <Route path="/menu" component={AllServicesPageWrapped} />
+      <Route path="/settings" component={ConfigurationPageWrapped} />
       <Route path="/livestock/diet-plan" component={DietPlanPageWrapped} />
       <Route path="/services" component={ServicesDirectoryPageWrapped} />
       <Route path="/livestock/hub" component={LivestockHubPageWrapped} />

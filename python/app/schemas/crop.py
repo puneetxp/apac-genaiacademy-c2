@@ -215,6 +215,16 @@ class StrategyFeedbackRequest(BaseModel):
     actual_results: Optional[Dict[str, Any]] = None
 
 
+class SupportingCropInput(BaseModel):
+    """A supporting (inter/companion) crop grown alongside the main crop"""
+
+    crop_name: str = Field(..., description="Supporting crop name")
+    variety: Optional[str] = Field(None, description="Supporting crop variety")
+    area: Optional[float] = Field(
+        None, gt=0, description="Area in acres (defaults to the main crop's area)"
+    )
+
+
 class QuickPlantRequest(BaseModel):
     """Request to quickly plant a crop"""
 
@@ -225,10 +235,15 @@ class QuickPlantRequest(BaseModel):
     season: str = Field(..., description="Season: kharif, rabi, zaid")
     area: float = Field(..., gt=0, description="Area in acres")
     planting_date: date = Field(..., description="Planned planting date")
-    expected_harvest_date: date = Field(..., description="Planned harvest date")
+    expected_harvest_date: Optional[date] = Field(
+        None, description="Planned harvest date (defaults to ~4 months after planting)"
+    )
     expected_yield: Optional[float] = Field(None, description="Expected yield in quintals")
     market_price: Optional[float] = Field(
         None, description="Expected market price per quintal in INR"
+    )
+    supporting_crops: List[SupportingCropInput] = Field(
+        default_factory=list, description="Supporting crops planted with the main crop"
     )
 
 
@@ -239,6 +254,7 @@ class QuickPlantResponse(BaseModel):
     message: str
     crop_ids: List[int]
     total_area_planted: float
+    supporting_crop_ids: List[int] = Field(default_factory=list)
 
 
 class CropExpenseRequest(BaseModel):

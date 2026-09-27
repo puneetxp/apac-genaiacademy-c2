@@ -69,6 +69,7 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
             { id: 'security', emoji: '🔒', path: '/users/security' },
             { id: 'dashboard', emoji: '📊', path: '/dashboard' },
             { id: 'aiUsage', emoji: '🤖', path: '/quota/history' },
+            { id: 'config', emoji: '⚙️', path: '/settings' },
         ],
     },
 ];

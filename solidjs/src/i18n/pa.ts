@@ -161,6 +161,8 @@ export const pa: Dictionary = {
     'svc.dashboard.sub': 'ਇੱਕ ਨਜ਼ਰ ਵਿੱਚ',
     'svc.aiUsage': 'AI ਵਰਤੋਂ',
     'svc.aiUsage.sub': 'ਕੋਟਾ',
+    'svc.config': 'ਸੰਰਚਨਾ',
+    'svc.config.sub': 'ਡੈਸ਼ਬੋਰਡ ਅਤੇ ਫਸਲ ਫਾਰਮ',
 
     'drawer.close': 'ਬੰਦ ਕਰੋ',
     'drawer.farmer': 'ਕਿਸਾਨ',

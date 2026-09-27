@@ -15,5 +15,7 @@ export interface Crop {
    expected_profit: number | null,
    actual_yield: number | null,
    actual_profit: number | null,
-   status: string | null
+   status: string | null,
+   parent_crop_id: number | null,
+   crop_role: string | null
 }

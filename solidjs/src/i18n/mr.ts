@@ -161,6 +161,8 @@ export const mr: Dictionary = {
     'svc.dashboard.sub': 'एका नजरेत',
     'svc.aiUsage': 'AI वापर',
     'svc.aiUsage.sub': 'कोटा',
+    'svc.config': 'कॉन्फिगरेशन',
+    'svc.config.sub': 'डॅशबोर्ड व पीक फॉर्म',
 
     'drawer.close': 'बंद करा',
     'drawer.farmer': 'शेतकरी',

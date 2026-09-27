@@ -161,6 +161,8 @@ export const hi: Dictionary = {
     'svc.dashboard.sub': 'एक नज़र में',
     'svc.aiUsage': 'AI उपयोग',
     'svc.aiUsage.sub': 'कोटा',
+    'svc.config': 'कॉन्फ़िगरेशन',
+    'svc.config.sub': 'डैशबोर्ड और फसल फ़ॉर्म',
 
     'drawer.close': 'बंद करें',
     'drawer.farmer': 'किसान',
