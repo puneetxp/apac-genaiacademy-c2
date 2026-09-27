@@ -73,6 +73,8 @@
         "crop_expense": false,
         "shc_state_district_code": false,
         "slusi_ingestion_run": false,
+        "ndap_ingestion_run": false,
+        "ndap_downloaded_file": false,
         "slusi_lcc_report": false,
         "slusi_microwatershed_map": false,
         "veterinarian": true,

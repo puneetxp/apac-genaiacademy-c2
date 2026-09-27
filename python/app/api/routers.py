@@ -55,6 +55,7 @@ from app.api.ipublic.marketplace_listing.marketplace_listing import router as ip
 from app.api.isuper.msp_rate.msp_rate import router as isuper_msp_rate_router
 from app.api.islogin.msp_rate.msp_rate import router as islogin_msp_rate_router
 from app.api.ipublic.msp_rate.msp_rate import router as ipublic_msp_rate_router
+from app.api.isuper.ndap_ingestion_run.ndap_ingestion_run import router as isuper_ndap_ingestion_run_router
 from app.api.isuper.offspring.offspring import router as isuper_offspring_router
 from app.api.islogin.offspring.offspring import router as islogin_offspring_router
 from app.api.isuper.opportunity_cost.opportunity_cost import router as isuper_opportunity_cost_router
@@ -174,6 +175,7 @@ all_routers = [
     isuper_msp_rate_router,
     islogin_msp_rate_router,
     ipublic_msp_rate_router,
+    isuper_ndap_ingestion_run_router,
     isuper_offspring_router,
     islogin_offspring_router,
     isuper_opportunity_cost_router,

@@ -23,6 +23,8 @@ import { Livestock_transaction } from "../Interface/Model/Livestock_transaction"
 import { Market_price } from "../Interface/Model/Market_price";
 import { Marketplace_listing } from "../Interface/Model/Marketplace_listing";
 import { Msp_rate } from "../Interface/Model/Msp_rate";
+import { Ndap_downloaded_file } from "../Interface/Model/Ndap_downloaded_file";
+import { Ndap_ingestion_run } from "../Interface/Model/Ndap_ingestion_run";
 import { Offspring } from "../Interface/Model/Offspring";
 import { Opportunity_cost } from "../Interface/Model/Opportunity_cost";
 import { Payment_milestone } from "../Interface/Model/Payment_milestone";
@@ -125,6 +127,12 @@ export const Marketplace_listingService = (new ModelService<Marketplace_listing>
 export const Msp_rateService = (new ModelService<Msp_rate>())
     .seTable("msp_rate")
     .seturl("/islogin/msp_rate/");
+export const Ndap_downloaded_fileService = (new ModelService<Ndap_downloaded_file>())
+    .seTable("ndap_downloaded_file")
+    .seturl("/islogin/ndap_downloaded_file/");
+export const Ndap_ingestion_runService = (new ModelService<Ndap_ingestion_run>())
+    .seTable("ndap_ingestion_run")
+    .seturl("/islogin/ndap_ingestion_run/");
 export const OffspringService = (new ModelService<Offspring>())
     .seTable("offspring")
     .seturl("/islogin/offspring/");
