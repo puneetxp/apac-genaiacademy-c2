@@ -215,6 +215,8 @@ if [ -x "$PSQL" ] && command -v cloud-sql-proxy >/dev/null; then
   # Idempotent (CREATE ... IF NOT EXISTS) — safe to run on every deploy
   "$PSQL" "${PSQL_ARGS[@]}" --single-transaction -q -f database/migrations/create_push_subscriptions_table.sql
   "$PSQL" "${PSQL_ARGS[@]}" -q -f database/migrations/2026-09-27-services-livestock-name.sql
+  "$PSQL" "${PSQL_ARGS[@]}" -q -f database/migrations/2026-09-27-crops-supporting-crop.sql
+  "$PSQL" "${PSQL_ARGS[@]}" -q -f database/migrations/2026-09-27-ndap-ingestion-tables.sql
   kill $PROXY_PID 2>/dev/null || true; trap - EXIT
 else
   warn "psql/cloud-sql-proxy not found — skipping schema check. First deploy needs: brew install libpq cloud-sql-proxy"
