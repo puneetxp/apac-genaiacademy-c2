@@ -231,6 +231,11 @@ class AssistRequest(BaseModel):
     # Guided form filling ("add_livestock"): the draft so far, updated each turn
     task: Optional[str] = Field(None, pattern="^(add_livestock)$")
     draft: Dict[str, Any] = Field(default_factory=dict)
+    # The farmer's own farms and crops, so proposals can target them ("which farm?")
+    farms: List[AnimalEntry] = Field(default_factory=list, max_length=100)
+    crops: List[AnimalEntry] = Field(default_factory=list, max_length=200)
+    # Plain-text summary of the farmer's own farms, crops, livestock and dashboard figures
+    context: Optional[str] = Field(None, max_length=12000)
 
 
 @router.post("/assist", response_model=Dict[str, Any])
@@ -271,6 +276,9 @@ async def voice_assist(request: AssistRequest, current_user=Depends(get_current_
         focus_animal_id=request.focus_animal_id,
         task=request.task,
         draft=request.draft,
+        context=request.context,
+        farms=[f.model_dump() for f in request.farms],
+        crops=[c.model_dump() for c in request.crops],
     )
 
     try:
@@ -288,7 +296,8 @@ async def voice_assist(request: AssistRequest, current_user=Depends(get_current_
             contents.insert(0, types.Part.from_bytes(data=audio_bytes, mime_type=mime))
 
         config = types.GenerateContentConfig(
-            max_output_tokens=1000,
+            # Room for a data table when answering from the farmer's data
+            max_output_tokens=2000 if request.context else 1000,
             temperature=0.2,
             response_mime_type="application/json",
         )
@@ -312,6 +321,8 @@ async def voice_assist(request: AssistRequest, current_user=Depends(get_current_
             [a["id"] for a in animals],
             task=request.task,
             draft=request.draft,
+            farm_ids=[f.id for f in request.farms],
+            crop_ids=[c.id for c in request.crops],
         )
         result["model_used"] = model_used
         _log_voice_event(

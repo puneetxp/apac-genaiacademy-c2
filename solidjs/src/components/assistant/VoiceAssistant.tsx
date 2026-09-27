@@ -18,9 +18,9 @@ import { lang, t, tValue } from '../../stores/i18n.store';
 import { en, type TKey } from '../../i18n/en';
 import { SERVICE_GROUPS } from '../ui/ServicesMenu';
 import LanguageSwitcher from '../ui/LanguageSwitcher';
-import ProposalCard from './ProposalCard';
+import ProposalCard, { proposalTitle } from './ProposalCard';
 import { useRecorder } from './useRecorder';
-import { AssistantService, type AssistResult } from '../../services/assistant.service';
+import { AssistantService, type AssistResult, type Option } from '../../services/assistant.service';
 import { FarmService, LivestockService } from '../../shared/Service/Services';
 import { VeterinaryDoctorsService, type VeterinaryDoctor } from '../../services/veterinary-doctors.service';
 import { showToast } from '../ui/Toast';
@@ -50,7 +50,8 @@ const VoiceAssistant: Component = () => {
 
     let scrollEl: HTMLDivElement | undefined;
 
-    const visible = () => isAuthenticated() && !location.pathname.startsWith('/auth');
+    // Hidden on /assistant, which is the same chat full-screen
+    const visible = () => isAuthenticated() && !location.pathname.startsWith('/auth') && location.pathname !== '/assistant';
 
     // The farmer's own animals (livestock records), labelled by name when they have one
     const animals = createMemo(() =>
@@ -60,6 +61,11 @@ const VoiceAssistant: Component = () => {
         })),
     );
     const animalLabel = (id: number | null) => animals().find((a) => a.id === id)?.label || '';
+    const farmOptions = createMemo<Option[]>(() =>
+        ((FarmService.allstate() || []) as any[]).map((f) => ({ id: f.id as number, label: `${f.name || 'Farm'} #${f.id}` })),
+    );
+    const [crops, setCrops] = createSignal<Option[]>([]);
+    const loadCrops = async () => setCrops(await AssistantService.cropOptions());
 
     // Typed text filters the menu index before anything is sent
     const menuMatches = createMemo(() => {
@@ -74,6 +80,7 @@ const VoiceAssistant: Component = () => {
         setOpen(true);
         LivestockService.all();
         FarmService.all();
+        loadCrops();
     };
 
     const closePanel = () => {
@@ -139,6 +146,8 @@ const VoiceAssistant: Component = () => {
                 lang: lang(),
                 menu: MENU.map((m) => ({ id: m.id, label: `${menuLabel(m.id)} / ${en[`svc.${m.id}` as TKey]}` })),
                 animals: animals(),
+                farms: farmOptions(),
+                crops: crops(),
                 history,
                 focus_animal_id: focusAnimalId(),
             });
@@ -218,6 +227,17 @@ const VoiceAssistant: Component = () => {
                             </div>
                             <div class="flex items-center gap-1 shrink-0">
                                 <LanguageSwitcher />
+                                <button
+                                    onClick={() => {
+                                        closePanel();
+                                        navigate('/assistant');
+                                    }}
+                                    class="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded"
+                                    title={t('svc.assistant')}
+                                    aria-label={t('svc.assistant')}
+                                >
+                                    ⤢
+                                </button>
                                 <Show when={messages().length > 0}>
                                     <button onClick={newChat} class="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded" title={t('ai.newChat')}>
                                         ↺
@@ -369,10 +389,13 @@ const VoiceAssistant: Component = () => {
                                                     <ProposalCard
                                                         proposal={msg.result!.proposal!}
                                                         animals={animals()}
+                                                        crops={crops()}
                                                         onSaved={() => {
                                                             markProposalDone(i());
                                                             LivestockService.all();
-                                                            setMessages([...messages(), { role: 'assistant', text: `✓ ${t('ai.saved')}` }]);
+                                                            FarmService.all();
+                                                            loadCrops();
+                                                            setMessages([...messages(), { role: 'assistant', text: `✓ ${t('ai.saved')}: ${proposalTitle(msg.result!.proposal!.entity)}` }]);
                                                             showToast('success', t('ai.saved'));
                                                             scrollDown();
                                                         }}

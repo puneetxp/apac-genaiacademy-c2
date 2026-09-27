@@ -12,6 +12,7 @@ import './assets/styles/index.css';
 const SignUpPage = lazy(() => import('./pages/auth/SignUp'));
 const SignInPage = lazy(() => import('./pages/auth/SignIn'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AssistantChat = lazy(() => import('./pages/Assistant'));
 const FarmRegisterPage = lazy(() => import('./pages/farm/Register'));
 const FarmDashboardPage = lazy(() => import('./pages/farm/FarmDashboard'));
 const StrategyRequestPage = lazy(() => import('./pages/strategy/Request'));
@@ -54,6 +55,7 @@ const NotificationsPage = lazy(() => import('./pages/notifications/Notifications
 
 // Wrapper components for protected routes
 const DashboardPage: Component = () => <ProtectedRoute><Dashboard /></ProtectedRoute>;
+const AssistantPage: Component = () => <ProtectedRoute><AssistantChat /></ProtectedRoute>;
 const FarmRegisterPageWrapped: Component = () => <ProtectedRoute><FarmRegisterPage /></ProtectedRoute>;
 const FarmDashboardPageWrapped: Component = () => <ProtectedRoute><FarmDashboardPage /></ProtectedRoute>;
 const StrategyRequestPageWrapped: Component = () => <ProtectedRoute><StrategyRequestPage /></ProtectedRoute>;
@@ -121,6 +123,7 @@ render(
       <Route path="/auth/signup" component={SignUpPage} />
       <Route path="/auth/signin" component={SignInPage} />
       <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/assistant" component={AssistantPage} />
       <Route path="/farm" component={FarmPageWrapped} />
       <Route path="/farm/register" component={FarmRegisterPageWrapped} />
       <Route path="/farm/:id" component={FarmDashboardPageWrapped} />

@@ -28,6 +28,7 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
         id: 'livestock',
         items: [
             { id: 'livestockHome', emoji: '🐄', path: '/livestock' },
+            { id: 'assistant', emoji: '✦', path: '/assistant' },
             { id: 'services', emoji: '🧰', path: '/services' },
             { id: 'vets', emoji: '🩺', path: '/livestock/doctors' },
             { id: 'buy', emoji: '🐃', path: '/livestock-marketplace' },

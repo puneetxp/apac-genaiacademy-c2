@@ -133,3 +133,86 @@ def test_form_prompt_includes_draft():
     p = build_prompt(MENU, "hi", "2026-09-27", "80 hazaar ki li", task="add_livestock", draft={"species": "buffalo"})
     assert '"species": "buffalo"' in p
     assert "REQUIRED: species, breed" in p
+
+
+def test_table_is_trimmed_and_padded():
+    from app.services.voice_assist_service import MAX_TABLE_ROWS
+
+    r = sanitize_result(
+        {
+            "intent": "answer",
+            "reply": "Here are your animals",
+            "table": {"title": "Herd", "columns": ["Species", "Count"], "rows": [["cow", 3], ["goat"]] + [["x", 1]] * 40},
+        },
+        MENU_IDS,
+        "en",
+    )
+    assert r["table"]["columns"] == ["Species", "Count"]
+    assert r["table"]["rows"][0] == ["cow", "3"]
+    assert r["table"]["rows"][1] == ["goat", ""]
+    assert len(r["table"]["rows"]) == MAX_TABLE_ROWS
+
+
+def test_bad_table_is_dropped():
+    assert sanitize_result({"intent": "answer", "table": "oops"}, MENU_IDS, "en")["table"] is None
+    assert sanitize_result({"intent": "answer", "table": {"columns": [], "rows": [[1]]}}, MENU_IDS, "en")["table"] is None
+    assert keyword_fallback("vets", MENU, "en")["table"] is None
+
+
+def test_prompt_includes_farmer_data_only_when_sent():
+    from app.services.voice_assist_service import build_prompt
+
+    with_data = build_prompt(MENU, "en", "2026-09-27", "how many cows?", context="Livestock: cattle x3")
+    assert "cattle x3" in with_data and "THE FARMER'S DATA" in with_data
+    assert "THE FARMER'S DATA" not in build_prompt(MENU, "en", "2026-09-27", "hi")
+
+
+def test_crop_proposal_keeps_only_owned_farm():
+    r = sanitize_result(
+        {"intent": "create", "proposal": {"entity": "crop", "fields": {"farm_id": 99, "crop_name": "Wheat", "season": "Rabi", "hack": 1}}},
+        MENU_IDS,
+        "hi",
+        farm_ids=[11, 12],
+    )
+    assert r["proposal"]["entity"] == "crop"
+    assert r["proposal"]["fields"] == {"crop_name": "Wheat", "season": "Rabi"}
+    assert set(r["missing"]) == {"farm_id", "area", "planting_date"}
+
+    ok = sanitize_result(
+        {"intent": "create", "proposal": {"entity": "crop", "fields": {"farm_id": "12", "crop_name": "Wheat"}}},
+        MENU_IDS,
+        "hi",
+        farm_ids=[11, 12],
+    )
+    assert ok["proposal"]["fields"]["farm_id"] == 12
+
+
+def test_expense_and_listing_need_owned_crop():
+    exp = sanitize_result(
+        {"intent": "create", "proposal": {"entity": "crop_expense", "fields": {"crop_id": 5, "category": "Labor", "amount": 2000, "expense_date": "2026-09-27"}}},
+        MENU_IDS,
+        "en",
+        crop_ids=[5],
+    )
+    assert exp["proposal"]["fields"]["crop_id"] == 5 and exp["missing"] == []
+
+    lst = sanitize_result(
+        {"intent": "create", "proposal": {"entity": "marketplace_listing", "fields": {"crop_id": 7, "quality_grade": "A"}}},
+        MENU_IDS,
+        "en",
+        crop_ids=[5],
+    )
+    assert "crop_id" not in lst["proposal"]["fields"] and lst["missing"] == ["crop_id"]
+
+
+def test_farm_proposal_and_prompt_lists():
+    from app.services.voice_assist_service import build_prompt
+
+    r = sanitize_result(
+        {"intent": "create", "proposal": {"entity": "farm", "fields": {"name": "River farm", "total_area_acres": 5, "owner_id": 1}}},
+        MENU_IDS,
+        "en",
+    )
+    assert r["proposal"]["fields"] == {"name": "River farm", "total_area_acres": 5}
+    prompt = build_prompt(MENU, "en", "2026-09-27", "I sowed wheat", farms=[{"id": 11, "label": "Green Valley"}], crops=[])
+    assert "id=11: Green Valley" in prompt and "marketplace_listing" in prompt
