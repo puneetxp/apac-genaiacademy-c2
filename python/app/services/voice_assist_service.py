@@ -45,7 +45,7 @@ CREATABLE: Dict[str, Dict[str, Any]] = {
             "quantity": "integer, default 1",
             "purchase_price": "number in INR",
             "purchase_date": "YYYY-MM-DD",
-            "purpose": "one of: dairy, meat, breeding, eggs",
+            "purpose": "one of: dairy, meat, breeding, eggs, draught, mixed",
             "village": "text",
             "district": "text",
             "state": "text",
@@ -133,6 +133,44 @@ OWNED_IDS = {"livestock_id": "animals", "farm_id": "farms", "crop_id": "crops"}
 
 # Guided form-filling tasks: the model always returns a proposal for this entity
 TASKS = {"add_livestock": "livestock"}
+
+# Order the guided form asks in. Purpose comes first because it decides which
+# species and breeds make sense (eggs -> poultry, milk -> cattle/buffalo/goat).
+STEPS: Dict[str, List[str]] = {
+    "livestock": ["purpose", "species", "breed", "quantity", "purchase_date", "purchase_price"],
+}
+
+LIVESTOCK_PURPOSES = ["dairy", "meat", "breeding", "eggs", "draught", "mixed"]
+SPECIES_FOR_PURPOSE: Dict[str, List[str]] = {
+    "dairy": ["cattle", "buffalo", "goat"],
+    "meat": ["goat", "sheep", "poultry", "buffalo"],
+    "eggs": ["poultry"],
+    "draught": ["cattle", "buffalo"],
+    "breeding": ["cattle", "buffalo", "goat", "sheep", "poultry"],
+    "mixed": ["cattle", "buffalo", "goat", "sheep", "poultry"],
+}
+MAX_STEP_OPTIONS = 6
+
+
+def next_step(entity: str, fields: Dict[str, Any]) -> Optional[str]:
+    """The next field the guided form should ask about, or None when done."""
+    return next((f for f in STEPS.get(entity, []) if fields.get(f) in (None, "")), None)
+
+
+def step_options(entity: str, step: Optional[str], fields: Dict[str, Any], suggested: Any = None) -> List[str]:
+    """Quick-reply choices for the step: fixed lists, or the model's breed suggestions."""
+    if entity != "livestock" or not step:
+        return []
+    if step == "purpose":
+        return LIVESTOCK_PURPOSES
+    if step == "species":
+        return SPECIES_FOR_PURPOSE.get(str(fields.get("purpose") or ""), SPECIES_FOR_PURPOSE["mixed"])
+    if step == "quantity":
+        return ["1", "2", "5", "10"]
+    if step == "breed" and isinstance(suggested, list):
+        names = [str(x).strip()[:40] for x in suggested if isinstance(x, (str, int)) and str(x).strip()]
+        return list(dict.fromkeys(names))[:MAX_STEP_OPTIONS]
+    return []
 
 
 def build_prompt(
@@ -241,6 +279,8 @@ def _build_form_prompt(
     """Prompt for guided form filling: update the draft from the chat, ask for what's missing."""
     spec = CREATABLE[entity]
     required = REQUIRED[entity]
+    order = STEPS.get(entity, required)
+    ask_next = next_step(entity, draft) or "(nothing — all required fields are filled)"
     history_lines = "\n".join(f'{h["role"]}: {h["text"]}' for h in (history or [])[-10:]) or "(start of chat)"
     user_input = f'The user typed: "{text}"' if text else "The user sent the attached voice recording."
     return f"""You are helping an Indian farmer fill the form: {spec["description"]}. {user_input}
@@ -259,7 +299,13 @@ CHAT SO FAR:
 Rules:
 - Extract every field value the user mentions now; convert words to values ("80 hazaar" -> 80000, "do" -> 2, "pichhle hafte" -> a YYYY-MM-DD date from today, "doodh ke liye" -> dairy, "bhains" -> buffalo, "gaay" -> cattle).
 - Never invent values that were not said.
-- In "reply", in the user's language, briefly confirm what you understood, then ask for ONE missing required field in simple words. If nothing required is missing, say the form is ready to check and approve (optionally ask for the animal's name).
+- Think in this order before replying: {" -> ".join(order)}.
+  1. PURPOSE first: why do they keep the animal (milk = dairy, selling for meat, breeding/calves, eggs, ploughing/cart = draught, or mixed)? It decides everything after it.
+  2. SPECIES that fits the purpose (eggs means poultry; milk means cattle, buffalo or goat). If the purpose already implies the species, fill it without asking.
+  3. BREED suited to that species, purpose and the farmer's region; offer 3-5 common Indian breeds in "breed_options" (e.g. dairy buffalo: Murrah, Mehsana, Jaffarabadi; dairy cow: Gir, Sahiwal, HF cross, Jersey cross; goat: Jamunapari, Sirohi, Barbari, Black Bengal; poultry: Kadaknath, Aseel, broiler, layer).
+  4. Then how many, when they got them, and the price (an animal born on the farm or received as a gift costs 0).
+- Fill every field the user mentions now, in any order, even ahead of the step; never ask again for something already in the draft.
+- The next field to ask about is: {ask_next}. In "reply", in the user's language, briefly confirm what you understood, then ask ONLY about the next field that is still empty, in simple words. If nothing required is missing, say the form is ready to check and approve (optionally ask for the animal's name).
 - Always return intent "create" with a proposal for entity "{entity}" containing ONLY the fields you extracted or corrected this turn.
 
 Return ONLY JSON:
@@ -272,6 +318,7 @@ Return ONLY JSON:
   "matches": [],
   "animal_options": [],
   "vet_help": false,
+  "breed_options": ["3-5 breed names suited to the purpose and species, only while breed is empty"],
   "proposal": {{"entity": "{entity}", "fields": {{}}, "summary": "one line in the user's language describing the animal so far"}}
 }}"""
 
@@ -317,6 +364,13 @@ def sanitize_result(
         p = raw.get("proposal") if isinstance(raw.get("proposal"), dict) else {}
         merged = {k: v for k, v in (draft or {}).items() if k in allowed and v not in (None, "")}
         merged.update({k: v for k, v in (p.get("fields") or {}).items() if k in allowed and v not in (None, "")})
+        if entity == "livestock":
+            if merged.get("purpose") not in LIVESTOCK_PURPOSES:
+                merged.pop("purpose", None)
+            # A purpose with only one possible species (eggs) fills the species too
+            fits = SPECIES_FOR_PURPOSE.get(str(merged.get("purpose") or ""), [])
+            if "species" not in merged and len(fits) == 1:
+                merged["species"] = fits[0]
         raw = {**raw, "intent": "create", "proposal": {"entity": entity, "fields": merged, "summary": p.get("summary", "")}}
     intent = raw.get("intent") if raw.get("intent") in INTENTS else "clarify"
 
@@ -382,6 +436,22 @@ def sanitize_result(
         "vet_help": bool(raw.get("vet_help")) or any(m["id"] == "vets" for m in matches),
         # Required fields still empty (the client highlights these in the preview)
         "missing": [f for f in REQUIRED.get(proposal["entity"], []) if f not in proposal["fields"]] if proposal else [],
+        **_guided_step(task, proposal, raw.get("breed_options")),
+    }
+
+
+def _guided_step(task: Optional[str], proposal: Optional[Dict[str, Any]], suggested: Any) -> Dict[str, Any]:
+    """For a guided form: which step comes next, its quick replies and progress."""
+    if task not in TASKS or not proposal:
+        return {}
+    entity, fields = proposal["entity"], proposal["fields"]
+    steps = STEPS.get(entity, [])
+    step = next_step(entity, fields)
+    return {
+        "step": step,
+        "step_options": step_options(entity, step, fields, suggested),
+        "steps": steps,
+        "steps_done": sum(1 for f in steps if fields.get(f) not in (None, "")),
     }
 
 

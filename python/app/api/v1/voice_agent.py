@@ -194,6 +194,9 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
+import time
+
+from app.services.voice_assist_audit import record_attempt
 from app.services.voice_assist_service import (
     build_prompt,
     keyword_fallback,
@@ -221,6 +224,8 @@ class AssistRequest(BaseModel):
     # Either a recording (base64) or typed text
     audio_base64: Optional[str] = None
     mime_type: Optional[str] = "audio/webm"
+    # Recording length as measured by the browser (for the voice log)
+    duration_ms: Optional[int] = Field(None, ge=0, le=600000)
     text: Optional[str] = Field(None, max_length=1000)
     lang: str = "en"
     menu: List[MenuEntry] = Field(default_factory=list, max_length=200)
@@ -264,6 +269,18 @@ async def voice_assist(request: AssistRequest, current_user=Depends(get_current_
             raise HTTPException(status_code=413, detail="Recording too long. Maximum 10MB.")
         if len(audio_bytes) < 500:
             raise HTTPException(status_code=400, detail="Recording is too short.")
+
+    started = time.monotonic()
+    # What goes in the voice log for this call (filled in as we go)
+    audit: Dict[str, Any] = {
+        "source": "voice" if audio_bytes else "text",
+        "task": request.task,
+        "ui_lang": request.lang,
+        "mime_type": mime if audio_bytes else None,
+        "audio_bytes": len(audio_bytes) or None,
+        "duration_ms": request.duration_ms,
+    }
+    model_errors: List[str] = []
 
     animals = [a.model_dump() for a in request.animals]
     prompt = build_prompt(
@@ -312,8 +329,9 @@ async def voice_assist(request: AssistRequest, current_user=Depends(get_current_
                 break
             except Exception as model_error:
                 logger.warning(f"Assist model {model_used} failed: {model_error}")
+                model_errors.append(f"{model_used}: {model_error}")
         if response is None:
-            raise RuntimeError("No assistant model available")
+            raise RuntimeError("No assistant model available — " + " | ".join(model_errors))
         result = sanitize_result(
             parse_model_json(response.text),
             menu_ids,
@@ -325,6 +343,17 @@ async def voice_assist(request: AssistRequest, current_user=Depends(get_current_
             crop_ids=[c.id for c in request.crops],
         )
         result["model_used"] = model_used
+        record_attempt(
+            current_user.id,
+            **audit,
+            language_detected=result["language"],
+            transcript=result["transcript"] or request.text,
+            intent=result["intent"],
+            model_used=model_used,
+            # A model before this one failed: keep why, even though the call succeeded
+            error=" | ".join(model_errors) or None,
+            latency_ms=int((time.monotonic() - started) * 1000),
+        )
         _log_voice_event(
             {"language_detected": result["language"], "topic": result["intent"], "model_used": model_used}
         )
@@ -332,6 +361,14 @@ async def voice_assist(request: AssistRequest, current_user=Depends(get_current_
 
     except Exception as e:
         logger.error(f"Voice assist failed: {e}")
+        record_attempt(
+            current_user.id,
+            **audit,
+            transcript=request.text,
+            status="error" if audio_bytes and not request.text else "fallback",
+            error=str(e),
+            latency_ms=int((time.monotonic() - started) * 1000),
+        )
         if audio_bytes and not request.text:
             # Can't understand audio without the model — ask the client to fall back to typing/search
             raise HTTPException(

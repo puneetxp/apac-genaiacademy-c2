@@ -21,7 +21,9 @@ import { ErrorDisplay } from "../components/ui/ErrorDisplay";
 import { SkeletonDashboard } from "../components/ui/SkeletonScreen";
 import { showToast } from "../components/ui/Toast";
 import ServicesMenu from "../components/ui/ServicesMenu";
-import AddLivestockCard from "../components/assistant/AddLivestockCard";
+import AskAnythingCard from "../components/assistant/AskAnythingCard";
+import FarmJourney from "../components/dashboard/FarmJourney";
+import SatelliteHealthCard from "../components/farm/SatelliteHealthCard";
 import { showSection } from "../stores/app-config.store";
 
 // Lazy load heavy dashboard components for better performance
@@ -155,10 +157,20 @@ const Dashboard: Component = () => {
 
       {/* Main Content */}
       <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 sm:pb-8">
-        {/* Add livestock by talking to the AI (or by hand) — works before onboarding too */}
+        {/* The whole season at a glance: land → soil → plan → sow → protect → harvest → sell, plus livestock */}
+        <Show when={showSection("journey") && !profileStatus.loading && profileStatus()}>
+          <div class="mb-6">
+            <FarmJourney
+              farms={profileStatus()?.farms || []}
+              hasStrategies={!!profileStatus()?.has_strategies}
+              data={profileStatus()?.dashboard_data}
+            />
+          </div>
+        </Show>
+        {/* Ask or add anything (farm, crop, expense, sale, animal) by voice or text — works before onboarding too */}
         <Show when={showSection("assistant") && !profileStatus.loading && !profileStatus()?.is_onboarding_complete}>
           <div class="mb-8">
-            <AddLivestockCard />
+            <AskAnythingCard />
           </div>
         </Show>
         {/* Every service in one place; outside the loading/empty states so navigation always works. */}
@@ -272,6 +284,11 @@ const Dashboard: Component = () => {
                       </Suspense>
                     </Show>
 
+                    {/* Crop health from space (Sentinel-2) for the farmer's farms */}
+                    <Show when={showSection("satellite")}>
+                      <SatelliteHealthCard />
+                    </Show>
+
                     {/* Farm & livestock board: charts, tables and AI projections */}
                     <Show when={showSection("board")}>
                       <Suspense
@@ -287,7 +304,7 @@ const Dashboard: Component = () => {
                     </Show>
 
                     <Show when={showSection("assistant")}>
-                      <AddLivestockCard />
+                      <AskAnythingCard />
                     </Show>
 
                     {/* Quick Actions */}

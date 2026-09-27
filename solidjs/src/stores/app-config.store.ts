@@ -8,6 +8,8 @@
 import { createRoot, createSignal } from 'solid-js';
 
 export type DashboardSection =
+    | 'journey'
+    | 'satellite'
     | 'assistant'
     | 'services'
     | 'board'
@@ -29,7 +31,9 @@ export interface AppConfig {
 }
 
 export const DASHBOARD_SECTIONS: { id: DashboardSection; emoji: string; label: string; hint: string }[] = [
-    { id: 'assistant', emoji: '🎙️', label: 'Add livestock by voice', hint: 'AI assistant card at the top' },
+    { id: 'journey', emoji: '🧭', label: 'Farm journey', hint: 'Land → soil → plan → sow → protect → harvest → sell, plus livestock' },
+    { id: 'satellite', emoji: '🛰️', label: 'Crop health from space', hint: 'Sentinel-2 green cover, water and trend per farm' },
+    { id: 'assistant', emoji: '🎙️', label: 'Ask or add anything', hint: 'Voice/text AI box: farms, crops, expenses, sales, animals' },
     { id: 'services', emoji: '☰', label: 'All services grid', hint: 'Full services menu on the dashboard (off by default)' },
     { id: 'board', emoji: '📊', label: 'Farm & livestock board', hint: 'Charts, tables and AI projections' },
     { id: 'stats', emoji: '📈', label: 'Quick stats', hint: 'Older totals row (the board has these tiles)' },

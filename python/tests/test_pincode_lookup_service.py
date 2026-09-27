@@ -1,7 +1,7 @@
 """
 Tests for Pincode Lookup Service
 
-Tests the integration with external pincode API (https://pincode.deno.dev)
+Tests the integration with India Post pincode API (https://api.postalpincode.in)
 including caching, error handling, and validation.
 """
 
@@ -331,3 +331,31 @@ class TestPincodeLookupService:
         assert len(result["villages"]) == 2
         assert "Place A" in result["villages"]
         assert "Place B" in result["villages"]
+
+
+def test_parse_india_post_response():
+    """India Post shape (api.postalpincode.in) maps to state/district/villages"""
+    service = PincodeLookupService(redis_client=None)
+    data = [
+        {
+            "Message": "Number of pincode(s) found:2",
+            "Status": "Success",
+            "PostOffice": [
+                {"Name": "Durgapuri", "District": "Ludhiana", "State": "Punjab", "Pincode": "141001"},
+                {"Name": "Ludhiana", "District": "Ludhiana", "State": "Punjab", "Pincode": "141001"},
+            ],
+        }
+    ]
+    assert service._parse_api_response(data) == {
+        "pincode": "141001",
+        "state": "Punjab",
+        "district": "Ludhiana",
+        "villages": ["Durgapuri", "Ludhiana"],
+    }
+
+
+def test_parse_india_post_no_records():
+    """India Post answers 200 with Status=Error for unknown pincodes"""
+    service = PincodeLookupService(redis_client=None)
+    data = [{"Message": "No records found", "Status": "Error", "PostOffice": None}]
+    assert service._parse_api_response(data) is None

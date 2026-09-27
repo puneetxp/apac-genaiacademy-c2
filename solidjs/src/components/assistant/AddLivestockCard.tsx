@@ -1,7 +1,9 @@
 /**
  * Add Livestock card (Dashboard + Livestock home)
  * The farmer types or speaks about the animal; the AI fills the livestock
- * form over the conversation, asking for whatever is still missing. The form
+ * form over the conversation, one step at a time: purpose first (it decides
+ * the species and breeds that make sense), then species, breed, how many,
+ * when and the price. Each step offers tap-to-answer choices. The form
  * preview stays visible and editable; nothing is saved until Approve.
  * "Fill form myself" opens the same preview empty.
  */
@@ -13,9 +15,10 @@ import { AssistantService, type AssistProposal } from '../../services/assistant.
 import { FarmService, LivestockService } from '../../shared/Service/Services';
 import { showToast } from '../ui/Toast';
 import ProposalCard from './ProposalCard';
-import { useRecorder } from './useRecorder';
+import { useRecorder, type VoiceClip } from './useRecorder';
+import ClipPlayer from './ClipPlayer';
 
-type Msg = { role: 'user' | 'assistant'; text: string };
+type Msg = { role: 'user' | 'assistant'; text: string; audioUrl?: string; audioMs?: number };
 
 // Browser voice for read-aloud: Indian variant of the language code (en-IN, hi-IN, gu-IN, ...)
 const speechLang = (code: string) => `${code}-IN`;
@@ -29,6 +32,10 @@ const AddLivestockCard: Component<{ id?: string }> = (props) => {
     const [proposal, setProposal] = createSignal<AssistProposal | null>(null);
     const [draft, setDraft] = createSignal<Record<string, any>>({});
     const [missing, setMissing] = createSignal<string[]>([]);
+    // Guided steps from the server: what is asked next, quick replies, progress
+    const [step, setStep] = createSignal<string | null>(null);
+    const [stepOptions, setStepOptions] = createSignal<string[]>([]);
+    const [progress, setProgress] = createSignal<{ done: number; total: number } | null>(null);
 
     const expand = () => {
         if (!expanded()) {
@@ -43,6 +50,9 @@ const AddLivestockCard: Component<{ id?: string }> = (props) => {
         setProposal(null);
         setDraft({});
         setMissing([]);
+        setStep(null);
+        setStepOptions([]);
+        setProgress(null);
         setInput('');
         setExpanded(false);
     };
@@ -60,20 +70,18 @@ const AddLivestockCard: Component<{ id?: string }> = (props) => {
         window.speechSynthesis.speak(u);
     };
 
-    const send = async (payload: { text?: string; audio?: Blob }) => {
+    const send = async (payload: { text?: string; clip?: VoiceClip }) => {
         const text = payload.text?.trim();
-        if (!text && !payload.audio) return;
+        if (!text && !payload.clip) return;
         expand();
-        const history = messages().slice(-10);
-        setMessages([...history, { role: 'user', text: text || '🎤 …' }]);
+        const history = messages().slice(-10).map(({ role, text }) => ({ role, text }));
+        setMessages([...messages().slice(-10), { role: 'user', text: text || '🎤 …', audioUrl: payload.clip?.url, audioMs: payload.clip?.durationMs }]);
         setInput('');
         setBusy(true);
         try {
             const result = await AssistantService.assist({
                 text,
-                ...(payload.audio
-                    ? { audio_base64: await AssistantService.blobToBase64(payload.audio), mime_type: payload.audio.type || 'audio/webm' }
-                    : {}),
+                ...(payload.clip ? await AssistantService.audioFields(payload.clip) : {}),
                 lang: lang(),
                 menu: [],
                 animals: [],
@@ -81,27 +89,50 @@ const AddLivestockCard: Component<{ id?: string }> = (props) => {
                 task: 'add_livestock',
                 draft: draft(),
             });
-            if (payload.audio && result.transcript) {
+            if (payload.clip && result.transcript) {
                 const list = [...messages()];
-                list[list.length - 1] = { role: 'user', text: result.transcript };
+                list[list.length - 1] = { ...list[list.length - 1], text: result.transcript };
                 setMessages(list);
             }
-            if (result.reply) setMessages([...messages(), { role: 'assistant', text: result.reply }]);
+            if (result.reply) {
+                setMessages([...messages(), { role: 'assistant', text: result.reply }]);
+                // Asked by voice: answer by voice
+                if (payload.clip) speak(result.reply);
+            }
             if (result.proposal) {
                 setProposal(result.proposal);
                 setDraft({ ...draft(), ...result.proposal.fields });
             }
             setMissing(result.missing || []);
+            setStep(result.step ?? null);
+            setStepOptions(result.step_options || []);
+            if (result.steps?.length) setProgress({ done: result.steps_done || 0, total: result.steps.length });
         } catch (err: any) {
             const unavailable = err?.status === 503 || /unavailable/i.test(err?.message || '');
-            setMessages([...messages(), { role: 'assistant', text: unavailable ? t('ai.unavailable') : t('ai.error') }]);
+            const reason = AssistantService.errorReason(err);
+            const base = unavailable ? t('ai.unavailable') : t('ai.error');
+            setMessages([...messages(), { role: 'assistant', text: reason && reason !== base ? `${base} (${reason})` : base }]);
             if (!proposal()) setProposal(emptyProposal()); // let them finish by hand
         } finally {
             setBusy(false);
         }
     };
 
-    const recorder = useRecorder((audio) => send({ audio }));
+    const recorder = useRecorder((clip) => send({ clip }));
+
+    // Purpose is asked first, before any server reply, so its choices show from the start
+    const currentStep = () => step() ?? (messages().length === 0 ? 'purpose' : null);
+    const currentOptions = () =>
+        stepOptions().length ? stepOptions() : currentStep() === 'purpose' ? ['dairy', 'meat', 'breeding', 'eggs', 'draught', 'mixed'] : [];
+    const optionText = (opt: string) =>
+        currentStep() === 'purpose' || currentStep() === 'species' ? t(`${currentStep()}.${opt}` as TKey) : opt;
+    // A tap fills the field straight away and tells the AI, which moves to the next step
+    const pickOption = (opt: string) => {
+        const field = currentStep();
+        if (!field || busy()) return;
+        setDraft({ ...draft(), [field]: field === 'quantity' ? Number(opt) : opt });
+        send({ text: optionText(opt) });
+    };
 
     return (
         <section id={props.id} class="bg-white rounded-lg shadow-md p-4 sm:p-6 border border-green-100">
@@ -168,6 +199,16 @@ const AddLivestockCard: Component<{ id?: string }> = (props) => {
                 <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* Conversation */}
                     <div class="bg-gray-50 rounded-lg p-3 space-y-2 max-h-96 overflow-y-auto">
+                        <Show when={progress()}>
+                            {(p) => (
+                                <div class="flex items-center gap-2 text-xs text-gray-500">
+                                    <span>{t('addLs.step', { n: String(Math.min(p().done + 1, p().total)), total: String(p().total) })}</span>
+                                    <div class="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                        <div class="h-full bg-green-600 transition-all" style={{ width: `${(p().done / p().total) * 100}%` }} />
+                                    </div>
+                                </div>
+                            )}
+                        </Show>
                         <div class="bg-white rounded-lg px-3 py-2 text-sm text-gray-800 shadow-sm">{t('addLs.greeting')}</div>
                         <For each={messages()}>
                             {(m) => (
@@ -175,7 +216,12 @@ const AddLivestockCard: Component<{ id?: string }> = (props) => {
                                     when={m.role === 'assistant'}
                                     fallback={
                                         <div class="flex justify-end">
-                                            <div class="max-w-[85%] bg-green-600 text-white rounded-lg rounded-br-none px-3 py-2 text-sm">{m.text}</div>
+                                            <div class="max-w-[85%] bg-green-600 text-white rounded-lg rounded-br-none px-3 py-2 text-sm">
+                                                {m.text}
+                                                <Show when={m.audioUrl}>
+                                                    <ClipPlayer url={m.audioUrl!} durationMs={m.audioMs} />
+                                                </Show>
+                                            </div>
                                         </div>
                                     }
                                 >
@@ -190,6 +236,22 @@ const AddLivestockCard: Component<{ id?: string }> = (props) => {
                         </For>
                         <Show when={busy()}>
                             <p class="text-sm text-gray-500 animate-pulse">{t('ai.thinking')}</p>
+                        </Show>
+                        {/* Tap-to-answer choices for the current step */}
+                        <Show when={!busy() && currentOptions().length > 0}>
+                            <div class="flex flex-wrap gap-2 pt-1">
+                                <For each={currentOptions()}>
+                                    {(opt) => (
+                                        <button
+                                            type="button"
+                                            onClick={() => pickOption(opt)}
+                                            class="px-3 py-1.5 rounded-full border border-green-600 text-green-800 bg-white hover:bg-green-50 text-sm"
+                                        >
+                                            {optionText(opt)}
+                                        </button>
+                                    )}
+                                </For>
+                            </div>
                         </Show>
                         <Show when={proposal() && messages().length > 0 && !busy()}>
                             <p class={`text-xs font-medium ${missing().length ? 'text-amber-700' : 'text-green-700'}`}>

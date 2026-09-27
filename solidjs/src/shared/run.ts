@@ -9,6 +9,7 @@ import { Annual_strategyService } from './Service/Services';
 import { Breeding_recordService } from './Service/Services';
 import { Buyer_interestService } from './Service/Services';
 import { CropService } from './Service/Services';
+import { Crop_diagnosisService } from './Service/Services';
 import { Crop_expenseService } from './Service/Services';
 import { Crop_market_dataService } from './Service/Services';
 import { Crop_milestoneService } from './Service/Services';
@@ -37,6 +38,7 @@ import { Price_predictionService } from './Service/Services';
 import { Push_subscriptionService } from './Service/Services';
 import { Quality_verificationService } from './Service/Services';
 import { RoleService } from './Service/Services';
+import { Satellite_observationService } from './Service/Services';
 import { Seasonal_trendService } from './Service/Services';
 import { ServiceService } from './Service/Services';
 import { Shc_state_district_codeService } from './Service/Services';
@@ -55,9 +57,10 @@ import { Transport_providerService } from './Service/Services';
 import { UserService } from './Service/Services';
 import { User_notificationService } from './Service/Services';
 import { VeterinarianService } from './Service/Services';
+import { Voice_assist_logService } from './Service/Services';
 import { Weather_alertService } from './Service/Services';
 import { Weather_forecastService } from './Service/Services';
-export const tables: string[] = ["active_role","advance_booking","ai_usage_quota","annual_strategy","breeding_record","buyer_interest","crop","crop_expense","crop_market_data","crop_milestone","crop_profitability","farm","farm_plot","fertilizer_application","historical_yield","livestock","livestock_health_record","livestock_listing","livestock_marketplace_listing","livestock_roi_prediction","livestock_transaction","market_price","marketplace_listing","msp_rate","ndap_downloaded_file","ndap_ingestion_run","offspring","opportunity_cost","payment_milestone","pest_disease_alert","pest_disease_data","price_prediction","push_subscription","quality_verification","role","seasonal_trend","service","shc_state_district_code","slusi_ingestion_run","slusi_lcc_report","slusi_microwatershed_map","soil_amendment","soil_moisture_data","soil_test","soil_test_result","supply_match","supply_request","system_setting","transport_booking","transport_provider","user","user_notification","veterinarian","weather_alert","weather_forecast"];
+export const tables: string[] = ["active_role","advance_booking","ai_usage_quota","annual_strategy","breeding_record","buyer_interest","crop","crop_diagnosis","crop_expense","crop_market_data","crop_milestone","crop_profitability","farm","farm_plot","fertilizer_application","historical_yield","livestock","livestock_health_record","livestock_listing","livestock_marketplace_listing","livestock_roi_prediction","livestock_transaction","market_price","marketplace_listing","msp_rate","ndap_downloaded_file","ndap_ingestion_run","offspring","opportunity_cost","payment_milestone","pest_disease_alert","pest_disease_data","price_prediction","push_subscription","quality_verification","role","satellite_observation","seasonal_trend","service","shc_state_district_code","slusi_ingestion_run","slusi_lcc_report","slusi_microwatershed_map","soil_amendment","soil_moisture_data","soil_test","soil_test_result","supply_match","supply_request","system_setting","transport_booking","transport_provider","user","user_notification","veterinarian","voice_assist_log","weather_alert","weather_forecast"];
 
 const [set, setSet] = createSignal<string | false>(false);
 export class run {
@@ -79,6 +82,7 @@ export class run {
       Breeding_recordService.checkinit(),
       Buyer_interestService.checkinit(),
       CropService.checkinit(),
+      Crop_diagnosisService.checkinit(),
       Crop_expenseService.checkinit(),
       Crop_market_dataService.checkinit(),
       Crop_milestoneService.checkinit(),
@@ -107,6 +111,7 @@ export class run {
       Push_subscriptionService.checkinit(),
       Quality_verificationService.checkinit(),
       RoleService.checkinit(),
+      Satellite_observationService.checkinit(),
       Seasonal_trendService.checkinit(),
       ServiceService.checkinit(),
       Shc_state_district_codeService.checkinit(),
@@ -125,6 +130,7 @@ export class run {
       UserService.checkinit(),
       User_notificationService.checkinit(),
       VeterinarianService.checkinit(),
+      Voice_assist_logService.checkinit(),
       Weather_alertService.checkinit(),
       Weather_forecastService.checkinit(),
       ])

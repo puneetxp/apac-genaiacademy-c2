@@ -59,6 +59,7 @@ from app.api.v1 import (
     vaccination_reminders,
     veterinary,
     vision_diagnosis,
+    satellite,
     voice_agent,
     weather,
     weather_recommendations,
@@ -285,6 +286,7 @@ def create_app() -> FastAPI:
     app.include_router(slusi.router, prefix=settings.API_V1_STR, tags=["SLUSI Soil Data"])
     app.include_router(agents.router, prefix=settings.API_V1_STR, tags=["Agents"])
     app.include_router(vision_diagnosis.router, prefix=settings.API_V1_STR, tags=["Vision AI"])
+    app.include_router(satellite.router, prefix=settings.API_V1_STR, tags=["Satellite"])
     app.include_router(voice_agent.router, prefix=settings.API_V1_STR, tags=["Voice AI"])
     app.include_router(
         community_dashboard.router, prefix=settings.API_V1_STR, tags=["Community Intelligence"]

@@ -46,6 +46,7 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
             { id: 'plantCrop', emoji: '🌾', path: '/crops/plant' },
             { id: 'strategy', emoji: '📋', path: '/strategy/request' },
             { id: 'soil', emoji: '🧪', path: '/soil/hub' },
+            { id: 'diagnose', emoji: '🔬', path: '/diagnose' },
             { id: 'pests', emoji: '🐛', path: '/pest-disease/hub' },
             { id: 'weather', emoji: '🌦️', path: '/climate/hub' },
             { id: 'plots', emoji: '🗺️', path: '/plots/analyze' },

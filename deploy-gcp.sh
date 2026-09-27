@@ -198,12 +198,20 @@ step "6/9  Database schema"
 TF_VAR_db_password="${TF_VAR_db_password:-$(gc secrets versions access latest --secret=cropsense-db-password)}"
 PSQL=$(command -v psql || echo /opt/homebrew/opt/libpq/bin/psql)
 if [ -x "$PSQL" ] && command -v cloud-sql-proxy >/dev/null; then
-  cloud-sql-proxy --port 55432 --token "$GOOGLE_OAUTH_ACCESS_TOKEN" "$DB_CONN" >/dev/null 2>&1 &
+  # Keep the proxy's log: when psql says "server closed the connection", the reason is in here
+  PROXY_LOG="$(mktemp -t cloud-sql-proxy.XXXXXX)"
+  cloud-sql-proxy --port 55432 --token "$GOOGLE_OAUTH_ACCESS_TOKEN" "$DB_CONN" >"$PROXY_LOG" 2>&1 &
   PROXY_PID=$!
   trap 'kill $PROXY_PID 2>/dev/null || true' EXIT
-  sleep 5
   export PGPASSWORD="$TF_VAR_db_password"
   PSQL_ARGS=(-h 127.0.0.1 -p 55432 -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1)
+  show_proxy_log() { warn "cloud-sql-proxy log ($PROXY_LOG):"; tail -n 20 "$PROXY_LOG" >&2 || true; }
+  # Wait until the proxy really accepts connections (up to 30 s) instead of a fixed sleep
+  for _ in $(seq 1 30); do
+    "$PSQL" "${PSQL_ARGS[@]}" -Atc "select 1" >/dev/null 2>&1 && break
+    kill -0 $PROXY_PID 2>/dev/null || { show_proxy_log; die "cloud-sql-proxy exited"; }
+    sleep 1
+  done
   if [ "$("$PSQL" "${PSQL_ARGS[@]}" -Atc "select to_regclass('public.users') is not null")" = "t" ]; then
     echo "Schema already loaded — skipping (apply changes with a migration in database/migrations/)."
   else
@@ -212,11 +220,27 @@ if [ -x "$PSQL" ] && command -v cloud-sql-proxy >/dev/null; then
       | "$PSQL" "${PSQL_ARGS[@]}" --single-transaction -q -f -
     echo "Schema loaded."
   fi
-  # Idempotent (CREATE ... IF NOT EXISTS) — safe to run on every deploy
-  "$PSQL" "${PSQL_ARGS[@]}" --single-transaction -q -f database/migrations/create_push_subscriptions_table.sql
-  "$PSQL" "${PSQL_ARGS[@]}" -q -f database/migrations/2026-09-27-services-livestock-name.sql
-  "$PSQL" "${PSQL_ARGS[@]}" -q -f database/migrations/2026-09-27-crops-supporting-crop.sql
-  "$PSQL" "${PSQL_ARGS[@]}" -q -f database/migrations/2026-09-27-ndap-ingestion-tables.sql
+  # Idempotent (CREATE ... IF NOT EXISTS) — safe to run on every deploy.
+  # All in ONE connection (a small Cloud SQL instance shared with the live backend
+  # can drop new connections), retried because every file is safe to re-run.
+  MIGRATIONS=(
+    database/migrations/create_push_subscriptions_table.sql
+    database/migrations/2026-09-27-services-livestock-name.sql
+    database/migrations/2026-09-27-crops-supporting-crop.sql
+    database/migrations/2026-09-27-ndap-ingestion-tables.sql
+    database/migrations/2026-09-27-voice-assist-logs.sql
+    database/migrations/2026-09-27-crop-diagnoses.sql
+    database/migrations/2026-09-27-satellite-observations.sql
+  )
+  migrated=false
+  for attempt in 1 2 3; do
+    if for f in "${MIGRATIONS[@]}"; do cat "$f"; echo; done | "$PSQL" "${PSQL_ARGS[@]}" -q -f -; then migrated=true; break; fi
+    warn "Migrations failed (attempt $attempt/3) — retrying in 5 s"
+    show_proxy_log
+    sleep 5
+  done
+  $migrated || die "Migrations failed 3 times — see the proxy log above"
+  echo "Migrations applied (${#MIGRATIONS[@]} files)."
   kill $PROXY_PID 2>/dev/null || true; trap - EXIT
 else
   warn "psql/cloud-sql-proxy not found — skipping schema check. First deploy needs: brew install libpq cloud-sql-proxy"

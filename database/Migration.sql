@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS buyer_interests ("id" BIGSERIAL PRIMARY KEY, "created
 
 CREATE TABLE IF NOT EXISTS crops ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "farm_plot_id" BIGINT NOT NULL, "strategy_id" BIGINT NULL, "crop_name" VARCHAR(255) NOT NULL, "crop_variety" VARCHAR(255) NULL, "season" VARCHAR(255) NOT NULL, "planting_date" DATE NOT NULL, "expected_harvest_date" DATE NOT NULL, "area" DECIMAL(10,2) NOT NULL, "expected_yield" DECIMAL(12,2) NULL, "expected_profit" DECIMAL(12,2) NULL, "actual_yield" DECIMAL(12,2) NULL, "actual_profit" DECIMAL(12,2) NULL, "status" VARCHAR(255) DEFAULT 'planned', "parent_crop_id" BIGINT NULL, "crop_role" VARCHAR(20) DEFAULT 'main');
 
+CREATE TABLE IF NOT EXISTS crop_diagnoses ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "user_id" BIGINT NOT NULL, "crop_id" BIGINT NULL, "farm_id" BIGINT NULL, "crop_name" VARCHAR(100) NULL, "state" VARCHAR(100) NULL, "district" VARCHAR(100) NULL, "disease_name" VARCHAR(255) NULL, "scientific_name" VARCHAR(255) NULL, "category" VARCHAR(30) NULL, "severity" VARCHAR(20) NULL, "urgency" VARCHAR(20) NULL, "confidence" DECIMAL(4,3) NULL, "language" VARCHAR(10) NULL, "model_used" VARCHAR(100) NULL, "safety_flags" INTEGER NOT NULL DEFAULT 0, "result" JSONB NULL);
+
 CREATE TABLE IF NOT EXISTS crop_expenses ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "crop_id" BIGINT NOT NULL, "category" VARCHAR(255) NOT NULL, "amount" DECIMAL(12,2) NOT NULL, "description" TEXT NULL, "expense_date" DATE NOT NULL);
 
 CREATE TABLE IF NOT EXISTS crop_market_data ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "crop_name" VARCHAR(255) NOT NULL, "state" VARCHAR(255) NOT NULL, "district" VARCHAR(255) NULL, "price_per_kg" DECIMAL(10,2) NOT NULL, "date" DATE NOT NULL, "season" VARCHAR(255) NOT NULL, "yoy_growth" DECIMAL(5,2) NULL, "demand_level" VARCHAR(255) NULL);
@@ -68,6 +70,8 @@ CREATE TABLE IF NOT EXISTS quality_verifications ("id" BIGSERIAL PRIMARY KEY, "c
 
 CREATE TABLE IF NOT EXISTS roles ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "name" VARCHAR(255) NOT NULL);
 
+CREATE TABLE IF NOT EXISTS satellite_observations ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "farm_id" BIGINT NOT NULL, "scene_id" VARCHAR(120) NOT NULL, "observed_on" DATE NOT NULL, "source" VARCHAR(50) NOT NULL DEFAULT 'sentinel-2-l2a', "ndvi" DECIMAL(5,3) NULL, "ndmi" DECIMAL(5,3) NULL, "ndre" DECIMAL(5,3) NULL, "clear_pct" DECIMAL(5,1) NULL, "pixels" INTEGER NULL, "state" VARCHAR(100) NULL, "district" VARCHAR(100) NULL);
+
 CREATE TABLE IF NOT EXISTS seasonal_trends ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "crop_type" VARCHAR(100) NOT NULL, "state" VARCHAR(100) NOT NULL, "district" VARCHAR(100) NULL, "planting_season" VARCHAR(50) NOT NULL, "harvest_season" VARCHAR(50) NULL, "optimal_planting_start" DATE NULL, "optimal_planting_end" DATE NULL, "optimal_harvest_start" DATE NULL, "optimal_harvest_end" DATE NULL, "avg_growth_duration_days" INTEGER NULL, "price_trend_yoy" DECIMAL(5,2) NULL, "demand_trend_yoy" DECIMAL(5,2) NULL, "yield_trend_yoy" DECIMAL(5,2) NULL, "weather_suitability_score" DECIMAL(3,2) NULL, "pest_disease_risk" VARCHAR(20) NULL, "market_timing_score" DECIMAL(3,2) NULL, "avg_success_rate" DECIMAL(5,2) NULL, "farmer_adoption_rate" DECIMAL(5,2) NULL, "recommended_varieties" JSONB NULL, "companion_crops" JSONB NULL, "rotation_recommendations" JSONB NULL, "analysis_start_year" INTEGER NULL, "analysis_end_year" INTEGER NULL, "years_of_data" INTEGER NULL);
 
 CREATE TABLE IF NOT EXISTS services ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "category" VARCHAR(50) NOT NULL, "name" VARCHAR(255) NOT NULL, "organisation" VARCHAR(255) NULL, "description" TEXT NULL, "phone" VARCHAR(20) NOT NULL, "whatsapp" VARCHAR(20) NULL, "email" VARCHAR(255) NULL, "location_state" VARCHAR(100) NULL, "location_district" VARCHAR(100) NULL, "address" TEXT NULL, "languages" VARCHAR(100) NULL, "available_now" SMALLINT NOT NULL DEFAULT 1, "verified" SMALLINT NOT NULL DEFAULT 0, "is_active" SMALLINT NOT NULL DEFAULT 1, "added_by_user_id" BIGINT NULL, "user_id" BIGINT NULL);
@@ -104,6 +108,8 @@ CREATE TABLE IF NOT EXISTS user_notifications ("id" BIGSERIAL PRIMARY KEY, "crea
 
 CREATE TABLE IF NOT EXISTS veterinarians ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "added_by_user_id" BIGINT NULL, "name" VARCHAR(255) NOT NULL, "clinic_name" VARCHAR(255) NULL, "specialization" VARCHAR(100) NULL, "species_supported" TEXT NULL, "phone" VARCHAR(20) NOT NULL, "whatsapp" VARCHAR(20) NULL, "email" VARCHAR(255) NULL, "location_state" VARCHAR(100) NULL, "location_district" VARCHAR(100) NULL, "address" TEXT NULL, "available_now" SMALLINT NOT NULL DEFAULT 1, "verified" SMALLINT NOT NULL DEFAULT 0, "rating" DECIMAL(3,2) DEFAULT 0, "total_ratings" INTEGER DEFAULT 0, "notes" TEXT NULL);
 
+CREATE TABLE IF NOT EXISTS voice_assist_logs ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "user_id" BIGINT NOT NULL, "source" VARCHAR(20) NOT NULL DEFAULT 'text', "task" VARCHAR(50) NULL, "ui_lang" VARCHAR(10) NULL, "language_detected" VARCHAR(10) NULL, "mime_type" VARCHAR(50) NULL, "audio_bytes" INTEGER NULL, "duration_ms" INTEGER NULL, "transcript" TEXT NULL, "intent" VARCHAR(20) NULL, "model_used" VARCHAR(100) NULL, "status" VARCHAR(20) NOT NULL DEFAULT 'ok', "error" TEXT NULL, "latency_ms" INTEGER NULL);
+
 CREATE TABLE IF NOT EXISTS weather_alerts ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "farm_id" BIGINT NULL, "state" VARCHAR(255) NOT NULL, "district" VARCHAR(255) NULL, "alert_type" VARCHAR(255) NOT NULL, "severity" VARCHAR(255) NOT NULL, "message" TEXT NOT NULL, "recommendation" TEXT NULL, "valid_from" TIMESTAMP NOT NULL, "valid_until" TIMESTAMP NOT NULL, "is_active" SMALLINT DEFAULT 1);
 
 CREATE TABLE IF NOT EXISTS weather_forecasts ("id" BIGSERIAL PRIMARY KEY, "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, "enable" SMALLINT NOT NULL DEFAULT 1, "latitude" DECIMAL(10,8) NOT NULL, "longitude" DECIMAL(11,8) NOT NULL, "location_name" VARCHAR(255) NULL, "state" VARCHAR(100) NULL, "district" VARCHAR(100) NULL, "forecast_date" DATE NOT NULL, "forecast_time" TIMESTAMP NULL, "forecast_type" VARCHAR(50) NULL, "temperature_min" DECIMAL(5,2) NULL, "temperature_max" DECIMAL(5,2) NULL, "temperature_avg" DECIMAL(5,2) NULL, "feels_like" DECIMAL(5,2) NULL, "rainfall_probability" DECIMAL(5,2) NULL, "rainfall_amount" DECIMAL(8,2) NULL, "rainfall_intensity" VARCHAR(50) NULL, "wind_speed" DECIMAL(6,2) NULL, "wind_direction" VARCHAR(50) NULL, "wind_gust" DECIMAL(6,2) NULL, "humidity" DECIMAL(5,2) NULL, "pressure" DECIMAL(8,2) NULL, "dew_point" DECIMAL(5,2) NULL, "cloud_cover" DECIMAL(5,2) NULL, "visibility" DECIMAL(6,2) NULL, "uv_index" DECIMAL(4,2) NULL, "solar_radiation" DECIMAL(8,2) NULL, "weather_condition" VARCHAR(100) NULL, "weather_description" TEXT NULL, "weather_icon" VARCHAR(50) NULL, "evapotranspiration" DECIMAL(6,2) NULL, "soil_moisture_index" DECIMAL(5,2) NULL, "growing_degree_days" DECIMAL(6,2) NULL, "data_source" VARCHAR(100) NULL, "source_forecast_id" VARCHAR(255) NULL, "data_quality_score" DECIMAL(3,2) NULL, "fetched_at" TIMESTAMP NULL, "expires_at" TIMESTAMP NULL);
@@ -130,6 +136,8 @@ ALTER TABLE buyer_interests ADD CONSTRAINT buyer_interest_listing_id_foreign FOR
 
 ALTER TABLE crops ADD CONSTRAINT crop_farm_plot_id_foreign FOREIGN KEY ("farm_plot_id") REFERENCES farm_plots ("id");
 ALTER TABLE crops ADD CONSTRAINT crop_strategy_id_foreign FOREIGN KEY ("strategy_id") REFERENCES annual_strategies ("id");
+
+ALTER TABLE crop_diagnoses ADD CONSTRAINT crop_diagnosis_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
 
 ALTER TABLE crop_expenses ADD CONSTRAINT crop_expense_crop_id_foreign FOREIGN KEY ("crop_id") REFERENCES crops ("id");
 
@@ -182,6 +190,8 @@ ALTER TABLE pest_disease_alerts ADD CONSTRAINT pest_disease_alert_farm_id_foreig
 
 ALTER TABLE quality_verifications ADD CONSTRAINT quality_verification_booking_id_foreign FOREIGN KEY ("booking_id") REFERENCES advance_bookings ("id");
 
+ALTER TABLE satellite_observations ADD CONSTRAINT satellite_observation_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");
+
 ALTER TABLE soil_amendments ADD CONSTRAINT soil_amendment_plot_id_foreign FOREIGN KEY ("plot_id") REFERENCES farm_plots ("id");
 ALTER TABLE soil_amendments ADD CONSTRAINT soil_amendment_follow_up_soil_test_id_foreign FOREIGN KEY ("follow_up_soil_test_id") REFERENCES soil_tests ("id");
 
@@ -203,6 +213,8 @@ ALTER TABLE transport_bookings ADD CONSTRAINT transport_booking_requester_id_for
 ALTER TABLE transport_providers ADD CONSTRAINT transport_provider_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
 
 ALTER TABLE user_notifications ADD CONSTRAINT user_notification_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
+
+ALTER TABLE voice_assist_logs ADD CONSTRAINT voice_assist_log_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
 
 ALTER TABLE weather_alerts ADD CONSTRAINT weather_alert_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");
 

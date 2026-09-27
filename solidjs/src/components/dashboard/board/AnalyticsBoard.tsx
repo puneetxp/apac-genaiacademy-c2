@@ -250,7 +250,7 @@ const AnalyticsBoard: Component<{ data: DashboardData; farms: any[] }> = (props)
     <section aria-label="Analytics board" class="space-y-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-lg font-semibold text-gray-900">Farm & Livestock Board</h2>
+          <h2 class="text-lg font-semibold text-gray-900">Farm Board</h2>
           <p class="text-xs text-gray-500">Everything you run, in one place — hover a chart for details, or switch it to a table.</p>
         </div>
         <div class="flex gap-1 overflow-x-auto rounded-lg bg-gray-100 p-1" role="tablist">

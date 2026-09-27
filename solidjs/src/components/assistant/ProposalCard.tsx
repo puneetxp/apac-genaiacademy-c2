@@ -60,7 +60,7 @@ const FIELDS: Record<AssistEntity, FieldDef[]> = {
         { name: 'quantity', type: 'number', required: true },
         { name: 'purchase_price', type: 'number', required: true },
         { name: 'purchase_date', type: 'date', required: true },
-        { name: 'purpose', type: 'select', options: ['dairy', 'meat', 'breeding', 'eggs'], required: true },
+        { name: 'purpose', type: 'select', options: ['dairy', 'meat', 'breeding', 'eggs', 'draught', 'mixed'], required: true },
         { name: 'village', type: 'text' },
         { name: 'district', type: 'text' },
         { name: 'state', type: 'text' },
@@ -264,7 +264,9 @@ const ProposalCard: Component<ProposalCardProps> = (props) => {
     };
 
     const optionLabel = (field: string, opt: string) =>
-        field === 'species' ? t(`species.${opt}` as TKey) : opt.charAt(0).toUpperCase() + opt.slice(1);
+        field === 'species' || field === 'purpose'
+            ? t(`${field}.${opt}` as TKey)
+            : opt.charAt(0).toUpperCase() + opt.slice(1);
 
     const ownerLabel = (): TKey => (owner === 'farm' ? 'ai.chooseFarm' : owner === 'animal' ? 'ai.chooseAnimal' : 'ai.chooseCrop');
     const ownerEmpty = (): TKey => (owner === 'farm' ? 'ai.noFarm' : owner === 'animal' ? 'ai.noAnimal' : 'ai.noCrop');

@@ -8,21 +8,22 @@
  */
 
 import { Component, For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
-import { A, useNavigate } from '@solidjs/router';
+import { A, useNavigate, useSearchParams } from '@solidjs/router';
 import { user } from '../stores/auth.store';
 import { lang, t, tValue } from '../stores/i18n.store';
 import { en, type TKey } from '../i18n/en';
 import { SERVICE_GROUPS } from '../components/ui/ServicesMenu';
 import LanguageSwitcher from '../components/ui/LanguageSwitcher';
 import ProposalCard, { proposalTitle } from '../components/assistant/ProposalCard';
-import { useRecorder } from '../components/assistant/useRecorder';
+import { useRecorder, type VoiceClip } from '../components/assistant/useRecorder';
+import ClipPlayer from '../components/assistant/ClipPlayer';
 import { AssistantService, type AssistResult, type AssistTable, type Option } from '../services/assistant.service';
 import { buildAssistantContext, clearAssistantContext } from '../services/assistant-context';
 import { FarmService, LivestockService } from '../shared/Service/Services';
 import { showToast } from '../components/ui/Toast';
 import { useDeviceInfo } from '../utils/useResponsive';
 
-type Message = { role: 'user' | 'assistant'; text: string; result?: AssistResult; proposalDone?: boolean };
+type Message = { role: 'user' | 'assistant'; text: string; result?: AssistResult; proposalDone?: boolean; audioUrl?: string; audioMs?: number };
 
 const STORAGE_KEY = 'assistant_chat';
 const MAX_SAVED = 60;
@@ -112,7 +113,8 @@ const Assistant: Component = () => {
         setMessages(list);
         try {
             // Proposals already handled are kept only as text
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(-MAX_SAVED)));
+            // Recording URLs only live for this visit, so they aren't saved
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(-MAX_SAVED).map(({ audioUrl, ...m }) => m)));
         } catch {
             // storage blocked — chat still works for this visit
         }
@@ -130,12 +132,23 @@ const Assistant: Component = () => {
         return ctx;
     };
 
+    // The dashboard's "Ask or add anything" card hands over with ?q=<text> or ?mic=1
+    const [searchParams, setSearchParams] = useSearchParams();
+
     onMount(() => {
         LivestockService.all();
         FarmService.all();
         loadCrops();
         refreshKnown();
         scrollDown();
+        const q = typeof searchParams.q === 'string' ? searchParams.q.trim() : '';
+        const mic = searchParams.mic === '1';
+        if (q || mic) {
+            // Clear them so a reload doesn't resend
+            setSearchParams({ q: undefined, mic: undefined }, { replace: true });
+            if (q) send({ text: q.slice(0, 1000) });
+            else recorder.start();
+        }
     });
 
     const stopSpeaking = () => {
@@ -163,15 +176,15 @@ const Assistant: Component = () => {
         if (item) navigate(item.path);
     };
 
-    const send = async (payload: { text?: string; audio?: Blob }) => {
+    const send = async (payload: { text?: string; clip?: VoiceClip }) => {
         const text = payload.text?.trim();
-        if (!text && !payload.audio) return;
+        if (!text && !payload.clip) return;
         stopSpeaking();
         const history = messages()
             .filter((m) => m.text)
             .slice(-10)
             .map((m) => ({ role: m.role, text: m.text.slice(0, 1000) }));
-        persist([...messages(), { role: 'user', text: text || '🎤 …' }]);
+        persist([...messages(), { role: 'user', text: text || '🎤 …', audioUrl: payload.clip?.url, audioMs: payload.clip?.durationMs }]);
         setInput('');
         setBusy(true);
         scrollDown();
@@ -180,9 +193,7 @@ const Assistant: Component = () => {
             const context = await refreshKnown().catch(() => '');
             const result = await AssistantService.assist({
                 text,
-                ...(payload.audio
-                    ? { audio_base64: await AssistantService.blobToBase64(payload.audio), mime_type: payload.audio.type || 'audio/webm' }
-                    : {}),
+                ...(payload.clip ? await AssistantService.audioFields(payload.clip) : {}),
                 lang: lang(),
                 menu: MENU.map((m) => ({ id: m.id, label: `${menuLabel(m.id)} / ${en[`svc.${m.id}` as TKey]}` })),
                 animals: animals(),
@@ -192,9 +203,9 @@ const Assistant: Component = () => {
                 focus_animal_id: focusAnimalId(),
                 context: context || undefined,
             });
-            if (payload.audio && result.transcript) {
+            if (payload.clip && result.transcript) {
                 const list = [...messages()];
-                list[list.length - 1] = { role: 'user', text: result.transcript };
+                list[list.length - 1] = { ...list[list.length - 1], text: result.transcript };
                 persist(list);
             }
             persist([...messages(), { role: 'assistant', text: result.reply, result }]);
@@ -205,17 +216,22 @@ const Assistant: Component = () => {
                 speak(result.reply, result.language, () => {
                     if (talkMode() && !needsTap && !busy()) recorder.start();
                 });
+            } else if (payload.clip && result.reply) {
+                // Asked by voice: answer by voice
+                speak(result.reply, result.language);
             }
         } catch (err: any) {
             const unavailable = err?.status === 503 || /unavailable/i.test(err?.message || '');
-            persist([...messages(), { role: 'assistant', text: unavailable ? t('ai.unavailable') : t('ai.error') }]);
+            const reason = AssistantService.errorReason(err);
+            const base = unavailable ? t('ai.unavailable') : t('ai.error');
+            persist([...messages(), { role: 'assistant', text: reason && reason !== base ? `${base}\n(${reason})` : base }]);
         } finally {
             setBusy(false);
             scrollDown();
         }
     };
 
-    const recorder = useRecorder((audio) => send({ audio }));
+    const recorder = useRecorder((clip) => send({ clip }));
     const recording = recorder.recording;
 
     const toggleTalk = () => {
@@ -371,7 +387,12 @@ const Assistant: Component = () => {
                                         when={msg.role === 'assistant'}
                                         fallback={
                                             <div class="flex justify-end">
-                                                <div class="max-w-[80%] rounded-2xl rounded-br-sm bg-green-600 px-4 py-2 text-sm text-white">{msg.text}</div>
+                                                <div class="max-w-[80%] rounded-2xl rounded-br-sm bg-green-600 px-4 py-2 text-sm text-white">
+                                                    {msg.text}
+                                                    <Show when={msg.audioUrl}>
+                                                        <ClipPlayer url={msg.audioUrl!} durationMs={msg.audioMs} />
+                                                    </Show>
+                                                </div>
                                             </div>
                                         }
                                     >

@@ -19,13 +19,14 @@ import { en, type TKey } from '../../i18n/en';
 import { SERVICE_GROUPS } from '../ui/ServicesMenu';
 import LanguageSwitcher from '../ui/LanguageSwitcher';
 import ProposalCard, { proposalTitle } from './ProposalCard';
-import { useRecorder } from './useRecorder';
+import { useRecorder, type VoiceClip } from './useRecorder';
+import ClipPlayer from './ClipPlayer';
 import { AssistantService, type AssistResult, type Option } from '../../services/assistant.service';
 import { FarmService, LivestockService } from '../../shared/Service/Services';
 import { VeterinaryDoctorsService, type VeterinaryDoctor } from '../../services/veterinary-doctors.service';
 import { showToast } from '../ui/Toast';
 
-type Message = { role: 'user' | 'assistant'; text: string; result?: AssistResult; proposalDone?: boolean };
+type Message = { role: 'user' | 'assistant'; text: string; result?: AssistResult; proposalDone?: boolean; audioUrl?: string; audioMs?: number };
 
 // Browser voice for read-aloud: Indian variant of the language code (en-IN, hi-IN, gu-IN, ...)
 const speechLang = (code: string) => `${code}-IN`;
@@ -123,16 +124,16 @@ const VoiceAssistant: Component = () => {
         }
     };
 
-    const send = async (payload: { text?: string; audio?: Blob }) => {
+    const send = async (payload: { text?: string; clip?: VoiceClip }) => {
         const text = payload.text?.trim();
-        if (!text && !payload.audio) return;
+        if (!text && !payload.clip) return;
         cancelAutoOpen();
 
         const history = messages()
             .filter((m) => m.text)
             .slice(-10)
             .map((m) => ({ role: m.role, text: m.text }));
-        setMessages([...messages(), { role: 'user', text: text || '🎤 …' }]);
+        setMessages([...messages(), { role: 'user', text: text || '🎤 …', audioUrl: payload.clip?.url, audioMs: payload.clip?.durationMs }]);
         setInput('');
         setBusy(true);
         scrollDown();
@@ -140,9 +141,7 @@ const VoiceAssistant: Component = () => {
         try {
             const result = await AssistantService.assist({
                 text,
-                ...(payload.audio
-                    ? { audio_base64: await AssistantService.blobToBase64(payload.audio), mime_type: payload.audio.type || 'audio/webm' }
-                    : {}),
+                ...(payload.clip ? await AssistantService.audioFields(payload.clip) : {}),
                 lang: lang(),
                 menu: MENU.map((m) => ({ id: m.id, label: `${menuLabel(m.id)} / ${en[`svc.${m.id}` as TKey]}` })),
                 animals: animals(),
@@ -153,12 +152,14 @@ const VoiceAssistant: Component = () => {
             });
 
             // Show what was heard in place of the 🎤 placeholder
-            if (payload.audio && result.transcript) {
+            if (payload.clip && result.transcript) {
                 const list = [...messages()];
-                list[list.length - 1] = { role: 'user', text: result.transcript };
+                list[list.length - 1] = { ...list[list.length - 1], text: result.transcript };
                 setMessages(list);
             }
             setMessages([...messages(), { role: 'assistant', text: result.reply, result }]);
+            // Asked by voice: answer by voice
+            if (payload.clip && result.reply) speak(result.reply, result.language || lang());
 
             if (result.proposal?.fields?.livestock_id) setFocusAnimalId(Number(result.proposal.fields.livestock_id));
             if (result.vet_help) loadVets();
@@ -168,14 +169,16 @@ const VoiceAssistant: Component = () => {
             }
         } catch (err: any) {
             const unavailable = err?.status === 503 || /unavailable/i.test(err?.message || '');
-            setMessages([...messages(), { role: 'assistant', text: unavailable ? t('ai.unavailable') : t('ai.error') }]);
+            const reason = AssistantService.errorReason(err);
+            const base = unavailable ? t('ai.unavailable') : t('ai.error');
+            setMessages([...messages(), { role: 'assistant', text: reason && reason !== base ? `${base}\n(${reason})` : base }]);
         } finally {
             setBusy(false);
             scrollDown();
         }
     };
 
-    const recorder = useRecorder((audio) => send({ audio }));
+    const recorder = useRecorder((clip) => send({ clip }));
     const recording = recorder.recording;
 
     const pickAnimal = (id: number) => {
@@ -300,7 +303,12 @@ const VoiceAssistant: Component = () => {
                                             when={msg.role === 'assistant'}
                                             fallback={
                                                 <div class="flex justify-end">
-                                                    <div class="max-w-[85%] bg-green-600 text-white rounded-lg rounded-br-none px-3 py-2">{msg.text}</div>
+                                                    <div class="max-w-[85%] bg-green-600 text-white rounded-lg rounded-br-none px-3 py-2">
+                                                        {msg.text}
+                                                        <Show when={msg.audioUrl}>
+                                                            <ClipPlayer url={msg.audioUrl!} durationMs={msg.audioMs} />
+                                                        </Show>
+                                                    </div>
                                                 </div>
                                             }
                                         >

@@ -29,7 +29,7 @@ async def auto_fill_address(request: AddressAutoFillRequest, service: AddressSvc
     Auto-fill address information from pincode
 
     Looks up state, district, and villages for the given pincode
-    using external pincode API (https://pincode.deno.dev).
+    using the India Post pincode API (https://api.postalpincode.in).
 
     - **pincode**: 6-digit Indian postal code
 

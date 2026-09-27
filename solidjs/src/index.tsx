@@ -42,6 +42,7 @@ const SecurityPage = lazy(() => import('./pages/users/Security'));
 const ClimateHubPage = lazy(() => import('./pages/climate/ClimateHub'));
 const SoilFertilizerHubPage = lazy(() => import('./pages/soil/SoilFertilizerHub'));
 const PestDiseaseHubPage = lazy(() => import('./pages/pest-disease/PestDiseaseHub'));
+const DiagnosePage = lazy(() => import('./pages/crops/Diagnose'));
 const LivestockHubPage = lazy(() => import('./pages/livestock/LivestockHub'));
 const VeterinaryDoctorsPage = lazy(() => import('./pages/livestock/VeterinaryDoctors'));
 const PashuHomePage = lazy(() => import('./pages/livestock/PashuHome'));
@@ -83,6 +84,7 @@ const SecurityPageWrapped: Component = () => <ProtectedRoute><SecurityPage /></P
 const ClimateHubPageWrapped: Component = () => <ProtectedRoute><ClimateHubPage /></ProtectedRoute>;
 const SoilFertilizerHubPageWrapped: Component = () => <ProtectedRoute><SoilFertilizerHubPage /></ProtectedRoute>;
 const PestDiseaseHubPageWrapped: Component = () => <ProtectedRoute><PestDiseaseHubPage /></ProtectedRoute>;
+const DiagnosePageWrapped: Component = () => <ProtectedRoute><DiagnosePage /></ProtectedRoute>;
 const LivestockHubPageWrapped: Component = () => <ProtectedRoute><LivestockHubPage /></ProtectedRoute>;
 const VeterinaryDoctorsPageWrapped: Component = () => <ProtectedRoute><VeterinaryDoctorsPage /></ProtectedRoute>;
 const PashuHomePageWrapped: Component = () => <ProtectedRoute><PashuHomePage /></ProtectedRoute>;
@@ -156,6 +158,7 @@ render(
       <Route path="/climate/hub" component={ClimateHubPageWrapped} />
       <Route path="/soil/hub" component={SoilFertilizerHubPageWrapped} />
       <Route path="/pest-disease/hub" component={PestDiseaseHubPageWrapped} />
+      <Route path="/diagnose" component={DiagnosePageWrapped} />
       <Route path="/livestock" component={PashuHomePageWrapped} />
       <Route path="/menu" component={AllServicesPageWrapped} />
       <Route path="/settings" component={ConfigurationPageWrapped} />

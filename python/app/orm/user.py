@@ -52,6 +52,11 @@ class User(Model):
                 'key': 'farmer_id',
                 'callback': lambda: __import__('app.orm.annual_strategy', fromlist=['AnnualStrategy']).AnnualStrategy
             },
+            'crop_diagnosis': {
+                'name': 'id',
+                'key': 'user_id',
+                'callback': lambda: __import__('app.orm.crop_diagnosis', fromlist=['CropDiagnosis']).CropDiagnosis
+            },
             'farm': {
                 'name': 'id',
                 'key': 'user_id',
@@ -86,5 +91,10 @@ class User(Model):
                 'name': 'id',
                 'key': 'user_id',
                 'callback': lambda: __import__('app.orm.user_notification', fromlist=['UserNotification']).UserNotification
+            },
+            'voice_assist_log': {
+                'name': 'id',
+                'key': 'user_id',
+                'callback': lambda: __import__('app.orm.voice_assist_log', fromlist=['VoiceAssistLog']).VoiceAssistLog
             },
     }

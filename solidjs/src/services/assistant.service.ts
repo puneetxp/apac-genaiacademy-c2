@@ -33,6 +33,11 @@ export interface AssistResult {
     vet_help: boolean;
     /** Required fields still empty in the proposal */
     missing?: string[];
+    /** Guided form: the field asked about next, quick replies for it, and progress */
+    step?: string | null;
+    step_options?: string[];
+    steps?: string[];
+    steps_done?: number;
     fallback?: boolean;
     /** Small data table when answering about the farmer's own data */
     table?: AssistTable | null;
@@ -47,6 +52,8 @@ export interface AssistTable {
 export interface AssistRequest {
     audio_base64?: string;
     mime_type?: string;
+    /** Recording length in ms (goes to the voice log) */
+    duration_ms?: number;
     text?: string;
     lang: string;
     menu: { id: string; label: string }[];
@@ -88,6 +95,22 @@ export class AssistantService {
     }
 
     /** Recording blob -> base64 (no data: prefix) */
+    /** Request fields for a recorded clip */
+    static async audioFields(clip: { blob: Blob; durationMs: number }) {
+        return {
+            audio_base64: await AssistantService.blobToBase64(clip.blob),
+            mime_type: clip.blob.type || 'audio/webm',
+            duration_ms: Math.round(clip.durationMs),
+        };
+    }
+
+    /** The server's reason for a failed call, for showing under the generic error */
+    static errorReason(err: any): string {
+        const detail = err?.response?.data?.detail ?? err?.data?.detail ?? err?.detail;
+        const text = typeof detail === 'string' ? detail : err?.message;
+        return typeof text === 'string' ? text.slice(0, 200) : '';
+    }
+
     static blobToBase64(blob: Blob): Promise<string> {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();

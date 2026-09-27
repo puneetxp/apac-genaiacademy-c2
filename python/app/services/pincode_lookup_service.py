@@ -1,8 +1,12 @@
 """
 Pincode Lookup Service
 
-Integrates with external pincode API (https://pincode.deno.dev) to auto-fill
-address information based on Indian postal codes.
+Integrates with the India Post pincode API (https://api.postalpincode.in) to
+auto-fill address information based on Indian postal codes.
+
+The previous provider, https://pincode.deno.dev, stopped serving when Deno
+Deploy Classic was sunset on 2026-07-20 (every lookup returned 404). The parser
+still accepts that provider's flat response shape.
 """
 
 import logging
@@ -17,8 +21,11 @@ logger = logging.getLogger(__name__)
 class PincodeLookupService:
     """Service for looking up address information from pincode"""
 
-    PINCODE_API_URL = "https://pincode.deno.dev"
-    TIMEOUT_SECONDS = 5
+    PINCODE_API_URL = "https://api.postalpincode.in/pincode"
+    # Sunset 2026-07-20; kept for reference only, no longer called.
+    LEGACY_PINCODE_API_URL = "https://pincode.deno.dev"
+    # India Post regularly takes 2-5s to answer.
+    TIMEOUT_SECONDS = 10
     CACHE_TTL_DAYS = 30
 
     def __init__(self, redis_client=None):
@@ -61,22 +68,34 @@ class PincodeLookupService:
                         logger.warning(f"No data found for pincode {pincode}")
                         return None
 
-                    # Parse response - API returns array of locations
                     result = self._parse_api_response(data)
 
+                    if not result:
+                        logger.warning(
+                            f"No data found for pincode {pincode}: {str(data)[:200]}"
+                        )
+                        return None
+
                     # Cache the result
-                    if self.redis_client and result:
+                    if self.redis_client:
                         await self._save_to_cache(pincode, result)
 
                     logger.info(f"Successfully looked up pincode {pincode}")
                     return result
 
-                elif response.status_code == 404:
-                    logger.warning(f"Pincode {pincode} not found")
-                    return None
+                # Log the upstream body so a dead or moved provider is visible
+                # (not just "not found").
+                body = (getattr(response, "text", "") or "")[:200]
+                if response.status_code == 404:
+                    logger.warning(
+                        f"Pincode {pincode} not found (404 from {self.PINCODE_API_URL}): {body}"
+                    )
                 else:
-                    logger.error(f"Pincode API returned status {response.status_code}")
-                    return None
+                    logger.error(
+                        f"Pincode API {self.PINCODE_API_URL} returned status "
+                        f"{response.status_code} for {pincode}: {body}"
+                    )
+                return None
 
         except httpx.TimeoutException:
             logger.error(f"Timeout looking up pincode {pincode}")
@@ -91,18 +110,31 @@ class PincodeLookupService:
             logger.error(f"Unexpected error looking up pincode {pincode}: {e}")
             return None
 
-    def _parse_api_response(self, data: list) -> dict:
+    def _parse_api_response(self, data: list) -> Optional[dict]:
         """
         Parse API response into standardized format
 
-        Args:
-            data: List of location objects from API
+        Accepts both shapes:
+        - India Post: [{"Status": "Success", "PostOffice": [{"Name", "District", "State", "Pincode"}, ...]}]
+        - legacy flat list: [{"pincode", "state", "district", "vpo"}, ...]
 
         Returns:
-            Dictionary with state, district, and villages list
+            Dictionary with state, district, and villages list, or None if empty
         """
         if not data or len(data) == 0:
             return None
+
+        first = data[0] if isinstance(data, list) else data
+        if isinstance(first, dict) and "PostOffice" in first:
+            offices = first.get("PostOffice") or []
+            if first.get("Status") != "Success" or not offices:
+                return None
+            return {
+                "pincode": offices[0].get("Pincode", ""),
+                "state": offices[0].get("State", ""),
+                "district": offices[0].get("District", ""),
+                "villages": sorted({o["Name"] for o in offices if o.get("Name")}),
+            }
 
         # Extract unique state and district (should be same for all entries)
         state = data[0].get("state", "")
