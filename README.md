@@ -66,6 +66,42 @@ npm run dev
 
 **Infrastructure**: AWS via [terraform/README.md](terraform/README.md), or GCP via `terraform/gcp/` + `deploy-gcp.sh`.
 
+## Deploying to GCP
+
+`deploy-gcp.sh` deploys two Cloud Run services: `cropsense-backend` (built from `python/`) and `cropsense-frontend` (built from `solidjs/`). By default it only rebuilds the parts that changed.
+
+| Command | What it does | When to use it |
+|---|---|---|
+| `./deploy-gcp.sh` | **auto** (default): compares `python/` and `solidjs/` with the commit each running service was built from, and rebuilds only the ones that differ. Exits early if nothing changed. | Everyday deploys |
+| `./deploy-gcp.sh backend` | Rebuilds and deploys only the API | Only Python changed, or to force a backend redeploy |
+| `./deploy-gcp.sh frontend` | Rebuilds and deploys only the web app | Only UI changed |
+| `./deploy-gcp.sh app` | Backend + frontend, skips infrastructure | Force both without touching infra |
+| `./deploy-gcp.sh infra` | Enables APIs, sets up Artifact Registry, secrets and the upload bucket, runs `terraform apply`, checks the DB schema, and updates Firebase sign-in settings. No image builds. | After changing `terraform/`, secrets or Firebase settings |
+| `./deploy-gcp.sh all` | Everything above | First deploy, or when unsure |
+| `./deploy-gcp.sh --help` | Prints these options | |
+
+On a first deploy (either service missing), auto mode runs `all`.
+
+**What runs in each mode**
+
+| Step | auto / app / backend / frontend | infra / all |
+|---|---|---|
+| 1. Check gcloud login, project and billing | ✓ | ✓ |
+| 2–5. APIs, Artifact Registry, secrets, `terraform apply`, upload bucket | – (Terraform outputs are only read) | ✓ |
+| 6. DB schema check and idempotent migrations | when the backend deploys | ✓ |
+| 6b. Read Firebase web config | ✓ | ✓ |
+| 7. Build and deploy backend | when `python/` changed | `all` only |
+| 8. Build and deploy frontend, then update CORS, sign-in domains and SMS regions | when `solidjs/` changed | `all` (domains and SMS also in `infra`) |
+| 9. Health check | ✓ | ✓ |
+
+**Image tags.** Images are tagged with the git commit (e.g. `cropsense-backend:d0637bd`). If a folder has uncommitted changes, the tag gets a suffix (`d0637bd-dirty-20260926171500`), so a local build never overwrites a committed image. Auto mode can't tell what a `-dirty` image contains, so the next run rebuilds that service. **Commit before deploying** to get clean tags and accurate change detection.
+
+**If a deploy hangs at "Creating Revision…"**, the new container is failing to start. Cloud Run keeps traffic on the previous revision and gives up after about 4 minutes. Check why with:
+
+```bash
+gcloud run services logs read cropsense-backend --region=us-central1 --project=cropsense-ai-a4d5cf --limit=50
+```
+
 ## Documentation
 
 - [docs/SETUP.md](docs/SETUP.md) — full local development & production setup guide
