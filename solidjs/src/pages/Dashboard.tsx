@@ -21,6 +21,7 @@ import { ErrorDisplay } from "../components/ui/ErrorDisplay";
 import { SkeletonDashboard } from "../components/ui/SkeletonScreen";
 import { showToast } from "../components/ui/Toast";
 import ServicesMenu from "../components/ui/ServicesMenu";
+import AddLivestockCard from "../components/assistant/AddLivestockCard";
 
 // Lazy load heavy dashboard components for better performance
 const QuickStats = lazy(() => import("../components/dashboard/QuickStats"));
@@ -118,6 +119,13 @@ const Dashboard: Component = () => {
               >
                 <span>➕</span> Add Farm
               </A>
+              <A
+                href="/livestock"
+                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                title="Livestock management"
+              >
+                🐄 Livestock
+              </A>
               {/* BottomNav (Pashu / Menu) is mobile-only, so desktop needs its own way into services. */}
               <A
                 href="/livestock/doctors"
@@ -155,9 +163,13 @@ const Dashboard: Component = () => {
 
       {/* Main Content */}
       <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Add livestock by talking to the AI (or by hand) — works before onboarding too */}
+        <div class="mb-8">
+          <AddLivestockCard />
+        </div>
         {/* Every service in one place; outside the loading/empty states so navigation always works. */}
         <section class="bg-white rounded-lg shadow p-4 sm:p-6 mb-8" aria-label="All services">
-          <h2 class="text-lg font-semibold text-gray-900 mb-4">सभी सेवाएं · All Services</h2>
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">All Services</h2>
           <ServicesMenu variant="grid" searchable />
         </section>
         <Show

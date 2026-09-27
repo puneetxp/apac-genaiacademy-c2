@@ -65,10 +65,12 @@ OWNERSHIP: Dict[str, str] = {
     "soil_amendments": f"t.plot_id IN ({_PLOTS})",
     "livestock_roi_predictions": f"t.user_id = {{uid}} OR t.animal_id IN ({_LIVESTOCK})",
     "user_notifications": "t.user_id = {uid}",
+    # Services: everyone signed in can browse; a service provider edits only services linked to them
+    "services": "t.user_id = {uid}",
 }
 
 # Tables whose islogin list/read shows every row (shared directory) while writes stay owner-only.
-SHARED_READ = {"veterinarians"}
+SHARED_READ = {"veterinarians", "services"}
 
 # On create, these columns are set to the signed-in user whatever the client sent.
 OWNER_COLUMNS: Dict[str, List[str]] = {
@@ -86,6 +88,7 @@ OWNER_COLUMNS: Dict[str, List[str]] = {
     "transport_providers": ["user_id"],
     "veterinarians": ["added_by_user_id"],
     "livestock_roi_predictions": ["user_id"],
+    "services": ["user_id", "added_by_user_id"],
 }
 
 # On create/update, these parent ids must point at something the user owns (checked with the parent's rule).

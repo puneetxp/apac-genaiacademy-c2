@@ -76,6 +76,10 @@ from app.api.isuper.role.role import router as isuper_role_router
 from app.api.isuper.seasonal_trend.seasonal_trend import router as isuper_seasonal_trend_router
 from app.api.islogin.seasonal_trend.seasonal_trend import router as islogin_seasonal_trend_router
 from app.api.ipublic.seasonal_trend.seasonal_trend import router as ipublic_seasonal_trend_router
+from app.api.roles.service_provider.service.service import router as service_provider_service_router
+from app.api.isuper.service.service import router as isuper_service_router
+from app.api.islogin.service.service import router as islogin_service_router
+from app.api.ipublic.service.service import router as ipublic_service_router
 from app.api.isuper.shc_state_district_code.shc_state_district_code import router as isuper_shc_state_district_code_router
 from app.api.islogin.shc_state_district_code.shc_state_district_code import router as islogin_shc_state_district_code_router
 from app.api.isuper.slusi_ingestion_run.slusi_ingestion_run import router as isuper_slusi_ingestion_run_router
@@ -191,6 +195,10 @@ all_routers = [
     isuper_seasonal_trend_router,
     islogin_seasonal_trend_router,
     ipublic_seasonal_trend_router,
+    service_provider_service_router,
+    isuper_service_router,
+    islogin_service_router,
+    ipublic_service_router,
     isuper_shc_state_district_code_router,
     islogin_shc_state_district_code_router,
     isuper_slusi_ingestion_run_router,

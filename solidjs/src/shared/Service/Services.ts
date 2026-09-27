@@ -33,6 +33,7 @@ import { Push_subscription } from "../Interface/Model/Push_subscription";
 import { Quality_verification } from "../Interface/Model/Quality_verification";
 import { Role } from "../Interface/Model/Role";
 import { Seasonal_trend } from "../Interface/Model/Seasonal_trend";
+import { Service } from "../Interface/Model/Service";
 import { Shc_state_district_code } from "../Interface/Model/Shc_state_district_code";
 import { Slusi_ingestion_run } from "../Interface/Model/Slusi_ingestion_run";
 import { Slusi_lcc_report } from "../Interface/Model/Slusi_lcc_report";
@@ -154,6 +155,9 @@ export const RoleService = (new ModelService<Role>())
 export const Seasonal_trendService = (new ModelService<Seasonal_trend>())
     .seTable("seasonal_trend")
     .seturl("/islogin/seasonal_trend/");
+export const ServiceService = (new ModelService<Service>())
+    .seTable("service")
+    .seturl("/islogin/service/");
 export const Shc_state_district_codeService = (new ModelService<Shc_state_district_code>())
     .seTable("shc_state_district_code")
     .seturl("/islogin/shc_state_district_code/");

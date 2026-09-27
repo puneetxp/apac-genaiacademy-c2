@@ -1,0 +1,323 @@
+"""
+Voice / text assistant: understand what the user wants and route it.
+Its main job is veterinary help for the farmer's own livestock: work out which
+animal they mean (asking by name when unclear), give short first-aid advice,
+point them to a vet, and propose a health record.
+
+Given the user's words (audio or typed) and the app's menu index, Gemini
+returns one of:
+  - navigate: open a menu option (the client auto-opens only when confident)
+  - create:   a *proposal* for a new record — never written here; the user
+              reviews the preview and the client saves it through the normal
+              role-based CRUD endpoints after approval
+  - answer / clarify: a short reply in the user's language
+
+Everything the model returns is sanitised against the menu and a whitelist of
+record types and fields, so the model can't invent pages or columns.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from typing import Any, Dict, List, Optional
+
+# Auto-open threshold: below this the client shows options instead
+AUTO_OPEN_CONFIDENCE = 0.9
+
+# Any language the frontend can be switched to (solidjs/src/i18n/languages.json)
+LANGS = {
+    "en": "English", "hi": "Hindi", "mr": "Marathi", "pa": "Punjabi", "gu": "Gujarati",
+    "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "kn": "Kannada", "ml": "Malayalam",
+    "or": "Odia", "as": "Assamese", "ur": "Urdu", "raj": "Rajasthani", "bho": "Bhojpuri",
+}
+
+# Records the assistant may propose, and the fields it may fill.
+# Ownership fields (farmer_id, farm_id, livestock_id) are chosen by the user
+# in the preview, never by the model.
+CREATABLE: Dict[str, Dict[str, Any]] = {
+    "livestock": {
+        "description": "Add an animal the farmer owns",
+        "fields": {
+            "species": "one of: cattle, buffalo, goat, sheep, poultry",
+            "breed": "breed name, e.g. Murrah, Gir, Sahiwal, HF cross",
+            "name": "the animal's name if the farmer gave one, e.g. Lakshmi",
+            "quantity": "integer, default 1",
+            "purchase_price": "number in INR",
+            "purchase_date": "YYYY-MM-DD",
+            "purpose": "one of: dairy, meat, breeding, eggs",
+            "village": "text",
+            "district": "text",
+            "state": "text",
+        },
+    },
+    "livestock_health_record": {
+        "description": "Record a vaccination, checkup, treatment or breeding for one of the farmer's animals",
+        "fields": {
+            "livestock_id": "id from ANIMALS — required; ask which animal if unclear",
+            "record_type": "one of: vaccination, checkup, treatment, breeding",
+            "record_date": "YYYY-MM-DD",
+            "description": "what was done, in the user's words",
+            "veterinarian_name": "text",
+            "cost": "number in INR",
+            "next_due_date": "YYYY-MM-DD",
+            "notes": "text",
+        },
+    },
+}
+
+INTENTS = {"navigate", "create", "answer", "clarify"}
+
+# Fields the form needs before the user can approve (farm is picked in the preview)
+REQUIRED: Dict[str, List[str]] = {
+    "livestock": ["species", "breed", "quantity", "purchase_price", "purchase_date", "purpose"],
+    "livestock_health_record": ["livestock_id", "record_type", "record_date", "description"],
+}
+
+# Guided form-filling tasks: the model always returns a proposal for this entity
+TASKS = {"add_livestock": "livestock"}
+
+
+def build_prompt(
+    menu: List[Dict[str, str]],
+    ui_lang: str,
+    today: str,
+    text: Optional[str],
+    animals: Optional[List[Dict[str, Any]]] = None,
+    history: Optional[List[Dict[str, str]]] = None,
+    focus_animal_id: Optional[int] = None,
+    task: Optional[str] = None,
+    draft: Optional[Dict[str, Any]] = None,
+) -> str:
+    """System prompt for one assistant turn."""
+    if task in TASKS:
+        return _build_form_prompt(TASKS[task], ui_lang, today, text, history, draft or {})
+    menu_lines = "\n".join(f'- id="{m["id"]}": {m["label"]}' for m in menu)
+    animal_lines = "\n".join(f'- id={a["id"]}: {a["label"]}' for a in (animals or [])) or "(none added yet)"
+    history_lines = "\n".join(f'{h["role"]}: {h["text"]}' for h in (history or [])[-10:]) or "(start of chat)"
+    focus = next((a for a in (animals or []) if a["id"] == focus_animal_id), None)
+    focus_line = f'The farmer has selected this animal: id={focus["id"]} {focus["label"]}.\n' if focus else ""
+    creatable = json.dumps(
+        {k: {"description": v["description"], "fields": v["fields"]} for k, v in CREATABLE.items()},
+        ensure_ascii=False,
+        indent=1,
+    )
+    user_input = (
+        f'The user typed: "{text}"' if text else "The user sent the attached voice recording."
+    )
+    return f"""You are the CropSense assistant for Indian farmers, mainly helping with veterinary care of their livestock. {user_input}
+Today is {today}. The app language is {LANGS.get(ui_lang, "English")}.
+{focus_line}
+THE FARMER'S ANIMALS (their livestock records):
+{animal_lines}
+
+CHAT SO FAR:
+{history_lines}
+
+VETERINARY HELP — when the farmer describes a health problem, symptom, injury, vaccination or treatment:
+1. Work out WHICH of their animals it is. Match by name, breed, species or earlier chat. If more than one animal could match, or none is clear, use intent "clarify": ask which animal and whether it has a name, and put the possible ids in "animal_options".
+2. Once the animal is known: give 1-3 lines of safe first-aid advice (never drug doses), set "vet_help": true, add "vets" to matches, and propose a livestock_health_record (usually record_type "treatment" or "checkup") with livestock_id and a description in their words.
+3. Urgent signs (not eating, bleeding, can't stand, difficult calving, bloating): tell them to call a vet now.
+
+Understand what the user wants (they may speak Hindi, Marathi, Punjabi, English or a mix) and pick ONE intent:
+- "navigate": they want to open a part of the app. Choose from the MENU only.
+- "create": they are telling you about something to record (a new animal, a vaccination, a treatment...). Fill a proposal from CREATABLE. Never invent values; leave out anything not said. Convert spoken dates ("aaj", "kal", "last Monday") to YYYY-MM-DD using today's date.
+- "answer": a short factual/farming question you can answer in 1-3 sentences.
+- "clarify": you are not sure — ask one short question.
+
+MENU:
+{menu_lines}
+
+CREATABLE:
+{creatable}
+
+Reply in the SAME language the user used (if unclear, use {LANGS.get(ui_lang, "English")}), short and simple.
+"confidence" is how sure you are about the intent AND the target (0 to 1). Use >= {AUTO_OPEN_CONFIDENCE} only when there is no reasonable doubt.
+"matches": up to 3 best menu ids for what they want, best first (also for create/answer when a page is relevant).
+
+Return ONLY JSON:
+{{
+  "transcript": "what the user said, in their script",
+  "language": "ISO code of the language used, e.g. en, hi, mr, pa, gu, ta",
+  "intent": "navigate | create | answer | clarify",
+  "confidence": 0.0,
+  "reply": "short reply to show and speak",
+  "matches": [{{"id": "menu id", "score": 0.0}}],
+  "animal_options": [animal ids to choose from when asking which animal],
+  "vet_help": false,
+  "proposal": {{"entity": "livestock | livestock_health_record", "fields": {{}}, "summary": "one line in the user's language"}} or null
+}}"""
+
+
+def _build_form_prompt(
+    entity: str,
+    ui_lang: str,
+    today: str,
+    text: Optional[str],
+    history: Optional[List[Dict[str, str]]],
+    draft: Dict[str, Any],
+) -> str:
+    """Prompt for guided form filling: update the draft from the chat, ask for what's missing."""
+    spec = CREATABLE[entity]
+    required = REQUIRED[entity]
+    history_lines = "\n".join(f'{h["role"]}: {h["text"]}' for h in (history or [])[-10:]) or "(start of chat)"
+    user_input = f'The user typed: "{text}"' if text else "The user sent the attached voice recording."
+    return f"""You are helping an Indian farmer fill the form: {spec["description"]}. {user_input}
+Today is {today}. The app language is {LANGS.get(ui_lang, "English")}.
+
+FORM FIELDS:
+{json.dumps(spec["fields"], ensure_ascii=False, indent=1)}
+REQUIRED: {", ".join(required)}
+
+CURRENT DRAFT (already filled — keep these unless the user corrects them):
+{json.dumps(draft, ensure_ascii=False)}
+
+CHAT SO FAR:
+{history_lines}
+
+Rules:
+- Extract every field value the user mentions now; convert words to values ("80 hazaar" -> 80000, "do" -> 2, "pichhle hafte" -> a YYYY-MM-DD date from today, "doodh ke liye" -> dairy, "bhains" -> buffalo, "gaay" -> cattle).
+- Never invent values that were not said.
+- In "reply", in the user's language, briefly confirm what you understood, then ask for ONE missing required field in simple words. If nothing required is missing, say the form is ready to check and approve (optionally ask for the animal's name).
+- Always return intent "create" with a proposal for entity "{entity}" containing ONLY the fields you extracted or corrected this turn.
+
+Return ONLY JSON:
+{{
+  "transcript": "what the user said, in their script",
+  "language": "ISO code of the language used, e.g. en, hi, mr, pa, gu, ta",
+  "intent": "create",
+  "confidence": 0.0,
+  "reply": "short reply",
+  "matches": [],
+  "animal_options": [],
+  "vet_help": false,
+  "proposal": {{"entity": "{entity}", "fields": {{}}, "summary": "one line in the user's language describing the animal so far"}}
+}}"""
+
+
+def _clamp01(v: Any) -> float:
+    try:
+        return max(0.0, min(1.0, float(v)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def parse_model_json(text: str) -> Dict[str, Any]:
+    """Pull the JSON object out of a model reply (tolerates ``` fences / prose)."""
+    match = re.search(r"\{.*\}", text or "", re.DOTALL)
+    if not match:
+        return {}
+    try:
+        data = json.loads(match.group())
+        return data if isinstance(data, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def sanitize_result(
+    raw: Dict[str, Any],
+    menu_ids: List[str],
+    ui_lang: str,
+    animal_ids: Optional[List[int]] = None,
+    task: Optional[str] = None,
+    draft: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Keep only known intents, menu ids, animal ids, entities and fields."""
+    known = set(menu_ids)
+    animals = set(animal_ids or [])
+
+    # Guided form: always a proposal for the task's entity, merged over the current draft
+    if task in TASKS:
+        entity = TASKS[task]
+        allowed = CREATABLE[entity]["fields"]
+        p = raw.get("proposal") if isinstance(raw.get("proposal"), dict) else {}
+        merged = {k: v for k, v in (draft or {}).items() if k in allowed and v not in (None, "")}
+        merged.update({k: v for k, v in (p.get("fields") or {}).items() if k in allowed and v not in (None, "")})
+        raw = {**raw, "intent": "create", "proposal": {"entity": entity, "fields": merged, "summary": p.get("summary", "")}}
+    intent = raw.get("intent") if raw.get("intent") in INTENTS else "clarify"
+
+    matches: List[Dict[str, Any]] = []
+    for m in raw.get("matches") or []:
+        if isinstance(m, dict) and m.get("id") in known and m["id"] not in {x["id"] for x in matches}:
+            matches.append({"id": m["id"], "score": _clamp01(m.get("score"))})
+    matches = matches[:3]
+
+    proposal = None
+    p = raw.get("proposal")
+    if intent == "create" and isinstance(p, dict) and p.get("entity") in CREATABLE:
+        allowed = CREATABLE[p["entity"]]["fields"]
+        fields = {
+            k: v
+            for k, v in (p.get("fields") or {}).items()
+            if k in allowed and v not in (None, "")
+        }
+        # livestock_id must be one of the farmer's own animals
+        if "livestock_id" in fields:
+            try:
+                fields["livestock_id"] = int(fields["livestock_id"])
+            except (TypeError, ValueError):
+                fields.pop("livestock_id")
+            if fields.get("livestock_id") not in animals:
+                fields.pop("livestock_id", None)
+        proposal = {
+            "entity": p["entity"],
+            "fields": fields,
+            "summary": str(p.get("summary") or "")[:300],
+        }
+
+    # A create without a usable proposal, or a navigate without a target, isn't actionable
+    if intent == "create" and not proposal:
+        intent = "clarify"
+    if intent == "navigate" and not matches:
+        intent = "clarify"
+
+    animal_options: List[int] = []
+    for a in raw.get("animal_options") or []:
+        try:
+            aid = int(a)
+        except (TypeError, ValueError):
+            continue
+        if aid in animals and aid not in animal_options:
+            animal_options.append(aid)
+
+    lang = raw.get("language") if raw.get("language") in LANGS else ui_lang
+    return {
+        "transcript": str(raw.get("transcript") or "")[:1000],
+        "language": lang,
+        "intent": intent,
+        "confidence": _clamp01(raw.get("confidence")),
+        "auto_open": intent == "navigate" and _clamp01(raw.get("confidence")) >= AUTO_OPEN_CONFIDENCE,
+        "reply": str(raw.get("reply") or "")[:1000],
+        "matches": matches,
+        "proposal": proposal,
+        "animal_options": animal_options[:8],
+        "vet_help": bool(raw.get("vet_help")) or any(m["id"] == "vets" for m in matches),
+        # Required fields still empty (the client highlights these in the preview)
+        "missing": [f for f in REQUIRED.get(proposal["entity"], []) if f not in proposal["fields"]] if proposal else [],
+    }
+
+
+def keyword_fallback(text: str, menu: List[Dict[str, str]], ui_lang: str) -> Dict[str, Any]:
+    """When Gemini is unavailable: plain word match of typed text against menu labels."""
+    words = [w for w in re.split(r"\W+", (text or "").lower()) if len(w) > 1]
+    scored = []
+    for m in menu:
+        label = (m.get("label") or "").lower()
+        hits = sum(1 for w in words if w in label)
+        if hits:
+            scored.append((hits / max(len(words), 1), m["id"]))
+    scored.sort(reverse=True)
+    matches = [{"id": mid, "score": round(s, 2)} for s, mid in scored[:3]]
+    return {
+        "transcript": text or "",
+        "language": ui_lang,
+        "intent": "navigate" if matches else "clarify",
+        "confidence": 0.0,
+        "auto_open": False,
+        "reply": "",
+        "matches": matches,
+        "proposal": None,
+        "animal_options": [],
+        "vet_help": any(m["id"] == "vets" for m in matches),
+        "fallback": True,
+    }

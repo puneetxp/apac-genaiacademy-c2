@@ -183,11 +183,13 @@ def create_app() -> FastAPI:
     # /isuper -> admin only, /islogin -> any signed-in user, /ipublic -> open.
     from fastapi import Depends
 
-    from app.core.auth import get_current_active_user, get_current_admin
+    from app.core.auth import get_current_active_user, get_current_admin, require_role
 
     namespace_guards = {
         "/isuper": [Depends(get_current_admin)],
         "/islogin": [Depends(get_current_active_user)],
+        # Custom role controllers (crud.roles in the model JSON): only users with that role
+        "/service_provider": [Depends(require_role(["service_provider", "admin"]))],
     }
     for router in all_routers:
         guard = next(

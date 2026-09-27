@@ -17,6 +17,7 @@ class Livestock(Model):
         'farmer_id',
         'species',
         'breed',
+        'name',
         'quantity',
         'purchase_price',
         'purchase_date',

@@ -20,6 +20,8 @@ export interface DietInput {
     pregnantLastTrimester: boolean;
 }
 
+export type DietTipKey = 'diet.tip.mix' | 'diet.tip.split' | 'diet.tip.water' | 'diet.tip.pregnancy' | 'diet.tip.highYield';
+
 export interface DietPlan {
     greenFodderKg: number;
     dryFodderKg: number;
@@ -27,7 +29,8 @@ export interface DietPlan {
     mineralMixtureG: number;
     saltG: number;
     waterLitres: number;
-    tips: string[];
+    /** i18n keys (diet.tip.*) — the page translates them */
+    tips: DietTipKey[];
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -58,13 +61,9 @@ export function calculateDietPlan(input: DietInput): DietPlan {
     const salt = isGoat ? 10 : 30;
     const water = isGoat ? 4 + milk * 1.5 : weight * 0.08 + milk * 4;
 
-    const tips: string[] = [
-        'हरा चारा और सूखा चारा मिलाकर (कुट्टी करके) खिलाएं',
-        'दाना दो बार में बांटकर — दूध निकालने के समय खिलाएं',
-        'साफ़ और ताज़ा पानी हर समय उपलब्ध रखें',
-    ];
-    if (input.pregnantLastTrimester) tips.push('गर्भ के आख़िरी 3 महीने: दाना बढ़ाएं, ब्याने से पहले डॉक्टर से जांच कराएं');
-    if (!isGoat && milk >= 15) tips.push('ज़्यादा दूध वाले पशु को बाईपास फैट / प्रोटीन के लिए डॉक्टर से सलाह लें');
+    const tips: DietTipKey[] = ['diet.tip.mix', 'diet.tip.split', 'diet.tip.water'];
+    if (input.pregnantLastTrimester) tips.push('diet.tip.pregnancy');
+    if (!isGoat && milk >= 15) tips.push('diet.tip.highYield');
 
     return {
         greenFodderKg: round1(greenFodder),

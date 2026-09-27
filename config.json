@@ -87,6 +87,7 @@
         "livestock_roi_prediction": false,
         "opportunity_cost": false,
         "seasonal_trend": false,
+        "service": false,
         "soil_amendment": false,
         "soil_test": false,
         "user_notification": false,

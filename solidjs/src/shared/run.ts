@@ -36,6 +36,7 @@ import { Push_subscriptionService } from './Service/Services';
 import { Quality_verificationService } from './Service/Services';
 import { RoleService } from './Service/Services';
 import { Seasonal_trendService } from './Service/Services';
+import { ServiceService } from './Service/Services';
 import { Shc_state_district_codeService } from './Service/Services';
 import { Slusi_ingestion_runService } from './Service/Services';
 import { Slusi_lcc_reportService } from './Service/Services';
@@ -54,7 +55,7 @@ import { User_notificationService } from './Service/Services';
 import { VeterinarianService } from './Service/Services';
 import { Weather_alertService } from './Service/Services';
 import { Weather_forecastService } from './Service/Services';
-export const tables: string[] = ["active_role","advance_booking","ai_usage_quota","annual_strategy","breeding_record","buyer_interest","crop","crop_expense","crop_market_data","crop_milestone","crop_profitability","farm","farm_plot","fertilizer_application","historical_yield","livestock","livestock_health_record","livestock_listing","livestock_marketplace_listing","livestock_roi_prediction","livestock_transaction","market_price","marketplace_listing","msp_rate","offspring","opportunity_cost","payment_milestone","pest_disease_alert","pest_disease_data","price_prediction","push_subscription","quality_verification","role","seasonal_trend","shc_state_district_code","slusi_ingestion_run","slusi_lcc_report","slusi_microwatershed_map","soil_amendment","soil_moisture_data","soil_test","soil_test_result","supply_match","supply_request","system_setting","transport_booking","transport_provider","user","user_notification","veterinarian","weather_alert","weather_forecast"];
+export const tables: string[] = ["active_role","advance_booking","ai_usage_quota","annual_strategy","breeding_record","buyer_interest","crop","crop_expense","crop_market_data","crop_milestone","crop_profitability","farm","farm_plot","fertilizer_application","historical_yield","livestock","livestock_health_record","livestock_listing","livestock_marketplace_listing","livestock_roi_prediction","livestock_transaction","market_price","marketplace_listing","msp_rate","offspring","opportunity_cost","payment_milestone","pest_disease_alert","pest_disease_data","price_prediction","push_subscription","quality_verification","role","seasonal_trend","service","shc_state_district_code","slusi_ingestion_run","slusi_lcc_report","slusi_microwatershed_map","soil_amendment","soil_moisture_data","soil_test","soil_test_result","supply_match","supply_request","system_setting","transport_booking","transport_provider","user","user_notification","veterinarian","weather_alert","weather_forecast"];
 
 const [set, setSet] = createSignal<string | false>(false);
 export class run {
@@ -103,6 +104,7 @@ export class run {
       Quality_verificationService.checkinit(),
       RoleService.checkinit(),
       Seasonal_trendService.checkinit(),
+      ServiceService.checkinit(),
       Shc_state_district_codeService.checkinit(),
       Slusi_ingestion_runService.checkinit(),
       Slusi_lcc_reportService.checkinit(),

@@ -1,74 +1,80 @@
 /**
  * Services Menu
  * One catalog of every service in the app, grouped the way farmers think
- * about them (animals, farming, market, account). Used by the profile
- * drawer, the Profile page and the /menu page so the list stays in one place.
+ * about them (livestock, farming, market, account). Used by the profile
+ * drawer, the Profile page, the Dashboard and the /menu page so the list
+ * stays in one place. Labels come from the i18n dictionaries (svc.<id>).
  */
 
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { useNavigate, useLocation } from '@solidjs/router';
 import { FiChevronRight, FiSearch, FiX } from 'solid-icons/fi';
+import { t } from '../../stores/i18n.store';
+import { en, type TKey } from '../../i18n/en';
 
 export interface ServiceItem {
-    label: string;
-    sub: string;
+    id: string;
     emoji: string;
     path: string;
 }
 
 export interface ServiceGroup {
-    title: string;
+    id: 'livestock' | 'farming' | 'market' | 'account';
     items: ServiceItem[];
 }
 
 export const SERVICE_GROUPS: ServiceGroup[] = [
     {
-        title: 'पशु सेवाएं',
+        id: 'livestock',
         items: [
-            { label: 'पशु होम', sub: 'Livestock home', emoji: '🐄', path: '/livestock' },
-            { label: 'पशु डॉक्टर', sub: 'Veterinary doctors', emoji: '🩺', path: '/livestock/doctors' },
-            { label: 'पशु ख़रीदें', sub: 'Buy animals', emoji: '🐃', path: '/livestock-marketplace' },
-            { label: 'पशु बेचें', sub: 'Sell animals', emoji: '🤝', path: '/marketplace/my-listings' },
-            { label: 'पशु स्वास्थ्य', sub: 'Health & vaccination', emoji: '💉', path: '/livestock/hub' },
-            { label: 'डाइट प्लान', sub: 'Feed & milk plan', emoji: '🥛', path: '/livestock/diet-plan' },
+            { id: 'livestockHome', emoji: '🐄', path: '/livestock' },
+            { id: 'services', emoji: '🧰', path: '/services' },
+            { id: 'vets', emoji: '🩺', path: '/livestock/doctors' },
+            { id: 'buy', emoji: '🐃', path: '/livestock-marketplace' },
+            { id: 'sell', emoji: '🤝', path: '/marketplace/my-listings' },
+            { id: 'health', emoji: '💉', path: '/livestock/hub' },
+            { id: 'diet', emoji: '🥛', path: '/livestock/diet-plan' },
         ],
     },
     {
-        title: 'खेती',
+        id: 'farming',
         items: [
-            { label: 'मेरा खेत', sub: 'My farm', emoji: '🏡', path: '/farm' },
-            { label: 'खेत जोड़ें', sub: 'Register farm', emoji: '🚜', path: '/farm/register' },
-            { label: 'मेरी फसलें', sub: 'My crops', emoji: '🌱', path: '/crops/my-crops' },
-            { label: 'फसल लगाएं', sub: 'Plant a crop', emoji: '🌾', path: '/crops/plant' },
-            { label: 'फसल योजना', sub: 'Annual strategy', emoji: '📋', path: '/strategy/request' },
-            { label: 'मिट्टी व खाद', sub: 'Soil & fertilizer', emoji: '🧪', path: '/soil/hub' },
-            { label: 'कीट व रोग', sub: 'Pest & disease', emoji: '🐛', path: '/pest-disease/hub' },
-            { label: 'मौसम', sub: 'Climate', emoji: '🌦️', path: '/climate/hub' },
-            { label: 'प्लॉट जांच', sub: 'Plot analysis', emoji: '🗺️', path: '/plots/analyze' },
+            { id: 'myFarm', emoji: '🏡', path: '/farm' },
+            { id: 'addFarm', emoji: '🚜', path: '/farm/register' },
+            { id: 'myCrops', emoji: '🌱', path: '/crops/my-crops' },
+            { id: 'plantCrop', emoji: '🌾', path: '/crops/plant' },
+            { id: 'strategy', emoji: '📋', path: '/strategy/request' },
+            { id: 'soil', emoji: '🧪', path: '/soil/hub' },
+            { id: 'pests', emoji: '🐛', path: '/pest-disease/hub' },
+            { id: 'weather', emoji: '🌦️', path: '/climate/hub' },
+            { id: 'plots', emoji: '🗺️', path: '/plots/analyze' },
         ],
     },
     {
-        title: 'बाज़ार',
+        id: 'market',
         items: [
-            { label: 'मंडी', sub: 'Marketplace', emoji: '🛒', path: '/marketplace' },
-            { label: 'रेट जानें', sub: 'Market rates', emoji: '🧮', path: '/marketplace/intelligence' },
-            { label: 'मेरी बुकिंग', sub: 'Bookings', emoji: '📦', path: '/marketplace/bookings' },
-            { label: 'ख़रीदार', sub: 'Buyer dashboard', emoji: '🧑‍💼', path: '/marketplace/buyer-dashboard' },
-            { label: 'सप्लाई योजना', sub: 'Supply planning', emoji: '📈', path: '/marketplace/supply-planning' },
-            { label: 'परिवहन', sub: 'Transport tracking', emoji: '🚚', path: '/transport/tracking' },
+            { id: 'marketplace', emoji: '🛒', path: '/marketplace' },
+            { id: 'rates', emoji: '🧮', path: '/marketplace/intelligence' },
+            { id: 'bookings', emoji: '📦', path: '/marketplace/bookings' },
+            { id: 'buyers', emoji: '🧑‍💼', path: '/marketplace/buyer-dashboard' },
+            { id: 'supply', emoji: '📈', path: '/marketplace/supply-planning' },
+            { id: 'transport', emoji: '🚚', path: '/transport/tracking' },
         ],
     },
     {
-        title: 'मेरा खाता',
+        id: 'account',
         items: [
-            { label: 'प्रोफ़ाइल', sub: 'Profile', emoji: '👤', path: '/users/profile' },
-            { label: 'सूचनाएं', sub: 'Notifications', emoji: '🔔', path: '/notifications' },
-            { label: 'सुरक्षा', sub: 'Security', emoji: '🔒', path: '/users/security' },
-            { label: 'डैशबोर्ड', sub: 'Dashboard', emoji: '📊', path: '/dashboard' },
-            { label: 'AI उपयोग', sub: 'AI quota', emoji: '🤖', path: '/quota/history' },
+            { id: 'profile', emoji: '👤', path: '/users/profile' },
+            { id: 'notifications', emoji: '🔔', path: '/notifications' },
+            { id: 'security', emoji: '🔒', path: '/users/security' },
+            { id: 'dashboard', emoji: '📊', path: '/dashboard' },
+            { id: 'aiUsage', emoji: '🤖', path: '/quota/history' },
         ],
     },
 ];
+
+const label = (id: string) => t(`svc.${id}` as TKey);
+const sub = (id: string) => t(`svc.${id}.sub` as TKey);
 
 interface ServicesMenuProps {
     /** 'grid' = icon tiles (pages), 'list' = compact rows (drawer) */
@@ -91,15 +97,16 @@ const ServicesMenu: Component<ServicesMenuProps> = (props) => {
 
     const isCurrent = (path: string) => location.pathname === path;
 
-    // Match Hindi label or English line, case-insensitive
+    // Match the current language and English, so "doctor" works in any language
     const groups = createMemo(() => {
         const q = query().trim().toLowerCase();
         if (!q) return SERVICE_GROUPS;
+        const matches = (id: string) =>
+            [label(id), sub(id), en[`svc.${id}` as TKey], en[`svc.${id}.sub` as TKey]].some((s) =>
+                s?.toLowerCase().includes(q),
+            );
         return SERVICE_GROUPS
-            .map((g) => ({
-                ...g,
-                items: g.items.filter((i) => i.label.includes(q) || i.sub.toLowerCase().includes(q)),
-            }))
+            .map((g) => ({ ...g, items: g.items.filter((i) => matches(i.id)) }))
             .filter((g) => g.items.length > 0);
     });
 
@@ -107,19 +114,19 @@ const ServicesMenu: Component<ServicesMenuProps> = (props) => {
         <div class="space-y-5">
             <Show when={props.searchable}>
                 <div class="relative">
-                    <FiSearch class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <FiSearch class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                         type="search"
                         value={query()}
                         onInput={(e) => setQuery(e.currentTarget.value)}
-                        placeholder="सेवा खोजें… (Search)"
-                        class="w-full pl-10 pr-10 py-3 rounded-2xl bg-white border border-slate-200 outline-none focus:border-teal-500 text-slate-800"
+                        placeholder={t('menu.search')}
+                        class="w-full pl-10 pr-10 py-3 rounded-lg bg-white border border-gray-200 outline-none focus:border-green-500 text-gray-800"
                     />
                     <Show when={query()}>
                         <button
                             onClick={() => setQuery('')}
-                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                            aria-label="साफ़ करें"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                            aria-label={t('menu.clear')}
                         >
                             <FiX />
                         </button>
@@ -127,44 +134,44 @@ const ServicesMenu: Component<ServicesMenuProps> = (props) => {
                 </div>
             </Show>
             <Show when={groups().length === 0}>
-                <p class="text-center text-slate-500 py-6">कोई सेवा नहीं मिली</p>
+                <p class="text-center text-gray-500 py-6">{t('menu.none')}</p>
             </Show>
             <For each={groups()}>
                 {(group) => (
                     <section>
-                        <h3 class="text-sm font-bold text-teal-800 uppercase tracking-wide mb-2">{group.title}</h3>
+                        <h3 class="text-sm font-bold text-green-800 uppercase tracking-wide mb-2">{t(`grp.${group.id}` as TKey)}</h3>
                         <Show
                             when={props.variant === 'list'}
                             fallback={
-                                <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                                     <For each={group.items}>
                                         {(item) => (
                                             <button
                                                 onClick={() => go(item.path)}
-                                                class={`bg-white rounded-2xl p-3 text-center shadow-sm border transition-colors ${isCurrent(item.path) ? 'border-teal-600 ring-2 ring-teal-600/20' : 'border-slate-100 hover:border-teal-300'}`}
+                                                class={`bg-white rounded-lg p-3 text-center shadow-sm border transition-colors ${isCurrent(item.path) ? 'border-green-600 ring-2 ring-green-600/20' : 'border-gray-100 hover:border-green-300'}`}
                                             >
                                                 <span class="block text-3xl">{item.emoji}</span>
-                                                <span class="block font-bold text-sm text-slate-800 mt-1">{item.label}</span>
-                                                <span class="block text-[10px] text-slate-500">{item.sub}</span>
+                                                <span class="block font-bold text-sm text-gray-800 mt-1">{label(item.id)}</span>
+                                                <span class="block text-[11px] text-gray-500">{sub(item.id)}</span>
                                             </button>
                                         )}
                                     </For>
                                 </div>
                             }
                         >
-                            <div class="bg-white rounded-2xl divide-y divide-slate-100 overflow-hidden">
+                            <div class="bg-white rounded-lg divide-y divide-gray-100 overflow-hidden">
                                 <For each={group.items}>
                                     {(item) => (
                                         <button
                                             onClick={() => go(item.path)}
-                                            class={`w-full flex items-center gap-3 px-3 py-3 text-left transition-colors min-h-touch-android ${isCurrent(item.path) ? 'bg-teal-50' : 'hover:bg-teal-50'}`}
+                                            class={`w-full flex items-center gap-3 px-3 py-3 text-left transition-colors min-h-touch-android ${isCurrent(item.path) ? 'bg-green-50' : 'hover:bg-green-50'}`}
                                         >
                                             <span class="text-2xl w-8 text-center">{item.emoji}</span>
                                             <span class="flex-1 min-w-0">
-                                                <span class="block font-semibold text-slate-800">{item.label}</span>
-                                                <span class="block text-xs text-slate-500">{item.sub}</span>
+                                                <span class="block font-semibold text-gray-800">{label(item.id)}</span>
+                                                <span class="block text-xs text-gray-500">{sub(item.id)}</span>
                                             </span>
-                                            <FiChevronRight class="text-teal-700" />
+                                            <FiChevronRight class="text-green-700" />
                                         </button>
                                     )}
                                 </For>
