@@ -6,7 +6,7 @@
  * expenses, marketplace listing), so the same ownership rules apply.
  */
 
-import { Component, For, Show, createEffect, createSignal, on } from 'solid-js';
+import { Component, For, Show, createEffect, createResource, createSignal, on } from 'solid-js';
 import type { AssistEntity, AssistProposal } from '../../services/assistant.service';
 import { FarmService, LivestockService, Livestock_health_recordService } from '../../shared/Service/Services';
 import { FarmService as FarmApi } from '../../services/farm.service';
@@ -156,11 +156,18 @@ const ProposalCard: Component<ProposalCardProps> = (props) => {
                 : [];
 
     const [values, setValues] = createSignal<Record<string, any>>({ ...defaults(entity), ...props.proposal.fields });
+
+    // Crop: optional plot of the chosen farm ("" = whole farm, spread across its plots)
+    const [plots] = createResource(
+        () => (entity === 'crop' && values().farm_id ? Number(values().farm_id) : null),
+        (farmId) => FarmApi.getFarmPlots(farmId).catch(() => []),
+    );
     const [saving, setSaving] = createSignal(false);
     const [error, setError] = createSignal<string | null>(null);
 
     const set = (k: string, v: any) => {
-        setValues({ ...values(), [k]: v });
+        setValues({ ...values(), [k]: v, ...(k === 'farm_id' ? { plot_id: '' } : {}) });
+        setError(null);
         props.onChange?.(values());
     };
 
@@ -213,9 +220,11 @@ const ProposalCard: Component<ProposalCardProps> = (props) => {
                     primary_soil_type: body.primary_soil_type,
                     irrigation_type: body.irrigation_type,
                 }) as any);
-            case 'crop':
+            case 'crop': {
                 // plot_id null: quick-plant spreads across the farm's plots (or makes a main plot)
-                return CropApi.quickPlant({ ...(clean(body) as any), plot_id: null, supporting_crops: [] });
+                const { plot_id, ...crop } = clean(body);
+                return CropApi.quickPlant({ ...(crop as any), plot_id: plot_id ? Number(plot_id) : null, supporting_crops: [] });
+            }
             case 'crop_expense':
                 return DashboardService.addCropExpense(String(body.crop_id), clean({
                     category: body.category,
@@ -287,6 +296,20 @@ const ProposalCard: Component<ProposalCardProps> = (props) => {
                         </select>
                     </label>
                 </Show>
+            </Show>
+
+            <Show when={entity === 'crop' && (plots() || []).length > 0}>
+                <label class="block text-sm">
+                    <span class="text-gray-700">{t('ai.choosePlot')}</span>
+                    <select
+                        value={values().plot_id ?? ''}
+                        onChange={(e) => set('plot_id', e.currentTarget.value)}
+                        class="mt-1 w-full border border-gray-300 rounded-md px-2 py-2 focus:border-green-500 outline-none"
+                    >
+                        <option value="">{t('ai.wholeFarm')}</option>
+                        <For each={plots()}>{(pl) => <option value={pl.id}>{`${pl.plot_name} · ${pl.area} ac`}</option>}</For>
+                    </select>
+                </label>
             </Show>
 
             <div class="grid grid-cols-2 gap-2">

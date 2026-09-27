@@ -312,6 +312,8 @@ export const en = {
     'ai.newExpense': 'New crop expense',
     'ai.newListing': 'Sell in marketplace',
     'ai.chooseCrop': 'Crop',
+    'ai.choosePlot': 'Plot',
+    'ai.wholeFarm': 'Whole farm (all plots)',
     'ai.noCrop': 'Plant a crop first',
     'field.farm_name': 'Farm name',
     'field.pincode': 'PIN code',

@@ -517,7 +517,7 @@ async def get_farm(id: int, current_user: CurrentUser, db: DB):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
         # Get plots using custom ORM
-        plots_result = FarmPlot.where({"farm_id": [id], "is_active": [True]}).get()
+        plots_result = FarmPlot.where({"farm_id": [id], "enable": [1]}).get()
         plots_data = plots_result.items if plots_result and plots_result.items else []
 
         # Build response
@@ -739,6 +739,7 @@ async def create_plot(id: int, plot_data: PlotCreate, current_user: CurrentFarme
     - **soil_type**: Soil type (clay, sandy, loamy, silt, peat)
     - **irrigation_type**: Irrigation type (rain-fed, canal, borewell, drip, sprinkler)
     """
+    farm_id = id  # route parameter is {id}; the body below refers to farm_id
     try:
         # Get farm and verify ownership using custom ORM
         farm_result = Farm.where({"id": [farm_id]}).get()
@@ -841,7 +842,7 @@ async def get_farm_plots(id: int, current_user: CurrentUser, db: DB):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
         # Get plots using custom ORM
-        plots_result = FarmPlot.where({"farm_id": [id], "is_active": [True]}).get()
+        plots_result = FarmPlot.where({"farm_id": [id], "enable": [1]}).get()
         plots_data = plots_result.items if plots_result and plots_result.items else []
 
         # Build plot responses
@@ -977,8 +978,8 @@ async def delete_plot(farm_id: int, id: int, current_user: CurrentFarmer, db: DB
         if not plot_result or not plot_result.items:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plot not found")
 
-        # Soft delete
-        FarmPlot.where({"id": [id]}).update({"is_active": False})
+        # Soft delete (farm_plots uses enable; there is no is_active column)
+        FarmPlot.where({"id": [id]}).update({"enable": 0})
 
         logger.info(f"Plot {id} deleted by user {current_user.id}")
 
