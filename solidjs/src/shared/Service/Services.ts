@@ -6,6 +6,7 @@ import { Annual_strategy } from "../Interface/Model/Annual_strategy";
 import { Breeding_record } from "../Interface/Model/Breeding_record";
 import { Buyer_interest } from "../Interface/Model/Buyer_interest";
 import { Crop } from "../Interface/Model/Crop";
+import { Crop_diagnosis } from "../Interface/Model/Crop_diagnosis";
 import { Crop_expense } from "../Interface/Model/Crop_expense";
 import { Crop_market_data } from "../Interface/Model/Crop_market_data";
 import { Crop_milestone } from "../Interface/Model/Crop_milestone";
@@ -23,6 +24,8 @@ import { Livestock_transaction } from "../Interface/Model/Livestock_transaction"
 import { Market_price } from "../Interface/Model/Market_price";
 import { Marketplace_listing } from "../Interface/Model/Marketplace_listing";
 import { Msp_rate } from "../Interface/Model/Msp_rate";
+import { Ndap_downloaded_file } from "../Interface/Model/Ndap_downloaded_file";
+import { Ndap_ingestion_run } from "../Interface/Model/Ndap_ingestion_run";
 import { Offspring } from "../Interface/Model/Offspring";
 import { Opportunity_cost } from "../Interface/Model/Opportunity_cost";
 import { Payment_milestone } from "../Interface/Model/Payment_milestone";
@@ -32,7 +35,9 @@ import { Price_prediction } from "../Interface/Model/Price_prediction";
 import { Push_subscription } from "../Interface/Model/Push_subscription";
 import { Quality_verification } from "../Interface/Model/Quality_verification";
 import { Role } from "../Interface/Model/Role";
+import { Satellite_observation } from "../Interface/Model/Satellite_observation";
 import { Seasonal_trend } from "../Interface/Model/Seasonal_trend";
+import { Service } from "../Interface/Model/Service";
 import { Shc_state_district_code } from "../Interface/Model/Shc_state_district_code";
 import { Slusi_ingestion_run } from "../Interface/Model/Slusi_ingestion_run";
 import { Slusi_lcc_report } from "../Interface/Model/Slusi_lcc_report";
@@ -49,6 +54,7 @@ import { Transport_provider } from "../Interface/Model/Transport_provider";
 import { User } from "../Interface/Model/User";
 import { User_notification } from "../Interface/Model/User_notification";
 import { Veterinarian } from "../Interface/Model/Veterinarian";
+import { Voice_assist_log } from "../Interface/Model/Voice_assist_log";
 import { Weather_alert } from "../Interface/Model/Weather_alert";
 import { Weather_forecast } from "../Interface/Model/Weather_forecast";
 
@@ -73,6 +79,9 @@ export const Buyer_interestService = (new ModelService<Buyer_interest>())
 export const CropService = (new ModelService<Crop>())
     .seTable("crop")
     .seturl("/islogin/crop/");
+export const Crop_diagnosisService = (new ModelService<Crop_diagnosis>())
+    .seTable("crop_diagnosis")
+    .seturl("/islogin/crop_diagnosis/");
 export const Crop_expenseService = (new ModelService<Crop_expense>())
     .seTable("crop_expense")
     .seturl("/islogin/crop_expense/");
@@ -124,6 +133,12 @@ export const Marketplace_listingService = (new ModelService<Marketplace_listing>
 export const Msp_rateService = (new ModelService<Msp_rate>())
     .seTable("msp_rate")
     .seturl("/islogin/msp_rate/");
+export const Ndap_downloaded_fileService = (new ModelService<Ndap_downloaded_file>())
+    .seTable("ndap_downloaded_file")
+    .seturl("/islogin/ndap_downloaded_file/");
+export const Ndap_ingestion_runService = (new ModelService<Ndap_ingestion_run>())
+    .seTable("ndap_ingestion_run")
+    .seturl("/islogin/ndap_ingestion_run/");
 export const OffspringService = (new ModelService<Offspring>())
     .seTable("offspring")
     .seturl("/islogin/offspring/");
@@ -151,9 +166,15 @@ export const Quality_verificationService = (new ModelService<Quality_verificatio
 export const RoleService = (new ModelService<Role>())
     .seTable("role")
     .seturl("/islogin/role/");
+export const Satellite_observationService = (new ModelService<Satellite_observation>())
+    .seTable("satellite_observation")
+    .seturl("/islogin/satellite_observation/");
 export const Seasonal_trendService = (new ModelService<Seasonal_trend>())
     .seTable("seasonal_trend")
     .seturl("/islogin/seasonal_trend/");
+export const ServiceService = (new ModelService<Service>())
+    .seTable("service")
+    .seturl("/islogin/service/");
 export const Shc_state_district_codeService = (new ModelService<Shc_state_district_code>())
     .seTable("shc_state_district_code")
     .seturl("/islogin/shc_state_district_code/");
@@ -202,6 +223,9 @@ export const User_notificationService = (new ModelService<User_notification>())
 export const VeterinarianService = (new ModelService<Veterinarian>())
     .seTable("veterinarian")
     .seturl("/islogin/veterinarian/");
+export const Voice_assist_logService = (new ModelService<Voice_assist_log>())
+    .seTable("voice_assist_log")
+    .seturl("/islogin/voice_assist_log/");
 export const Weather_alertService = (new ModelService<Weather_alert>())
     .seTable("weather_alert")
     .seturl("/islogin/weather_alert/");

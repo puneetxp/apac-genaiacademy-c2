@@ -5,6 +5,7 @@
 
 import { Component, createEffect, createSignal, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
+import SatelliteHealthCard from "../../components/farm/SatelliteHealthCard";
 import {
   currentFarm,
   deleteFarm,
@@ -104,6 +105,13 @@ const FarmDashboardPage: Component = () => {
             onManagePlots={handleManagePlots}
             onGenerateStrategy={handleGenerateStrategy}
           />
+        </Show>
+
+        {/* Crop health from space (Sentinel-2) */}
+        <Show when={!isEditing() && currentFarm()}>
+          <div class="mt-6">
+            <SatelliteHealthCard farmId={currentFarm()!.id} />
+          </div>
         </Show>
 
         <Show when={isEditing() && currentFarm()}>

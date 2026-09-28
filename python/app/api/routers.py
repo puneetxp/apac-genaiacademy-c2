@@ -15,6 +15,8 @@ from app.api.isuper.buyer_interest.buyer_interest import router as isuper_buyer_
 from app.api.islogin.buyer_interest.buyer_interest import router as islogin_buyer_interest_router
 from app.api.isuper.crop.crop import router as isuper_crop_router
 from app.api.islogin.crop.crop import router as islogin_crop_router
+from app.api.isuper.crop_diagnosis.crop_diagnosis import router as isuper_crop_diagnosis_router
+from app.api.islogin.crop_diagnosis.crop_diagnosis import router as islogin_crop_diagnosis_router
 from app.api.isuper.crop_expense.crop_expense import router as isuper_crop_expense_router
 from app.api.islogin.crop_expense.crop_expense import router as islogin_crop_expense_router
 from app.api.isuper.crop_market_data.crop_market_data import router as isuper_crop_market_data_router
@@ -55,6 +57,7 @@ from app.api.ipublic.marketplace_listing.marketplace_listing import router as ip
 from app.api.isuper.msp_rate.msp_rate import router as isuper_msp_rate_router
 from app.api.islogin.msp_rate.msp_rate import router as islogin_msp_rate_router
 from app.api.ipublic.msp_rate.msp_rate import router as ipublic_msp_rate_router
+from app.api.isuper.ndap_ingestion_run.ndap_ingestion_run import router as isuper_ndap_ingestion_run_router
 from app.api.isuper.offspring.offspring import router as isuper_offspring_router
 from app.api.islogin.offspring.offspring import router as islogin_offspring_router
 from app.api.isuper.opportunity_cost.opportunity_cost import router as isuper_opportunity_cost_router
@@ -73,9 +76,15 @@ from app.api.isuper.push_subscription.push_subscription import router as isuper_
 from app.api.isuper.quality_verification.quality_verification import router as isuper_quality_verification_router
 from app.api.islogin.quality_verification.quality_verification import router as islogin_quality_verification_router
 from app.api.isuper.role.role import router as isuper_role_router
+from app.api.isuper.satellite_observation.satellite_observation import router as isuper_satellite_observation_router
+from app.api.islogin.satellite_observation.satellite_observation import router as islogin_satellite_observation_router
 from app.api.isuper.seasonal_trend.seasonal_trend import router as isuper_seasonal_trend_router
 from app.api.islogin.seasonal_trend.seasonal_trend import router as islogin_seasonal_trend_router
 from app.api.ipublic.seasonal_trend.seasonal_trend import router as ipublic_seasonal_trend_router
+from app.api.roles.service_provider.service.service import router as service_provider_service_router
+from app.api.isuper.service.service import router as isuper_service_router
+from app.api.islogin.service.service import router as islogin_service_router
+from app.api.ipublic.service.service import router as ipublic_service_router
 from app.api.isuper.shc_state_district_code.shc_state_district_code import router as isuper_shc_state_district_code_router
 from app.api.islogin.shc_state_district_code.shc_state_district_code import router as islogin_shc_state_district_code_router
 from app.api.isuper.slusi_ingestion_run.slusi_ingestion_run import router as isuper_slusi_ingestion_run_router
@@ -109,6 +118,8 @@ from app.api.islogin.user_notification.user_notification import router as islogi
 from app.api.isuper.veterinarian.veterinarian import router as isuper_veterinarian_router
 from app.api.islogin.veterinarian.veterinarian import router as islogin_veterinarian_router
 from app.api.ipublic.veterinarian.veterinarian import router as ipublic_veterinarian_router
+from app.api.isuper.voice_assist_log.voice_assist_log import router as isuper_voice_assist_log_router
+from app.api.islogin.voice_assist_log.voice_assist_log import router as islogin_voice_assist_log_router
 from app.api.isuper.weather_alert.weather_alert import router as isuper_weather_alert_router
 from app.api.islogin.weather_alert.weather_alert import router as islogin_weather_alert_router
 from app.api.isuper.weather_forecast.weather_forecast import router as isuper_weather_forecast_router
@@ -130,6 +141,8 @@ all_routers = [
     islogin_buyer_interest_router,
     isuper_crop_router,
     islogin_crop_router,
+    isuper_crop_diagnosis_router,
+    islogin_crop_diagnosis_router,
     isuper_crop_expense_router,
     islogin_crop_expense_router,
     isuper_crop_market_data_router,
@@ -170,6 +183,7 @@ all_routers = [
     isuper_msp_rate_router,
     islogin_msp_rate_router,
     ipublic_msp_rate_router,
+    isuper_ndap_ingestion_run_router,
     isuper_offspring_router,
     islogin_offspring_router,
     isuper_opportunity_cost_router,
@@ -188,9 +202,15 @@ all_routers = [
     isuper_quality_verification_router,
     islogin_quality_verification_router,
     isuper_role_router,
+    isuper_satellite_observation_router,
+    islogin_satellite_observation_router,
     isuper_seasonal_trend_router,
     islogin_seasonal_trend_router,
     ipublic_seasonal_trend_router,
+    service_provider_service_router,
+    isuper_service_router,
+    islogin_service_router,
+    ipublic_service_router,
     isuper_shc_state_district_code_router,
     islogin_shc_state_district_code_router,
     isuper_slusi_ingestion_run_router,
@@ -224,6 +244,8 @@ all_routers = [
     isuper_veterinarian_router,
     islogin_veterinarian_router,
     ipublic_veterinarian_router,
+    isuper_voice_assist_log_router,
+    islogin_voice_assist_log_router,
     isuper_weather_alert_router,
     islogin_weather_alert_router,
     isuper_weather_forecast_router,

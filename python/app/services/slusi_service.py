@@ -206,6 +206,18 @@ class SLUSIService:
     # 7.3  Run ingestion
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _ensure_upsert_index() -> None:
+        """
+        ingest_lcc_data upserts ON CONFLICT (state, district, report_no). The model JSON
+        declares that as unique_constraints, but the schema generator does not emit it,
+        so create the matching unique index here if it is missing.
+        """
+        run_named(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_lcc_state_district_report "
+            "ON slusi_lcc_reports (state, district, report_no)"
+        )
+
     async def run_ingestion(self) -> IngestionRunResult:
         """
         Orchestrate a full ingestion run.
@@ -217,6 +229,8 @@ class SLUSIService:
         ).fetchone()
         if running is not None:
             raise HTTPException(status_code=409, detail="An ingestion run is already in progress")
+
+        self._ensure_upsert_index()
 
         started_at = datetime.now(timezone.utc)
         result = run_named(

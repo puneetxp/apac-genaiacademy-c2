@@ -108,6 +108,18 @@
             "datatype": "string",
             "sql_attribute": "DEFAULT 'planned' COMMENT 'planned, planted, growing, harvested'",
             "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "parent_crop_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'Main crop this supporting (inter/companion) crop grows with'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "crop_role",
+            "datatype": "string",
+            "sql_attribute": "DEFAULT 'main' COMMENT 'main, supporting'",
+            "mysql_data": "varchar(20)"
         }
     ]
 }

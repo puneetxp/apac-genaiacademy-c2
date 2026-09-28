@@ -45,7 +45,7 @@ class BedrockService:
                 f"Vertex AI Client initialization failed: {e}. Running in fallback/mock mode."
             )
 
-        self.model_name = settings.GEMINI_MODEL  # defaults to gemini-2.5-flash
+        self.model_name = settings.GEMINI_MODEL  # defaults to gemini-3.8-flash
         self.embedding_model_name = "text-embedding-004"
 
     async def generate_annual_strategy(self, farm_data: Dict[str, Any]) -> str:

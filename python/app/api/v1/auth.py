@@ -403,6 +403,12 @@ async def firebase_sign_in(request: GoogleSignInRequest, db: Session = Depends(g
             user = user or (db.query(User).filter(User.phone == phone).first() if phone else None)
             if user:
                 user.firebase_id = uid
+        if user:
+            # A phone sign-up's name is just the number; take the provider's name/email when they arrive.
+            if claims.get("name") and (not user.name or user.name == user.phone):
+                user.name = claims["name"]
+            if email and not user.email:
+                user.email = email
         if not user:
             user = User(
                 username=_unique_username(db, who),

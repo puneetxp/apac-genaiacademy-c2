@@ -3,7 +3,7 @@
  * Premium interface for managing personal information and account status
  */
 
-import { Component, createResource, createSignal, Show } from 'solid-js';
+import { Component, For, createResource, createSignal, Show } from 'solid-js';
 import { A } from '@solidjs/router';
 import { user } from '../../stores/auth.store';
 import { UserService } from '../../services/user.service';
@@ -11,6 +11,7 @@ import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorDisplay } from '../../components/ui/ErrorDisplay';
 import { showToast } from '../../components/ui/Toast';
 import ServicesMenu from '../../components/ui/ServicesMenu';
+import { LANGUAGES, setLang, t, type Lang } from '../../stores/i18n.store';
 
 const Profile: Component = () => {
     const [isEditing, setIsEditing] = createSignal(false);
@@ -28,6 +29,7 @@ const Profile: Component = () => {
                 phone_number: phone(),
                 language_preference: language()
             });
+            setLang(language() as Lang);
             showToast('success', 'Profile updated successfully');
             setIsEditing(false);
             refetch();
@@ -161,10 +163,7 @@ const Profile: Component = () => {
                                                     disabled={!isEditing()}
                                                     class={`w-full px-4 py-3 rounded-xl border ${isEditing() ? 'border-green-200 bg-white ring-4 ring-green-500/10' : 'border-slate-100 bg-slate-50 cursor-not-allowed'} transition-all outline-none text-slate-800 font-medium`}
                                                 >
-                                                    <option value="en">English</option>
-                                                    <option value="hi">Hindi (हिन्दी)</option>
-                                                    <option value="mr">Marathi (मराठी)</option>
-                                                    <option value="pa">Punjabi (ਪੰਜਾਬੀ)</option>
+                                                    <For each={LANGUAGES}>{(l) => <option value={l.code}>{l.name} ({l.label})</option>}</For>
                                                 </select>
                                             </div>
                                         </div>
@@ -210,7 +209,7 @@ const Profile: Component = () => {
 
                         {/* All services */}
                         <div class="mt-8 bg-slate-100 rounded-2xl p-4 sm:p-6 border border-slate-200">
-                            <h2 class="text-xl font-bold text-slate-900 mb-4">सभी सेवाएं <span class="text-sm font-medium text-slate-500">· All services</span></h2>
+                            <h2 class="text-xl font-bold text-slate-900 mb-4">{t('menu.title')}</h2>
                             <ServicesMenu variant="grid" />
                         </div>
                     </Show>

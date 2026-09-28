@@ -4,7 +4,7 @@ Handles AI-powered crop recommendations, annual strategies, and yield prediction
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -440,6 +440,45 @@ async def predict_yield(
         )
 
 
+def _plant_supporting_crops(
+    request: QuickPlantRequest,
+    main_crop_id: int,
+    plot_id: int,
+    area_share: float,
+    harvest_date,
+    active_role_id: int,
+) -> List[int]:
+    """Create the supporting (inter/companion) crops that grow with one main crop record.
+
+    area_share scales each supporting crop's area the same way the main crop's area was
+    split across plots (1.0 when planting a single plot).
+    """
+    ids: List[int] = []
+    for supporting in request.supporting_crops:
+        if not supporting.crop_name or not supporting.crop_name.strip():
+            continue
+        new_crop = Crop().create(
+            {
+                "farm_plot_id": plot_id,
+                "crop_name": supporting.crop_name.strip(),
+                "crop_variety": supporting.variety,
+                "season": request.season,
+                "area": (supporting.area or request.area) * area_share,
+                "planting_date": request.planting_date,
+                "expected_harvest_date": harvest_date,
+                "status": "planted",
+                "expected_yield": 0.0,
+                "expected_profit": 0.0,
+                "parent_crop_id": main_crop_id,
+                "crop_role": "supporting",
+                "active_role_id": active_role_id,
+            }
+        )
+        if new_crop and hasattr(new_crop, "id"):
+            ids.append(new_crop.id)
+    return ids
+
+
 @router.post("/quick-plant", response_model=QuickPlantResponse)
 async def quick_plant(request: QuickPlantRequest, current_user: Dict = Depends(get_current_user)):
     """
@@ -459,7 +498,12 @@ async def quick_plant(request: QuickPlantRequest, current_user: Dict = Depends(g
             raise HTTPException(status_code=403, detail="Access denied")
 
         crop_ids = []
+        supporting_crop_ids: List[int] = []
         total_area_planted = 0.0
+        # Harvest date is optional on the quick form; fall back to ~4 months after planting
+        harvest_date = request.expected_harvest_date or (
+            request.planting_date + timedelta(days=120)
+        )
 
         # Ensure farmer has an active role record (needed for audit trail on crops table)
         active_role_id = await _ensure_farmer_active_role(current_user.id)
@@ -482,7 +526,7 @@ async def quick_plant(request: QuickPlantRequest, current_user: Dict = Depends(g
                 "season": request.season,
                 "area": request.area,
                 "planting_date": request.planting_date,
-                "expected_harvest_date": request.expected_harvest_date,
+                "expected_harvest_date": harvest_date,
                 "status": "planted",
                 "expected_yield": request.expected_yield or 0.0,
                 "expected_profit": (
@@ -490,6 +534,7 @@ async def quick_plant(request: QuickPlantRequest, current_user: Dict = Depends(g
                     if request.expected_yield and request.market_price
                     else 0.0
                 ),
+                "crop_role": "main",
                 "active_role_id": active_role_id,
             }
 
@@ -497,6 +542,9 @@ async def quick_plant(request: QuickPlantRequest, current_user: Dict = Depends(g
             if new_crop and hasattr(new_crop, "id"):
                 crop_ids.append(new_crop.id)
                 total_area_planted = request.area
+                supporting_crop_ids += _plant_supporting_crops(
+                    request, new_crop.id, request.plot_id, 1.0, harvest_date, active_role_id
+                )
         else:
             # Plant on ALL active plots of the farm (distribute area)
             plots_result = FarmPlot.where({"farm_id": [request.farm_id], "enable": [1]}).get()
@@ -531,7 +579,7 @@ async def quick_plant(request: QuickPlantRequest, current_user: Dict = Depends(g
                     "season": request.season,
                     "area": distributed_area,
                     "planting_date": request.planting_date,
-                    "expected_harvest_date": request.expected_harvest_date,
+                    "expected_harvest_date": harvest_date,
                     "status": "planted",
                     "expected_yield": (
                         (request.expected_yield / len(plots)) if request.expected_yield else 0.0
@@ -541,6 +589,7 @@ async def quick_plant(request: QuickPlantRequest, current_user: Dict = Depends(g
                         if request.expected_yield and request.market_price
                         else 0.0
                     ),
+                    "crop_role": "main",
                     "active_role_id": active_role_id,
                 }
 
@@ -548,12 +597,26 @@ async def quick_plant(request: QuickPlantRequest, current_user: Dict = Depends(g
                 if new_crop and hasattr(new_crop, "id"):
                     crop_ids.append(new_crop.id)
                     total_area_planted += distributed_area
+                    supporting_crop_ids += _plant_supporting_crops(
+                        request,
+                        new_crop.id,
+                        plot.get("id"),
+                        (distributed_area / request.area) if request.area else 1.0,
+                        harvest_date,
+                        active_role_id,
+                    )
+
+        message = f"Successfully planted {request.crop_name} across {len(crop_ids)} plots"
+        if supporting_crop_ids:
+            names = ", ".join(c.crop_name for c in request.supporting_crops if c.crop_name.strip())
+            message += f" with supporting crops: {names}"
 
         return QuickPlantResponse(
             success=True,
-            message=f"Successfully planted {request.crop_name} across {len(crop_ids)} plots",
+            message=message,
             crop_ids=crop_ids,
             total_area_planted=total_area_planted,
+            supporting_crop_ids=supporting_crop_ids,
         )
 
     except HTTPException:
@@ -758,6 +821,8 @@ async def get_my_crops(current_user=Depends(get_current_user)):
                         float(crop.get("actual_profit", 0)) if crop.get("actual_profit") else None
                     ),
                     "status": crop.get("status", "planted"),
+                    "parent_crop_id": crop.get("parent_crop_id"),
+                    "crop_role": crop.get("crop_role") or "main",
                     "farm_name": farm.get("name", "") if farm else "",
                     "plot_name": plot.get("plot_name", "") if plot else "",
                     "created_at": crop.get("created_at"),

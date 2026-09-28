@@ -182,3 +182,197 @@ def _log_voice_event(result: Dict[str, Any]):
         )
     except Exception as e:
         logger.debug(f"BigQuery voice logging skipped: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Assistant: voice or text -> open a menu option, answer, or propose a record
+# ---------------------------------------------------------------------------
+
+import base64
+from datetime import date
+from typing import List
+
+from pydantic import BaseModel, Field
+
+import time
+
+from app.services.voice_assist_audit import record_attempt
+from app.services.voice_assist_service import (
+    build_prompt,
+    keyword_fallback,
+    parse_model_json,
+    sanitize_result,
+)
+
+
+class MenuEntry(BaseModel):
+    id: str = Field(..., max_length=64)
+    label: str = Field(..., max_length=300)
+
+
+class AnimalEntry(BaseModel):
+    id: int
+    label: str = Field(..., max_length=200)
+
+
+class ChatTurn(BaseModel):
+    role: str = Field(..., pattern="^(user|assistant)$")
+    text: str = Field(..., max_length=1000)
+
+
+class AssistRequest(BaseModel):
+    # Either a recording (base64) or typed text
+    audio_base64: Optional[str] = None
+    mime_type: Optional[str] = "audio/webm"
+    # Recording length as measured by the browser (for the voice log)
+    duration_ms: Optional[int] = Field(None, ge=0, le=600000)
+    text: Optional[str] = Field(None, max_length=1000)
+    lang: str = "en"
+    menu: List[MenuEntry] = Field(default_factory=list, max_length=200)
+    # The farmer's own livestock, so the assistant can ask "which animal?"
+    animals: List[AnimalEntry] = Field(default_factory=list, max_length=200)
+    history: List[ChatTurn] = Field(default_factory=list, max_length=20)
+    focus_animal_id: Optional[int] = None
+    # Guided form filling ("add_livestock"): the draft so far, updated each turn
+    task: Optional[str] = Field(None, pattern="^(add_livestock)$")
+    draft: Dict[str, Any] = Field(default_factory=dict)
+    # The farmer's own farms and crops, so proposals can target them ("which farm?")
+    farms: List[AnimalEntry] = Field(default_factory=list, max_length=100)
+    crops: List[AnimalEntry] = Field(default_factory=list, max_length=200)
+    # Plain-text summary of the farmer's own farms, crops, livestock and dashboard figures
+    context: Optional[str] = Field(None, max_length=12000)
+
+
+@router.post("/assist", response_model=Dict[str, Any])
+async def voice_assist(request: AssistRequest, current_user=Depends(get_current_active_user)):
+    """
+    Understand a voice recording or typed text and decide what to do:
+    open a menu option, answer briefly, or propose a record for the user to
+    approve. Nothing is written to the database here.
+    """
+    if not request.audio_base64 and not (request.text or "").strip():
+        raise HTTPException(status_code=400, detail="Send a voice recording or some text.")
+
+    menu = [m.model_dump() for m in request.menu]
+    menu_ids = [m["id"] for m in menu]
+
+    audio_bytes = b""
+    mime = (request.mime_type or "audio/webm").split(";")[0].strip()
+    if request.audio_base64:
+        if mime not in SUPPORTED_AUDIO_TYPES:
+            raise HTTPException(status_code=400, detail=f"Unsupported audio format '{mime}'.")
+        try:
+            audio_bytes = base64.b64decode(request.audio_base64, validate=True)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Audio is not valid base64.")
+        if len(audio_bytes) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Recording too long. Maximum 10MB.")
+        if len(audio_bytes) < 500:
+            raise HTTPException(status_code=400, detail="Recording is too short.")
+
+    started = time.monotonic()
+    # What goes in the voice log for this call (filled in as we go)
+    audit: Dict[str, Any] = {
+        "source": "voice" if audio_bytes else "text",
+        "task": request.task,
+        "ui_lang": request.lang,
+        "mime_type": mime if audio_bytes else None,
+        "audio_bytes": len(audio_bytes) or None,
+        "duration_ms": request.duration_ms,
+    }
+    model_errors: List[str] = []
+
+    animals = [a.model_dump() for a in request.animals]
+    prompt = build_prompt(
+        menu,
+        request.lang,
+        date.today().isoformat(),
+        request.text,
+        animals=animals,
+        history=[h.model_dump() for h in request.history],
+        focus_animal_id=request.focus_animal_id,
+        task=request.task,
+        draft=request.draft,
+        context=request.context,
+        farms=[f.model_dump() for f in request.farms],
+        crops=[c.model_dump() for c in request.crops],
+    )
+
+    try:
+        # google-genai client (the vertexai.generative_models SDK is deprecated)
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(
+            vertexai=True,
+            project=settings.GOOGLE_CLOUD_PROJECT,
+            location=settings.GOOGLE_CLOUD_REGION,
+        )
+        contents: List[Any] = [prompt]
+        if audio_bytes:
+            contents.insert(0, types.Part.from_bytes(data=audio_bytes, mime_type=mime))
+
+        config = types.GenerateContentConfig(
+            # Room for a data table when answering from the farmer's data
+            max_output_tokens=2000 if request.context else 1000,
+            temperature=0.2,
+            response_mime_type="application/json",
+        )
+        # Flash-Lite first (fast, cheap); if it's unavailable in this project/region, use the main model
+        models = list(dict.fromkeys([settings.GEMINI_ASSIST_MODEL, settings.GEMINI_MODEL]))
+        response, model_used = None, models[0]
+        for model_used in models:
+            try:
+                response = await client.aio.models.generate_content(
+                    model=model_used, contents=contents, config=config
+                )
+                break
+            except Exception as model_error:
+                logger.warning(f"Assist model {model_used} failed: {model_error}")
+                model_errors.append(f"{model_used}: {model_error}")
+        if response is None:
+            raise RuntimeError("No assistant model available — " + " | ".join(model_errors))
+        result = sanitize_result(
+            parse_model_json(response.text),
+            menu_ids,
+            request.lang,
+            [a["id"] for a in animals],
+            task=request.task,
+            draft=request.draft,
+            farm_ids=[f.id for f in request.farms],
+            crop_ids=[c.id for c in request.crops],
+        )
+        result["model_used"] = model_used
+        record_attempt(
+            current_user.id,
+            **audit,
+            language_detected=result["language"],
+            transcript=result["transcript"] or request.text,
+            intent=result["intent"],
+            model_used=model_used,
+            # A model before this one failed: keep why, even though the call succeeded
+            error=" | ".join(model_errors) or None,
+            latency_ms=int((time.monotonic() - started) * 1000),
+        )
+        _log_voice_event(
+            {"language_detected": result["language"], "topic": result["intent"], "model_used": model_used}
+        )
+        return {"success": True, "data": result}
+
+    except Exception as e:
+        logger.error(f"Voice assist failed: {e}")
+        record_attempt(
+            current_user.id,
+            **audit,
+            transcript=request.text,
+            status="error" if audio_bytes and not request.text else "fallback",
+            error=str(e),
+            latency_ms=int((time.monotonic() - started) * 1000),
+        )
+        if audio_bytes and not request.text:
+            # Can't understand audio without the model — ask the client to fall back to typing/search
+            raise HTTPException(
+                status_code=503,
+                detail="Voice understanding is unavailable right now. Please type or pick from the menu.",
+            )
+        return {"success": True, "data": keyword_fallback(request.text or "", menu, request.lang)}

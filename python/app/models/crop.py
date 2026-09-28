@@ -23,6 +23,8 @@ class Crop(BaseModel):
     actual_yield: float | None = None
     actual_profit: float | None = None
     status: str | None = None
+    parent_crop_id: int | None = None
+    crop_role: str | None = None
 
 
 class CropInput(BaseModel):
@@ -40,3 +42,5 @@ class CropInput(BaseModel):
     actual_yield: float | None = None
     actual_profit: float | None = None
     status: str | None = None
+    parent_crop_id: int | None = None
+    crop_role: str | None = None

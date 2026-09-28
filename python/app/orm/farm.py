@@ -103,6 +103,11 @@ class Farm(Model):
                 'key': 'farm_id',
                 'callback': lambda: __import__('app.orm.pest_disease_alert', fromlist=['PestDiseaseAlert']).PestDiseaseAlert
             },
+            'satellite_observation': {
+                'name': 'id',
+                'key': 'farm_id',
+                'callback': lambda: __import__('app.orm.satellite_observation', fromlist=['SatelliteObservation']).SatelliteObservation
+            },
             'soil_test_result': {
                 'name': 'id',
                 'key': 'farm_id',

@@ -344,6 +344,10 @@ class RequestSizeValidator:
     MAX_JSON_FIELDS = 1000  # Maximum number of fields in JSON
     MAX_STRING_LENGTH = 10000  # Maximum string length
     MAX_ARRAY_LENGTH = 1000  # Maximum array length
+    # Fields named *_base64 carry a file (voice recording, crop photo). A 2-second clip is
+    # already over 10,000 characters, so these are bounded only by MAX_REQUEST_SIZE
+    # (checked on the whole body) and by each endpoint's own decoded-size check.
+    BINARY_FIELD_SUFFIX = "_base64"
 
     @classmethod
     def validate_json_size(cls, data: Dict[str, Any]) -> None:
@@ -380,8 +384,10 @@ class RequestSizeValidator:
         return count
 
     @classmethod
-    def _validate_values(cls, data: Any) -> None:
+    def _validate_values(cls, data: Any, key: str = "") -> None:
         """Recursively validate string lengths and array sizes"""
+        if isinstance(data, str) and key.endswith(cls.BINARY_FIELD_SUFFIX):
+            return
         if isinstance(data, str):
             if len(data) > cls.MAX_STRING_LENGTH:
                 raise HTTPException(
@@ -397,8 +403,8 @@ class RequestSizeValidator:
             for item in data:
                 cls._validate_values(item)
         elif isinstance(data, dict):
-            for value in data.values():
-                cls._validate_values(value)
+            for field, value in data.items():
+                cls._validate_values(value, str(field))
 
 
 # Convenience functions for common validations

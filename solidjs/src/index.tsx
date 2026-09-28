@@ -12,6 +12,7 @@ import './assets/styles/index.css';
 const SignUpPage = lazy(() => import('./pages/auth/SignUp'));
 const SignInPage = lazy(() => import('./pages/auth/SignIn'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AssistantChat = lazy(() => import('./pages/Assistant'));
 const FarmRegisterPage = lazy(() => import('./pages/farm/Register'));
 const FarmDashboardPage = lazy(() => import('./pages/farm/FarmDashboard'));
 const StrategyRequestPage = lazy(() => import('./pages/strategy/Request'));
@@ -41,17 +42,21 @@ const SecurityPage = lazy(() => import('./pages/users/Security'));
 const ClimateHubPage = lazy(() => import('./pages/climate/ClimateHub'));
 const SoilFertilizerHubPage = lazy(() => import('./pages/soil/SoilFertilizerHub'));
 const PestDiseaseHubPage = lazy(() => import('./pages/pest-disease/PestDiseaseHub'));
+const DiagnosePage = lazy(() => import('./pages/crops/Diagnose'));
 const LivestockHubPage = lazy(() => import('./pages/livestock/LivestockHub'));
 const VeterinaryDoctorsPage = lazy(() => import('./pages/livestock/VeterinaryDoctors'));
 const PashuHomePage = lazy(() => import('./pages/livestock/PashuHome'));
 const AllServicesPage = lazy(() => import('./pages/AllServices'));
+const ConfigurationPage = lazy(() => import('./pages/Configuration'));
 const DietPlanPage = lazy(() => import('./pages/livestock/DietPlan'));
+const ServicesDirectoryPage = lazy(() => import('./pages/services/ServicesDirectory'));
 const TransportTrackingPage = lazy(() => import('./pages/transport/TransportTracking'));
 const NotificationsPage = lazy(() => import('./pages/notifications/Notifications'));
 
 
 // Wrapper components for protected routes
 const DashboardPage: Component = () => <ProtectedRoute><Dashboard /></ProtectedRoute>;
+const AssistantPage: Component = () => <ProtectedRoute><AssistantChat /></ProtectedRoute>;
 const FarmRegisterPageWrapped: Component = () => <ProtectedRoute><FarmRegisterPage /></ProtectedRoute>;
 const FarmDashboardPageWrapped: Component = () => <ProtectedRoute><FarmDashboardPage /></ProtectedRoute>;
 const StrategyRequestPageWrapped: Component = () => <ProtectedRoute><StrategyRequestPage /></ProtectedRoute>;
@@ -79,11 +84,14 @@ const SecurityPageWrapped: Component = () => <ProtectedRoute><SecurityPage /></P
 const ClimateHubPageWrapped: Component = () => <ProtectedRoute><ClimateHubPage /></ProtectedRoute>;
 const SoilFertilizerHubPageWrapped: Component = () => <ProtectedRoute><SoilFertilizerHubPage /></ProtectedRoute>;
 const PestDiseaseHubPageWrapped: Component = () => <ProtectedRoute><PestDiseaseHubPage /></ProtectedRoute>;
+const DiagnosePageWrapped: Component = () => <ProtectedRoute><DiagnosePage /></ProtectedRoute>;
 const LivestockHubPageWrapped: Component = () => <ProtectedRoute><LivestockHubPage /></ProtectedRoute>;
 const VeterinaryDoctorsPageWrapped: Component = () => <ProtectedRoute><VeterinaryDoctorsPage /></ProtectedRoute>;
 const PashuHomePageWrapped: Component = () => <ProtectedRoute><PashuHomePage /></ProtectedRoute>;
 const AllServicesPageWrapped: Component = () => <ProtectedRoute><AllServicesPage /></ProtectedRoute>;
+const ConfigurationPageWrapped: Component = () => <ProtectedRoute><ConfigurationPage /></ProtectedRoute>;
 const DietPlanPageWrapped: Component = () => <ProtectedRoute><DietPlanPage /></ProtectedRoute>;
+const ServicesDirectoryPageWrapped: Component = () => <ProtectedRoute><ServicesDirectoryPage /></ProtectedRoute>;
 const TransportTrackingPageWrapped: Component = () => <ProtectedRoute><TransportTrackingPage /></ProtectedRoute>;
 const NotificationsPageWrapped: Component = () => <ProtectedRoute><NotificationsPage /></ProtectedRoute>;
 
@@ -117,6 +125,7 @@ render(
       <Route path="/auth/signup" component={SignUpPage} />
       <Route path="/auth/signin" component={SignInPage} />
       <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/assistant" component={AssistantPage} />
       <Route path="/farm" component={FarmPageWrapped} />
       <Route path="/farm/register" component={FarmRegisterPageWrapped} />
       <Route path="/farm/:id" component={FarmDashboardPageWrapped} />
@@ -149,9 +158,12 @@ render(
       <Route path="/climate/hub" component={ClimateHubPageWrapped} />
       <Route path="/soil/hub" component={SoilFertilizerHubPageWrapped} />
       <Route path="/pest-disease/hub" component={PestDiseaseHubPageWrapped} />
+      <Route path="/diagnose" component={DiagnosePageWrapped} />
       <Route path="/livestock" component={PashuHomePageWrapped} />
       <Route path="/menu" component={AllServicesPageWrapped} />
+      <Route path="/settings" component={ConfigurationPageWrapped} />
       <Route path="/livestock/diet-plan" component={DietPlanPageWrapped} />
+      <Route path="/services" component={ServicesDirectoryPageWrapped} />
       <Route path="/livestock/hub" component={LivestockHubPageWrapped} />
       <Route path="/livestock/doctors" component={VeterinaryDoctorsPageWrapped} />
       <Route path="/transport/tracking" component={TransportTrackingPageWrapped} />

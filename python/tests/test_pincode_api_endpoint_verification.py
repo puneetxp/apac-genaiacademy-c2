@@ -4,7 +4,7 @@ Verification Test for Pincode API Endpoint Configuration
 **Validates: Requirements 1.7, 2.8**
 
 This test verifies that the pincode lookup service is correctly configured
-to use the external API endpoint "https://pincode.deno.dev".
+to use the external API endpoint "https://api.postalpincode.in/pincode".
 
 NOTE: This test is expected to PASS on unfixed code since investigation
 shows the configuration is already correct.
@@ -25,7 +25,7 @@ class TestPincodeAPIEndpointVerification:
     Property 1: Fault Condition - Pincode API Configuration
 
     For any pincode lookup request, the service SHALL use the correct
-    API endpoint "https://pincode.deno.dev/{pincode}" as configured.
+    API endpoint "https://api.postalpincode.in/pincode/{pincode}" as configured.
     """
 
     @pytest.fixture
@@ -40,9 +40,9 @@ class TestPincodeAPIEndpointVerification:
         **Validates: Requirements 1.7, 2.8**
 
         Verifies that the service class constant PINCODE_API_URL is set to
-        "https://pincode.deno.dev" as specified in the requirements.
+        "https://api.postalpincode.in/pincode" as specified in the requirements.
         """
-        expected_url = "https://pincode.deno.dev"
+        expected_url = "https://api.postalpincode.in/pincode"
         actual_url = PincodeLookupService.PINCODE_API_URL
 
         assert (
@@ -57,10 +57,10 @@ class TestPincodeAPIEndpointVerification:
         **Validates: Requirements 1.7, 2.8**
 
         Verifies that when lookup_pincode() is called, it makes HTTP requests
-        to the correct endpoint: https://pincode.deno.dev/{pincode}
+        to the correct endpoint: https://api.postalpincode.in/pincode/{pincode}
         """
         test_pincode = "110001"
-        expected_url = f"https://pincode.deno.dev/{test_pincode}"
+        expected_url = f"https://api.postalpincode.in/pincode/{test_pincode}"
 
         with patch("httpx.AsyncClient") as mock_client:
             # Mock successful response
@@ -100,7 +100,7 @@ class TestPincodeAPIEndpointVerification:
         test_pincodes = ["110001", "400001", "560001", "700001"]
 
         for pincode in test_pincodes:
-            expected_url = f"https://pincode.deno.dev/{pincode}"
+            expected_url = f"https://api.postalpincode.in/pincode/{pincode}"
 
             with patch("httpx.AsyncClient") as mock_client:
                 mock_response = MagicMock()
@@ -180,7 +180,7 @@ class TestPincodeAPIEndpointVerification:
         while still using the correct endpoint.
         """
         test_pincode = "110001"
-        expected_url = f"https://pincode.deno.dev/{test_pincode}"
+        expected_url = f"https://api.postalpincode.in/pincode/{test_pincode}"
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_response = MagicMock()
@@ -195,7 +195,7 @@ class TestPincodeAPIEndpointVerification:
             await service.lookup_pincode(test_pincode)
 
             # Verify AsyncClient was created with correct timeout
-            mock_client.assert_called_once_with(timeout=5)
+            mock_client.assert_called_once_with(timeout=10)
 
             # Verify correct endpoint was called
             mock_get.assert_called_once_with(expected_url)
@@ -207,12 +207,12 @@ class TestPincodeAPIEndpointVerification:
         **Validates: Requirements 1.7, 2.8**
 
         Verifies that the service has all required constants set correctly:
-        - PINCODE_API_URL: "https://pincode.deno.dev"
+        - PINCODE_API_URL: "https://api.postalpincode.in/pincode"
         - TIMEOUT_SECONDS: 5
         - CACHE_TTL_DAYS: 30
         """
         assert (
-            PincodeLookupService.PINCODE_API_URL == "https://pincode.deno.dev"
-        ), "PINCODE_API_URL should be 'https://pincode.deno.dev'"
-        assert PincodeLookupService.TIMEOUT_SECONDS == 5, "TIMEOUT_SECONDS should be 5"
+            PincodeLookupService.PINCODE_API_URL == "https://api.postalpincode.in/pincode"
+        ), "PINCODE_API_URL should be 'https://api.postalpincode.in/pincode'"
+        assert PincodeLookupService.TIMEOUT_SECONDS == 10, "TIMEOUT_SECONDS should be 10"
         assert PincodeLookupService.CACHE_TTL_DAYS == 30, "CACHE_TTL_DAYS should be 30"
