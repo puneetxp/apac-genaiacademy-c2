@@ -59,6 +59,7 @@ from app.api.v1 import (
     vaccination_reminders,
     veterinary,
     vision_diagnosis,
+    satellite,
     voice_agent,
     weather,
     weather_recommendations,
@@ -183,11 +184,13 @@ def create_app() -> FastAPI:
     # /isuper -> admin only, /islogin -> any signed-in user, /ipublic -> open.
     from fastapi import Depends
 
-    from app.core.auth import get_current_active_user, get_current_admin
+    from app.core.auth import get_current_active_user, get_current_admin, require_role
 
     namespace_guards = {
         "/isuper": [Depends(get_current_admin)],
         "/islogin": [Depends(get_current_active_user)],
+        # Custom role controllers (crud.roles in the model JSON): only users with that role
+        "/service_provider": [Depends(require_role(["service_provider", "admin"]))],
     }
     for router in all_routers:
         guard = next(
@@ -283,6 +286,7 @@ def create_app() -> FastAPI:
     app.include_router(slusi.router, prefix=settings.API_V1_STR, tags=["SLUSI Soil Data"])
     app.include_router(agents.router, prefix=settings.API_V1_STR, tags=["Agents"])
     app.include_router(vision_diagnosis.router, prefix=settings.API_V1_STR, tags=["Vision AI"])
+    app.include_router(satellite.router, prefix=settings.API_V1_STR, tags=["Satellite"])
     app.include_router(voice_agent.router, prefix=settings.API_V1_STR, tags=["Voice AI"])
     app.include_router(
         community_dashboard.router, prefix=settings.API_V1_STR, tags=["Community Intelligence"]

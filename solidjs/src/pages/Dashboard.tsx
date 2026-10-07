@@ -20,6 +20,11 @@ import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { ErrorDisplay } from "../components/ui/ErrorDisplay";
 import { SkeletonDashboard } from "../components/ui/SkeletonScreen";
 import { showToast } from "../components/ui/Toast";
+import ServicesMenu from "../components/ui/ServicesMenu";
+import AskAnythingCard from "../components/assistant/AskAnythingCard";
+import FarmJourney from "../components/dashboard/FarmJourney";
+import SatelliteHealthCard from "../components/farm/SatelliteHealthCard";
+import { showSection } from "../stores/app-config.store";
 
 // Lazy load heavy dashboard components for better performance
 const QuickStats = lazy(() => import("../components/dashboard/QuickStats"));
@@ -40,6 +45,9 @@ const WeatherAlertsCard = lazy(() =>
 );
 const StrategyTimelineProgress = lazy(() =>
   import("../components/dashboard/StrategyTimelineProgress")
+);
+const AnalyticsBoard = lazy(() =>
+  import("../components/dashboard/board/AnalyticsBoard")
 );
 
 const Dashboard: Component = () => {
@@ -98,47 +106,80 @@ const Dashboard: Component = () => {
       />
 
       {/* Header */}
-      <header class="bg-white shadow sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex justify-between items-center">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-900">
+      <header class="bg-white/95 backdrop-blur border-b border-gray-200 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="text-lg sm:text-2xl font-bold text-gray-900 truncate">
                 Farmer Dashboard
               </h1>
-              <p class="text-sm text-gray-600 mt-1">
+              <p class="text-xs sm:text-sm text-gray-500 truncate">
                 Welcome back, {user()?.full_name || user()?.username}
               </p>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <A
+                href="/assistant"
+                class="px-3 sm:px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
+                title="Chat or talk with CropSense AI about your farm"
+              >
+                <span>✦</span> Ask AI
+              </A>
               <A
                 href="/farm/register"
-                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors shadow-sm flex items-center gap-2"
+                class="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
                 title="Register a new farm"
               >
-                <span>➕</span> Add Farm
+                <span>＋</span><span class="hidden sm:inline">Add Farm</span>
               </A>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                title="Refresh dashboard"
-              >
-                🔄 Refresh
-              </button>
-              <button
-                type="button"
-                onClick={handleSignOut}
-                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors shadow-sm"
-              >
-                Sign Out
-              </button>
+              {/* Secondary links: desktop only (mobile has the bottom nav) */}
+              <div class="hidden md:flex items-center gap-0.5 ml-1 pl-2 border-l border-gray-200">
+                <A href="/livestock" class="px-2.5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Livestock management">
+                  🐄 Livestock
+                </A>
+                <A href="/livestock/doctors" class="px-2.5 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Veterinary doctors">
+                  🩺 Vets
+                </A>
+                <A href="/settings" class="px-2.5 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Choose what the dashboard shows" aria-label="Configure dashboard">
+                  ⚙️
+                </A>
+                <button type="button" onClick={handleRefresh} class="px-2.5 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Refresh dashboard" aria-label="Refresh dashboard">
+                  🔄
+                </button>
+                <button type="button" onClick={handleSignOut} class="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium">
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 sm:pb-8">
+        {/* The whole season at a glance: land → soil → plan → sow → protect → harvest → sell, plus livestock */}
+        <Show when={showSection("journey") && !profileStatus.loading && profileStatus()}>
+          <div class="mb-6">
+            <FarmJourney
+              farms={profileStatus()?.farms || []}
+              hasStrategies={!!profileStatus()?.has_strategies}
+              data={profileStatus()?.dashboard_data}
+            />
+          </div>
+        </Show>
+        {/* Ask or add anything (farm, crop, expense, sale, animal) by voice or text — works before onboarding too */}
+        <Show when={showSection("assistant") && !profileStatus.loading && !profileStatus()?.is_onboarding_complete}>
+          <div class="mb-8">
+            <AskAnythingCard />
+          </div>
+        </Show>
+        {/* Every service in one place; outside the loading/empty states so navigation always works. */}
+        <Show when={showSection("services")}>
+          <section class="bg-white rounded-lg shadow p-4 sm:p-6 mb-8" aria-label="All services">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">All Services</h2>
+            <ServicesMenu variant="grid" searchable />
+          </section>
+        </Show>
         <Show
           when={!profileStatus.loading}
           fallback={<SkeletonDashboard />}
@@ -233,15 +274,41 @@ const Dashboard: Component = () => {
                 {(data) => (
                   <div class="space-y-6">
                     {/* Quick Stats */}
-                    <Suspense
-                      fallback={
-                        <div class="h-32 bg-gray-100 animate-pulse rounded-lg" />
-                      }
-                    >
-                      <QuickStats stats={data().stats} />
-                    </Suspense>
+                    <Show when={showSection("stats")}>
+                      <Suspense
+                        fallback={
+                          <div class="h-32 bg-gray-100 animate-pulse rounded-lg" />
+                        }
+                      >
+                        <QuickStats stats={data().stats} />
+                      </Suspense>
+                    </Show>
+
+                    {/* Crop health from space (Sentinel-2) for the farmer's farms */}
+                    <Show when={showSection("satellite")}>
+                      <SatelliteHealthCard />
+                    </Show>
+
+                    {/* Farm & livestock board: charts, tables and AI projections */}
+                    <Show when={showSection("board")}>
+                      <Suspense
+                        fallback={
+                          <div class="h-96 bg-gray-100 animate-pulse rounded-lg" />
+                        }
+                      >
+                        <AnalyticsBoard
+                          data={data()}
+                          farms={profileStatus()?.farms || []}
+                        />
+                      </Suspense>
+                    </Show>
+
+                    <Show when={showSection("assistant")}>
+                      <AskAnythingCard />
+                    </Show>
 
                     {/* Quick Actions */}
+                    <Show when={showSection("quickActions")}>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <A
                         href="/farm/register"
@@ -277,9 +344,10 @@ const Dashboard: Component = () => {
                         <p class="text-sm opacity-90">Manage sales</p>
                       </A>
                     </div>
+                    </Show>
 
                     {/* Farms Display */}
-                    <Show when={(profileStatus()?.farms?.length || 0) > 0}>
+                    <Show when={showSection("farms") && (profileStatus()?.farms?.length || 0) > 0}>
                       <div class="bg-white rounded-lg shadow-md p-6 border border-green-100">
                         <div class="flex justify-between items-center mb-4 border-b pb-2">
                           <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -353,7 +421,7 @@ const Dashboard: Component = () => {
 
                     {/* Weather Alerts - Priority Display */}
                     <Show
-                      when={data().weather_alerts &&
+                      when={showSection("weather") && data().weather_alerts &&
                         data().weather_alerts.length > 0}
                     >
                       <Suspense
@@ -367,7 +435,7 @@ const Dashboard: Component = () => {
 
                     {/* Strategy Timeline Progress */}
                     <Show
-                      when={data().strategy_timeline &&
+                      when={showSection("strategy") && data().strategy_timeline &&
                         data().strategy_timeline!.length > 0}
                     >
                       <Suspense
@@ -384,6 +452,7 @@ const Dashboard: Component = () => {
                     {/* Main Dashboard Grid */}
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Active Crops */}
+                      <Show when={showSection("crops")}>
                       <Suspense
                         fallback={
                           <div class="h-80 bg-gray-100 animate-pulse rounded-lg" />
@@ -391,8 +460,10 @@ const Dashboard: Component = () => {
                       >
                         <ActiveCropsCard crops={data().active_crops} />
                       </Suspense>
+                      </Show>
 
                       {/* Marketplace Listings */}
+                      <Show when={showSection("listings")}>
                       <Suspense
                         fallback={
                           <div class="h-80 bg-gray-100 animate-pulse rounded-lg" />
@@ -402,8 +473,10 @@ const Dashboard: Component = () => {
                           listings={data().active_listings}
                         />
                       </Suspense>
+                      </Show>
 
                       {/* Upcoming Tasks */}
+                      <Show when={showSection("tasks")}>
                       <Suspense
                         fallback={
                           <div class="h-80 bg-gray-100 animate-pulse rounded-lg" />
@@ -411,8 +484,10 @@ const Dashboard: Component = () => {
                       >
                         <UpcomingTasksCard tasks={data().upcoming_tasks} />
                       </Suspense>
+                      </Show>
 
                       {/* Buyer Interests */}
+                      <Show when={showSection("buyers")}>
                       <Suspense
                         fallback={
                           <div class="h-80 bg-gray-100 animate-pulse rounded-lg" />
@@ -422,6 +497,7 @@ const Dashboard: Component = () => {
                           interests={data().buyer_interests}
                         />
                       </Suspense>
+                      </Show>
                     </div>
                   </div>
                 )}

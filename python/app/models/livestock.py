@@ -14,6 +14,7 @@ class Livestock(BaseModel):
     farmer_id: int
     species: str
     breed: str
+    name: str | None = None
     quantity: int
     purchase_price: float
     purchase_date: date
@@ -36,6 +37,7 @@ class LivestockInput(BaseModel):
     farmer_id: int | None = None
     species: str | None = None
     breed: str | None = None
+    name: str | None = None
     quantity: int | None = None
     purchase_price: float | None = None
     purchase_date: _date | None = None

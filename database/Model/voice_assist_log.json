@@ -1,0 +1,109 @@
+{
+    "name": "voice_assist_log",
+    "table": "voice_assist_logs",
+    "crud": {
+        "isuper": [
+            "r",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "r",
+            "a"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "user": {
+            "name": "user_id",
+            "key": "id",
+            "table": "users"
+        }
+    },
+    "data": [
+        {
+            "name": "user_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "source",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL DEFAULT 'text' COMMENT 'voice, text'",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "task",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'guided form task, e.g. add_livestock'",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "ui_lang",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(10)"
+        },
+        {
+            "name": "language_detected",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(10)"
+        },
+        {
+            "name": "mime_type",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(50)"
+        },
+        {
+            "name": "audio_bytes",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "duration_ms",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'recording length reported by the browser'",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "transcript",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'what the model heard'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "intent",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "model_used",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "status",
+            "datatype": "string",
+            "sql_attribute": "NOT NULL DEFAULT 'ok' COMMENT 'ok, error, fallback'",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "error",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'why it failed, incl. each model that was tried'",
+            "mysql_data": "text"
+        },
+        {
+            "name": "latency_ms",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "INT"
+        }
+    ]
+}

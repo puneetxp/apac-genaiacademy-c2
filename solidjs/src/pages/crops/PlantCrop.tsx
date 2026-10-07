@@ -1,7 +1,8 @@
-import { Component, createSignal, onMount, Show } from 'solid-js';
+import { Component, createSignal, For, onMount, Show } from 'solid-js';
 import { useSearchParams, useNavigate, A } from '@solidjs/router';
 import { IoArrowBack, IoLeaf, IoCalendar, IoResize, IoCheckmarkCircle, IoAlertCircle } from 'solid-icons/io';
-import { CropService } from '../../services/crop.service';
+import { CropService, type SupportingCropInput } from '../../services/crop.service';
+import { showCropField } from '../../stores/app-config.store';
 import { DashboardService } from '../../services/dashboard.service';
 
 const PlantCropPage: Component = () => {
@@ -24,6 +25,15 @@ const PlantCropPage: Component = () => {
     market_price: parseFloat((searchParams.marketPrice as string) || '0'),
   });
 
+  // Supporting (inter/companion) crops grown alongside the main crop, e.g. Maize + Cowpea
+  const [supportingCrops, setSupportingCrops] = createSignal<SupportingCropInput[]>([]);
+  const addSupportingCrop = () =>
+    setSupportingCrops([...supportingCrops(), { crop_name: '', variety: '', area: undefined }]);
+  const updateSupportingCrop = (index: number, patch: Partial<SupportingCropInput>) =>
+    setSupportingCrops(supportingCrops().map((c, i) => (i === index ? { ...c, ...patch } : c)));
+  const removeSupportingCrop = (index: number) =>
+    setSupportingCrops(supportingCrops().filter((_, i) => i !== index));
+
   onMount(() => {
     if (!formData().expected_harvest_date) {
       const harvestDate = new Date(formData().planting_date);
@@ -34,7 +44,7 @@ const PlantCropPage: Component = () => {
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
-    if (!formData().market_price || formData().market_price <= 0) {
+    if (showCropField('marketPrice') && formData().expected_yield > 0 && (!formData().market_price || formData().market_price <= 0)) {
       const confirmed = window.confirm('Market price is set to ₹0. Are you sure you want to continue?');
       if (!confirmed) {
         return;
@@ -44,17 +54,23 @@ const PlantCropPage: Component = () => {
     setError(null);
     
     try {
+      // Fields switched off in Configuration are left out; the API fills sensible defaults
       await CropService.quickPlant({
         farm_id: formData().farm_id,
         plot_id: null,
         crop_name: formData().crop_name,
-        variety: formData().variety,
+        variety: showCropField('variety') ? formData().variety : undefined,
         season: formData().season,
         area: formData().area,
         planting_date: formData().planting_date,
-        expected_harvest_date: formData().expected_harvest_date,
-        expected_yield: formData().expected_yield,
-        market_price: formData().market_price
+        expected_harvest_date: showCropField('harvestDate') ? formData().expected_harvest_date || undefined : undefined,
+        expected_yield: showCropField('yield') ? formData().expected_yield || undefined : undefined,
+        market_price: showCropField('marketPrice') ? formData().market_price || undefined : undefined,
+        supporting_crops: showCropField('supportingCrops')
+          ? supportingCrops()
+              .filter((c) => c.crop_name.trim())
+              .map((c) => ({ crop_name: c.crop_name.trim(), variety: c.variety || undefined, area: c.area || undefined }))
+          : [],
       });
       setSuccess(true);
       setTimeout(() => navigate(`/analytics/farm/${formData().farm_id}`), 2000);
@@ -114,7 +130,8 @@ const PlantCropPage: Component = () => {
                 </div>
               </div>
 
-    
+
+              <Show when={showCropField('variety')}>
               <div class="space-y-2">
                 <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Variety (Optional)</label>
                 <input 
@@ -125,6 +142,7 @@ const PlantCropPage: Component = () => {
                   placeholder="e.g. Hybrid Alpha"
                 />
               </div>
+              </Show>
 
               <div class="space-y-2">
                 <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Season</label>
@@ -173,6 +191,7 @@ const PlantCropPage: Component = () => {
                 </div>
               </div>
 
+              <Show when={showCropField('harvestDate')}>
               <div class="space-y-2">
                 <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Expected Harvest</label>
                 <div class="relative">
@@ -181,42 +200,108 @@ const PlantCropPage: Component = () => {
                     value={formData().expected_harvest_date}
                     onInput={(e) => setFormData({ ...formData(), expected_harvest_date: e.currentTarget.value })}
                     class="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 py-4 font-bold text-gray-800 focus:border-green-500 focus:bg-white transition-all outline-none"
-                    required
                   />
                   <IoCalendar class="absolute right-5 top-1/2 -translate-y-1/2 text-gray-300" />
                 </div>
               </div>
+              </Show>
 
+              <Show when={showCropField('yield')}>
               <div class="space-y-2">
-                <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Expected Yield (Quintals)</label>
+                <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Expected Yield (Quintals, optional)</label>
                 <div class="relative">
                   <input 
                     type="number" 
                     step="0.1"
                     value={formData().expected_yield}
-                    onInput={(e) => setFormData({ ...formData(), expected_yield: parseFloat(e.currentTarget.value) })}
+                    onInput={(e) => setFormData({ ...formData(), expected_yield: parseFloat(e.currentTarget.value) || 0 })}
                     class="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 py-4 font-bold text-gray-800 focus:border-green-500 focus:bg-white transition-all outline-none"
-                    required
                   />
                   <div class="absolute right-5 top-1/2 -translate-y-1/2 font-bold text-gray-400 text-xs">Qtl</div>
                 </div>
               </div>
+              </Show>
 
+              <Show when={showCropField('marketPrice')}>
               <div class="space-y-2">
-                <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Market Price (₹/Quintal)</label>
+                <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Market Price (₹/Quintal, optional)</label>
                 <div class="relative">
                   <input 
                     type="number" 
                     step="1"
                     value={formData().market_price}
-                    onInput={(e) => setFormData({ ...formData(), market_price: parseFloat(e.currentTarget.value) })}
+                    onInput={(e) => setFormData({ ...formData(), market_price: parseFloat(e.currentTarget.value) || 0 })}
                     class="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 py-4 font-bold text-gray-800 focus:border-green-500 focus:bg-white transition-all outline-none"
-                    required
                   />
                   <div class="absolute right-5 top-1/2 -translate-y-1/2 font-bold text-gray-400 text-xs">₹/Qtl</div>
                 </div>
               </div>
+              </Show>
             </div>
+
+            <Show when={showCropField('supportingCrops')}>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">
+                    Supporting Crops (Optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addSupportingCrop}
+                    class="text-sm font-bold text-green-700 hover:text-green-800 px-3 py-1 rounded-xl hover:bg-green-50"
+                  >
+                    + Add supporting crop
+                  </button>
+                </div>
+                <Show when={supportingCrops().length === 0}>
+                  <p class="text-sm text-gray-400 ml-1">
+                    Growing an intercrop or companion crop with {formData().crop_name || 'this crop'}? For example Maize + Cowpea, Sugarcane + Onion.
+                  </p>
+                </Show>
+                <For each={supportingCrops()}>
+                  {(crop, i) => (
+                    <div class="grid grid-cols-1 sm:grid-cols-[2fr_2fr_1fr_auto] gap-2 items-center">
+                      <input
+                        type="text"
+                        placeholder="Crop name"
+                        value={crop.crop_name}
+                        onInput={(e) => updateSupportingCrop(i(), { crop_name: e.currentTarget.value })}
+                        class="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-4 py-3 font-bold text-gray-800 focus:border-green-500 focus:bg-white transition-all outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Variety (optional)"
+                        value={crop.variety || ''}
+                        onInput={(e) => updateSupportingCrop(i(), { variety: e.currentTarget.value })}
+                        class="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-4 py-3 font-bold text-gray-800 focus:border-green-500 focus:bg-white transition-all outline-none"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder={`${formData().area || ''} ac`}
+                        title="Area in acres (defaults to the main crop's area)"
+                        value={crop.area ?? ''}
+                        onInput={(e) => updateSupportingCrop(i(), { area: parseFloat(e.currentTarget.value) || undefined })}
+                        class="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-4 py-3 font-bold text-gray-800 focus:border-green-500 focus:bg-white transition-all outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSupportingCrop(i())}
+                        class="text-rose-500 hover:bg-rose-50 rounded-xl px-3 py-2 font-bold"
+                        aria-label="Remove supporting crop"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+
+            <A href="/settings" class="block text-center text-xs font-bold text-gray-400 hover:text-green-700 no-underline">
+              ⚙️ Choose which fields this form asks for
+            </A>
 
             <Show when={error()}>
               <div class="p-4 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 text-sm font-bold flex items-center gap-2">

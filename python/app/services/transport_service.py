@@ -86,7 +86,7 @@ def _json_list(value: Optional[str]) -> List[str]:
     try:
         data = json.loads(value)
         return data if isinstance(data, list) else [str(data)]
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return [s.strip() for s in str(value).split(",") if s.strip()]
 
 
@@ -95,7 +95,7 @@ def _track(existing: Optional[str], status: str, message: str) -> str:
     if existing:
         try:
             updates = json.loads(existing)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             updates = []
     updates.append({"status": status, "timestamp": datetime.now().isoformat(), "message": message})
     return json.dumps(updates)

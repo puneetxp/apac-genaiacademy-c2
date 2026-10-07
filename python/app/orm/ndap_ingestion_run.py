@@ -1,6 +1,8 @@
 """
 NdapIngestionRun ORM Model
+Auto-generated from JSON schema
 """
+
 from app.core.model import Model
 
 

@@ -313,6 +313,13 @@ export const IRRIGATION_TYPES = [
   "Mixed",
 ];
 
+/** API plot (name / area_acres) -> app plot (plot_name / area); keeps the API names too */
+const fromApiPlot = (p: any): FarmPlot => ({
+  ...p,
+  plot_name: p.plot_name ?? p.name,
+  area: p.area ?? p.area_acres,
+});
+
 export class FarmService {
   /**
    * Create a new farm
@@ -397,11 +404,12 @@ export class FarmService {
    */
   static async getFarmPlots(farmId: number): Promise<FarmPlot[]> {
     const url = buildUrl("farms", "plots", { id: farmId });
-    const response = await apiClient.get<{ plots: FarmPlot[]; total: number }>(url, {
+    const response = await apiClient.get<{ plots: any[]; total: number }>(url, {
       cache: true,
       cacheTTL: 60000,
     });
-    return response.data.plots;
+    // The API returns name / area_acres; the app reads plot_name / area
+    return (response.data.plots || []).map(fromApiPlot);
   }
 
   /**
@@ -409,14 +417,15 @@ export class FarmService {
    */
   static async createPlot(data: FarmPlotCreate): Promise<FarmPlot> {
     const url = buildUrl("farms", "plots", { id: data.farm_id });
-    const payload: any = { ...data };
+    // The API's PlotCreate uses name / area_acres
+    const { farm_id: _farmId, plot_name, area, current_crop: _crop, ...rest } = data as any;
+    const payload: any = { ...rest, name: plot_name, area_acres: Number(area) };
     if (payload.soil_type === "") delete payload.soil_type;
-    if (payload.current_crop === "") delete payload.current_crop;
     
-    const response = await apiClient.post<FarmPlot>(url, payload);
+    const response = await apiClient.post<any>(url, payload);
     // Clear farm plots cache after create
     apiClient.clearCacheByPattern(new RegExp(`/farms/${data.farm_id}/plots`));
-    return response.data;
+    return fromApiPlot(response.data);
   }
 
   /**

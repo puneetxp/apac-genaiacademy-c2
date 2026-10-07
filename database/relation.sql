@@ -19,6 +19,8 @@ ALTER TABLE buyer_interests ADD CONSTRAINT buyer_interest_listing_id_foreign FOR
 ALTER TABLE crops ADD CONSTRAINT crop_farm_plot_id_foreign FOREIGN KEY ("farm_plot_id") REFERENCES farm_plots ("id");
 ALTER TABLE crops ADD CONSTRAINT crop_strategy_id_foreign FOREIGN KEY ("strategy_id") REFERENCES annual_strategies ("id");
 
+ALTER TABLE crop_diagnoses ADD CONSTRAINT crop_diagnosis_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
+
 ALTER TABLE crop_expenses ADD CONSTRAINT crop_expense_crop_id_foreign FOREIGN KEY ("crop_id") REFERENCES crops ("id");
 
 ALTER TABLE crop_milestones ADD CONSTRAINT crop_milestone_crop_id_foreign FOREIGN KEY ("crop_id") REFERENCES crops ("id");
@@ -70,6 +72,8 @@ ALTER TABLE pest_disease_alerts ADD CONSTRAINT pest_disease_alert_farm_id_foreig
 
 ALTER TABLE quality_verifications ADD CONSTRAINT quality_verification_booking_id_foreign FOREIGN KEY ("booking_id") REFERENCES advance_bookings ("id");
 
+ALTER TABLE satellite_observations ADD CONSTRAINT satellite_observation_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");
+
 ALTER TABLE soil_amendments ADD CONSTRAINT soil_amendment_plot_id_foreign FOREIGN KEY ("plot_id") REFERENCES farm_plots ("id");
 ALTER TABLE soil_amendments ADD CONSTRAINT soil_amendment_follow_up_soil_test_id_foreign FOREIGN KEY ("follow_up_soil_test_id") REFERENCES soil_tests ("id");
 
@@ -91,5 +95,7 @@ ALTER TABLE transport_bookings ADD CONSTRAINT transport_booking_requester_id_for
 ALTER TABLE transport_providers ADD CONSTRAINT transport_provider_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
 
 ALTER TABLE user_notifications ADD CONSTRAINT user_notification_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
+
+ALTER TABLE voice_assist_logs ADD CONSTRAINT voice_assist_log_user_id_foreign FOREIGN KEY ("user_id") REFERENCES users ("id");
 
 ALTER TABLE weather_alerts ADD CONSTRAINT weather_alert_farm_id_foreign FOREIGN KEY ("farm_id") REFERENCES farms ("id");

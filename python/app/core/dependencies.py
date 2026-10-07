@@ -20,7 +20,8 @@ from app.services.address_service import AddressService
 from app.services.ai_quota_service import AIQuotaService
 from app.services.bedrock_service import BedrockService
 from app.services.farm_service import FarmService
-from app.services.livestock_service import LivestockService
+from app.services.livestock_service import LivestockService  # noqa: F401 (kept for importers)
+from app.services.livestock_repository import LivestockRepository
 from app.services.marketplace_service import MarketplaceService
 
 # Core Database Dependency
@@ -74,11 +75,13 @@ def get_marketplace_service(db: DB) -> MarketplaceService:
 MarketplaceSvc = Annotated[MarketplaceService, Depends(get_marketplace_service)]
 
 
-def get_livestock_service(db: DB) -> LivestockService:
-    return LivestockService(db)
+def get_livestock_service(current_user: CurrentUser) -> LivestockRepository:
+    # The generated LivestockService takes no db; the router's get_by_id/list/... API
+    # lives in LivestockRepository, scoped to the signed-in farmer
+    return LivestockRepository(current_user)
 
 
-LivestockSvc = Annotated[LivestockService, Depends(get_livestock_service)]
+LivestockSvc = Annotated[LivestockRepository, Depends(get_livestock_service)]
 
 
 def get_ai_quota_service(db: DB) -> AIQuotaService:

@@ -7,6 +7,7 @@ export interface Livestock {
    farmer_id: number,
    species: string,
    breed: string,
+   name: string | null,
    quantity: number,
    purchase_price: number,
    purchase_date: Date,

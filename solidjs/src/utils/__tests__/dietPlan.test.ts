@@ -12,7 +12,7 @@ describe('calculateDietPlan', () => {
     it('buffalo: 2 kg maintenance + 1 kg per 2 L milk, +1.5 kg when pregnant', () => {
         const plan = calculateDietPlan({ species: 'buffalo', weightKg: 450, milkLitresPerDay: 8, pregnantLastTrimester: true });
         expect(plan.concentrateKg).toBe(7.5);
-        expect(plan.tips.some((t) => t.includes('गर्भ'))).toBe(true);
+        expect(plan.tips).toContain('diet.tip.pregnancy');
     });
 
     it('goat: 250 g + 400 g per litre', () => {

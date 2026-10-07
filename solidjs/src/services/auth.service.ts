@@ -202,8 +202,14 @@ export class AuthService {
    */
   static async getUser(access_token: string): Promise<User> {
     const url = buildUrl('auth', 'me');
-    const response = await apiClient.get<User>(url);
-    return response.data;
+    const response = await apiClient.get<User & { name?: string; phone?: string }>(url);
+    const { name, phone, ...user } = response.data;
+    // /auth/user returns the DB columns name / phone; the app reads full_name / phone_number.
+    return {
+      ...user,
+      full_name: user.full_name || name || user.email || '',
+      phone_number: user.phone_number || phone,
+    };
   }
 
   /**

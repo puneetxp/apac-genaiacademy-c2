@@ -1,23 +1,24 @@
 /**
- * Diet Plan (दूध बढ़ाये / डाइट प्लान)
+ * Diet Plan (/livestock/diet-plan)
  * Farmer picks the animal, weight, daily milk and pregnancy; the page shows a
  * daily feed plan (green / dry fodder, concentrate, mineral mixture, salt,
  * water) from the NDDB / ICAR thumb rules in utils/dietPlan.
  */
 
 import { Component, For, createMemo, createSignal } from 'solid-js';
-import { useNavigate } from '@solidjs/router';
-import { FiArrowLeft, FiPhone, FiInfo } from 'solid-icons/fi';
+import { A } from '@solidjs/router';
 import { calculateDietPlan, type DietSpecies } from '../../utils/dietPlan';
+import LanguageSwitcher from '../../components/ui/LanguageSwitcher';
+import { t } from '../../stores/i18n.store';
+import type { TKey } from '../../i18n/en';
 
-const SPECIES: { id: DietSpecies; label: string; emoji: string; defaultWeight: number }[] = [
-    { id: 'cow', label: 'गाय', emoji: '🐄', defaultWeight: 350 },
-    { id: 'buffalo', label: 'भैंस', emoji: '🐃', defaultWeight: 450 },
-    { id: 'goat', label: 'बकरी', emoji: '🐐', defaultWeight: 35 },
+const SPECIES: { id: DietSpecies; emoji: string; defaultWeight: number; defaultMilk: number }[] = [
+    { id: 'cow', emoji: '🐄', defaultWeight: 350, defaultMilk: 8 },
+    { id: 'buffalo', emoji: '🐃', defaultWeight: 450, defaultMilk: 8 },
+    { id: 'goat', emoji: '🐐', defaultWeight: 35, defaultMilk: 1 },
 ];
 
 const DietPlan: Component = () => {
-    const navigate = useNavigate();
     const [species, setSpecies] = createSignal<DietSpecies>('cow');
     const [weight, setWeight] = createSignal(350);
     const [milk, setMilk] = createSignal(8);
@@ -33,132 +34,135 @@ const DietPlan: Component = () => {
     );
 
     const pickSpecies = (id: DietSpecies) => {
-        setSpecies(id);
         const s = SPECIES.find((x) => x.id === id)!;
+        setSpecies(id);
         setWeight(s.defaultWeight);
-        setMilk(id === 'goat' ? 1 : 8);
+        setMilk(s.defaultMilk);
     };
 
-    const maxWeight = () => (species() === 'goat' ? 90 : 800);
-    const maxMilk = () => (species() === 'goat' ? 5 : 30);
+    const isGoat = () => species() === 'goat';
 
     const rows = () => [
-        { emoji: '🌿', label: 'हरा चारा', sub: 'बरसीम, नेपियर, मक्का', value: `${plan().greenFodderKg} किलो` },
-        { emoji: '🌾', label: 'सूखा चारा', sub: 'भूसा, कड़बी', value: `${plan().dryFodderKg} किलो` },
-        { emoji: '🥣', label: 'दाना / पशु आहार', sub: 'खल, चोकर, दलिया', value: `${plan().concentrateKg} किलो` },
-        { emoji: '🧂', label: 'मिनरल मिक्सचर', sub: 'रोज़ दाने में मिलाएं', value: `${plan().mineralMixtureG} ग्राम` },
-        { emoji: '🧂', label: 'नमक', sub: 'साधारण नमक', value: `${plan().saltG} ग्राम` },
-        { emoji: '💧', label: 'पानी', sub: 'साफ़, ताज़ा', value: `${plan().waterLitres} लीटर` },
+        { emoji: '🌿', key: 'diet.green', value: `${plan().greenFodderKg} ${t('unit.kg')}` },
+        { emoji: '🌾', key: 'diet.dry', value: `${plan().dryFodderKg} ${t('unit.kg')}` },
+        { emoji: '🥣', key: 'diet.conc', value: `${plan().concentrateKg} ${t('unit.kg')}` },
+        { emoji: '🧪', key: 'diet.mineral', value: `${plan().mineralMixtureG} ${t('unit.g')}` },
+        { emoji: '🧂', key: 'diet.salt', value: `${plan().saltG} ${t('unit.g')}` },
+        { emoji: '💧', key: 'diet.water', value: `${plan().waterLitres} ${t('unit.l')}` },
     ];
 
     return (
-        <div class="min-h-screen bg-slate-100 pb-24">
-            <header class="sticky top-0 z-40 bg-teal-700 text-white px-4 py-4 shadow">
-                <div class="max-w-3xl mx-auto flex items-center gap-3">
-                    <button onClick={() => navigate(-1)} class="p-2 -ml-2 text-xl" aria-label="वापस">
-                        <FiArrowLeft />
-                    </button>
+        <div class="min-h-screen bg-gray-50">
+            <header class="bg-white shadow sticky top-0 z-10">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center gap-3">
                     <div>
-                        <h1 class="text-xl font-bold">डाइट प्लान</h1>
-                        <p class="text-sm text-teal-100">सही खुराक, ज़्यादा दूध</p>
+                        <h1 class="text-2xl font-bold text-gray-900">{t('diet.title')}</h1>
+                        <p class="text-sm text-gray-600 mt-1">{t('diet.subtitle')}</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                    <LanguageSwitcher class="hidden sm:inline-flex" />
+                    <A href="/livestock" class="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors">
+                        🐄 {t('nav.livestock')}
+                    </A>
                     </div>
                 </div>
             </header>
 
-            <main class="max-w-3xl mx-auto px-4 pt-4 space-y-4">
-                {/* Species */}
-                <section class="grid grid-cols-3 gap-3">
-                    <For each={SPECIES}>
-                        {(s) => (
-                            <button
-                                onClick={() => pickSpecies(s.id)}
-                                class={`rounded-2xl p-3 text-center border-2 transition-colors ${species() === s.id ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-slate-800 border-transparent'}`}
-                            >
-                                <span class="block text-4xl">{s.emoji}</span>
-                                <span class="block font-bold mt-1">{s.label}</span>
-                            </button>
-                        )}
-                    </For>
-                </section>
+            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Inputs */}
+                    <section class="bg-white rounded-lg shadow-md p-6 border border-green-100 space-y-6">
+                        <h2 class="text-xl font-bold text-gray-900 border-b pb-2">{t('diet.yourAnimal')}</h2>
+                        <div class="grid grid-cols-3 gap-3">
+                            <For each={SPECIES}>
+                                {(s) => (
+                                    <button
+                                        type="button"
+                                        onClick={() => pickSpecies(s.id)}
+                                        class={`rounded-lg p-3 text-center border-2 transition-colors ${species() === s.id ? 'bg-green-50 border-green-600 text-green-800' : 'bg-white border-gray-200 text-gray-700 hover:border-green-300'}`}
+                                    >
+                                        <span class="block text-3xl">{s.emoji}</span>
+                                        <span class="block font-semibold mt-1">{t(`species.${s.id}` as TKey)}</span>
+                                    </button>
+                                )}
+                            </For>
+                        </div>
+                        <label class="block">
+                            <span class="flex justify-between text-sm font-medium text-gray-700">
+                                {t('diet.weight')} <span class="text-green-700 font-semibold">{weight()} {t('unit.kg')}</span>
+                            </span>
+                            <input
+                                type="range"
+                                min={isGoat() ? 10 : 150}
+                                max={isGoat() ? 90 : 800}
+                                step={isGoat() ? 1 : 10}
+                                value={weight()}
+                                onInput={(e) => setWeight(Number(e.currentTarget.value))}
+                                class="w-full mt-2 accent-green-600"
+                            />
+                        </label>
+                        <label class="block">
+                            <span class="flex justify-between text-sm font-medium text-gray-700">
+                                {t('diet.milk')} <span class="text-green-700 font-semibold">{milk()} {t('unit.l')}</span>
+                            </span>
+                            <input
+                                type="range"
+                                min={0}
+                                max={isGoat() ? 5 : 30}
+                                step={isGoat() ? 0.25 : 0.5}
+                                value={milk()}
+                                onInput={(e) => setMilk(Number(e.currentTarget.value))}
+                                class="w-full mt-2 accent-green-600"
+                            />
+                        </label>
+                        <label class="flex items-center justify-between gap-3">
+                            <span class="text-sm font-medium text-gray-700">{t('diet.pregnant')}</span>
+                            <input
+                                type="checkbox"
+                                checked={pregnant()}
+                                onChange={(e) => setPregnant(e.currentTarget.checked)}
+                                class="w-5 h-5 accent-green-600"
+                            />
+                        </label>
+                    </section>
 
-                {/* Inputs */}
-                <section class="bg-white rounded-2xl p-4 space-y-5">
-                    <label class="block">
-                        <span class="flex justify-between font-semibold text-slate-800">
-                            पशु का वज़न <span class="text-teal-700">{weight()} किलो</span>
-                        </span>
-                        <input
-                            type="range"
-                            min={species() === 'goat' ? 10 : 150}
-                            max={maxWeight()}
-                            step={species() === 'goat' ? 1 : 10}
-                            value={weight()}
-                            onInput={(e) => setWeight(Number(e.currentTarget.value))}
-                            class="w-full mt-2 accent-teal-700"
-                        />
-                    </label>
-                    <label class="block">
-                        <span class="flex justify-between font-semibold text-slate-800">
-                            रोज़ का दूध <span class="text-teal-700">{milk()} लीटर</span>
-                        </span>
-                        <input
-                            type="range"
-                            min={0}
-                            max={maxMilk()}
-                            step={species() === 'goat' ? 0.25 : 0.5}
-                            value={milk()}
-                            onInput={(e) => setMilk(Number(e.currentTarget.value))}
-                            class="w-full mt-2 accent-teal-700"
-                        />
-                    </label>
-                    <label class="flex items-center justify-between gap-3">
-                        <span class="font-semibold text-slate-800">गर्भ के आख़िरी 3 महीने?</span>
-                        <input
-                            type="checkbox"
-                            checked={pregnant()}
-                            onChange={(e) => setPregnant(e.currentTarget.checked)}
-                            class="w-6 h-6 accent-teal-700"
-                        />
-                    </label>
-                </section>
+                    {/* Plan */}
+                    <section class="bg-white rounded-lg shadow-md p-6 border border-green-100">
+                        <h2 class="text-xl font-bold text-gray-900 border-b pb-2 mb-2">{t('diet.ration')}</h2>
+                        <ul class="divide-y divide-gray-100">
+                            <For each={rows()}>
+                                {(r) => (
+                                    <li class="flex items-center gap-3 py-3">
+                                        <span class="text-2xl w-8 text-center">{r.emoji}</span>
+                                        <span class="flex-1 min-w-0">
+                                            <span class="block font-semibold text-gray-900">{t(r.key as TKey)}</span>
+                                            <span class="block text-sm text-gray-500">{t(`${r.key}.sub` as TKey)}</span>
+                                        </span>
+                                        <span class="font-bold text-green-700 whitespace-nowrap">{r.value}</span>
+                                    </li>
+                                )}
+                            </For>
+                        </ul>
+                    </section>
+                </div>
 
-                {/* Plan */}
-                <section class="bg-white rounded-2xl overflow-hidden">
-                    <h2 class="bg-teal-50 text-teal-900 font-bold px-4 py-3">रोज़ की खुराक</h2>
-                    <div class="divide-y divide-slate-100">
-                        <For each={rows()}>
-                            {(r) => (
-                                <div class="flex items-center gap-3 px-4 py-3">
-                                    <span class="text-2xl w-8 text-center">{r.emoji}</span>
-                                    <span class="flex-1 min-w-0">
-                                        <span class="block font-semibold text-slate-800">{r.label}</span>
-                                        <span class="block text-xs text-slate-500">{r.sub}</span>
-                                    </span>
-                                    <span class="font-bold text-teal-800 whitespace-nowrap">{r.value}</span>
-                                </div>
-                            )}
-                        </For>
-                    </div>
-                </section>
-
-                <section class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                    <h2 class="font-bold text-amber-900 mb-2">ज़रूरी सलाह</h2>
-                    <ul class="space-y-1.5 text-sm text-amber-900 list-disc pl-5">
-                        <For each={plan().tips}>{(t) => <li>{t}</li>}</For>
+                <section class="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                    <h2 class="font-bold text-yellow-900 mb-2">{t('diet.tips')}</h2>
+                    <ul class="space-y-1.5 text-sm text-yellow-900 list-disc pl-5">
+                        <For each={plan().tips}>{(tip) => <li>{t(tip)}</li>}</For>
                     </ul>
                 </section>
 
-                <section class="bg-white rounded-2xl p-4 flex items-center gap-3">
-                        <FiInfo class="text-2xl text-teal-700 shrink-0" />
-                        <p class="flex-1 text-sm text-slate-600">
-                            यह एक सामान्य अनुमान है। पशु की सेहत के हिसाब से डॉक्टर से सलाह ज़रूर लें।
-                        </p>
-                        <button
-                            onClick={() => navigate('/livestock/doctors')}
-                            class="shrink-0 flex items-center gap-1 bg-teal-700 text-white text-sm font-semibold px-3 py-2 rounded-xl"
-                        >
-                            <FiPhone /> डॉक्टर
-                        </button>
+                <section class="mt-6 bg-white rounded-lg shadow p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <p class="flex-1 text-sm text-gray-600">
+                        ℹ️ {t('diet.disclaimer')}
+                    </p>
+                    <A
+                        href="/livestock/doctors"
+                        class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md text-center"
+                    >
+                        🩺 {t('diet.talkVet')}
+                    </A>
                 </section>
             </main>
         </div>

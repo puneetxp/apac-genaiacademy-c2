@@ -100,3 +100,10 @@ backups/
 .agents/
 .claude/skills/
 skills-lock.json
+
+# Claude Code per-user permissions
+.claude/settings.local.json
+
+# Tool output (Playwright MCP traces, local artifacts)
+.playwright-mcp/
+artifacts/

@@ -1,5 +1,7 @@
 import { Component, Show } from 'solid-js';
 import { useDeviceInfo } from '../../utils/useResponsive';
+import { t } from '../../stores/i18n.store';
+import type { TKey } from '../../i18n/en';
 
 interface NavItem {
   path: string;
@@ -16,12 +18,12 @@ const BottomNav: Component = () => {
   const deviceInfo = useDeviceInfo();
 
   const navItems: NavItem[] = [
-    { path: '/dashboard', icon: '🏠', label: 'Home' },
-    { path: '/strategy/request', icon: '🌾', label: 'Strategy' },
-    { path: '/livestock', icon: '🐄', label: 'Pashu' },
-    { path: '/marketplace', icon: '🛒', label: 'Market' },
-    { path: '/farm/register', icon: '🚜', label: 'Farm' },
-    { path: '/menu', icon: '☰', label: 'Menu' },
+    { path: '/dashboard', icon: '🏠', label: 'nav.home' },
+    { path: '/strategy/request', icon: '🌾', label: 'nav.strategy' },
+    { path: '/livestock', icon: '🐄', label: 'nav.livestock' },
+    { path: '/marketplace', icon: '🛒', label: 'nav.market' },
+    { path: '/farm/register', icon: '🚜', label: 'nav.farm' },
+    { path: '/menu', icon: '☰', label: 'nav.menu' },
   ];
 
   const isActive = (path: string) => {
@@ -49,10 +51,10 @@ const BottomNav: Component = () => {
                   ? 'text-primary-600'
                   : 'text-gray-500 active:text-primary-500'
               }`}
-              aria-label={item.label}
+              aria-label={t(item.label as TKey)}
             >
               <span class="text-2xl mb-1">{item.icon}</span>
-              <span class="text-xs font-medium">{item.label}</span>
+              <span class="text-xs font-medium">{t(item.label as TKey)}</span>
             </a>
           ))}
         </div>

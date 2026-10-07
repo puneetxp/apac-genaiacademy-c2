@@ -1,0 +1,122 @@
+{
+    "name": "crop_diagnosis",
+    "table": "crop_diagnoses",
+    "crud": {
+        "isuper": [
+            "r",
+            "a",
+            "d"
+        ],
+        "islogin": [
+            "r",
+            "a",
+            "d"
+        ]
+    },
+    "enable": 1,
+    "relations": {
+        "user": {
+            "name": "user_id",
+            "key": "id",
+            "table": "users"
+        }
+    },
+    "data": [
+        {
+            "name": "user_id",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "crop_id",
+            "datatype": "number",
+            "sql_attribute": "NULL COMMENT 'crop the farmer picked, if any'",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "farm_id",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "bigint"
+        },
+        {
+            "name": "crop_name",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "state",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'from the farm, for district/state outbreak views'",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "district",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "disease_name",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Healthy when nothing was found'",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "scientific_name",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(255)"
+        },
+        {
+            "name": "category",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'disease, pest, nutrient, abiotic, healthy, unclear'",
+            "mysql_data": "varchar(30)"
+        },
+        {
+            "name": "severity",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'none, mild, moderate, severe, critical'",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "urgency",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'low, medium, high, critical'",
+            "mysql_data": "varchar(20)"
+        },
+        {
+            "name": "confidence",
+            "datatype": "number",
+            "sql_attribute": "NULL",
+            "mysql_data": "DECIMAL(4,3)"
+        },
+        {
+            "name": "language",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(10)"
+        },
+        {
+            "name": "model_used",
+            "datatype": "string",
+            "sql_attribute": "NULL",
+            "mysql_data": "varchar(100)"
+        },
+        {
+            "name": "safety_flags",
+            "datatype": "number",
+            "sql_attribute": "NOT NULL DEFAULT 0 COMMENT 'chemical suggestions removed by the safety check'",
+            "mysql_data": "INT"
+        },
+        {
+            "name": "result",
+            "datatype": "json",
+            "sql_attribute": "NULL COMMENT 'full diagnosis as shown to the farmer'",
+            "mysql_data": "jsonb"
+        }
+    ]
+}

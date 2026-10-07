@@ -5,6 +5,12 @@
 
 import apiClient from '../lib/api-client';
 
+export interface SupportingCropInput {
+  crop_name: string;
+  variety?: string;
+  area?: number;
+}
+
 export interface QuickPlantRequest {
   farm_id: number;
   plot_id: number | null;
@@ -13,15 +19,17 @@ export interface QuickPlantRequest {
   season: string;
   area: number;
   planting_date: string;
-  expected_harvest_date: string;
+  expected_harvest_date?: string;
   expected_yield?: number;
   market_price?: number;
+  supporting_crops?: SupportingCropInput[];
 }
 
 export interface QuickPlantResponse {
   success: boolean;
   message: string;
   crop_ids: number[];
+  supporting_crop_ids?: number[];
   total_area_planted: number;
 }
 

@@ -56,6 +56,12 @@
             "mysql_data": "varchar(255)"
         },
         {
+            "name": "name",
+            "datatype": "string",
+            "sql_attribute": "NULL COMMENT 'Animal name the farmer uses, e.g. Lakshmi'",
+            "mysql_data": "varchar(100)"
+        },
+        {
             "name": "quantity",
             "datatype": "number",
             "sql_attribute": "NOT NULL DEFAULT 1",
